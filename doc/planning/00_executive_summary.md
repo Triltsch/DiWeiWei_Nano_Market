@@ -160,7 +160,7 @@ Fokus:              Fokus:              Fokus:
 
 ## Investitionsbudget & Ressourcenplanung
 
-### MVP-Phase (Schätzung 3 Monate)
+### MVP-Phase (Schätzung 8-12 Wochen, Open-Source Stack)
 
 | Kategorie | Effort | Kosten (€) | Owner |
 |-----------|--------|-----------|-------|
@@ -170,31 +170,64 @@ Fokus:              Fokus:              Fokus:
 | **Security/Compliance** | 20 PT | 20k | Security Consultant |
 | **QA & Testing** | 15 PT | 15k | QA Engineer (0.5 FTE) |
 | **Product Management** | 25 PT | 25k | Product Manager (1 FTE) |
-| **Infrastructure/Cloud** | - | 5k/M | AWS (3M: 15k) |
-| **Sonstige** | - | 15k | Tools, Lizenzierungen |
-| **GESAMT** | **150 PT** | **~180k** | |
+| **Infrastructure/Cloud** | - | 3-5k/M | VPS/Self-Hosted (3M: 10-15k) |
+| **Sonstige** | - | 5k | Tools, Lizenzierungen |
+| **GESAMT** | **150 PT** | **~165-175k** | |
 
-### Post-MVP (Laufende Betriebskosten monatlich)
-- Cloud/Infrastruktur: ~2-3k €
-- Operations/Support: ~5k € (1 FTE)
-- Enhancement & Maintenance: ~8k € (1 FTE)
-- **TOTAL:** ~15-18k € / Monat
+**Infrastructure Cost Breakdown (Open-Source Stack, Managed/Self-Hosted):**
+
+**Option A: Managed PostgreSQL + Docker VPS (Recommended for MVP)**
+- Managed PostgreSQL (DigitalOcean/Render): €50-80/month
+- Docker VPS (8 CPU, 16GB RAM, Hetzner/DO): €80-120/month  
+- MinIO object storage: €20-30/month (or local storage)
+- Monitoring & backups: €20/month
+- **Total: ~€170-250/month (~€2-3k/year)**
+
+**Option B: Self-Hosted Everything (Hetzner CX Server)**
+- Dedicated server: €150-200/month
+- Managed backups: €20/month
+- **Total: ~€170-220/month (~€2-2.6k/year)**
+
+**Option C: Kubernetes Managed (if scaling)**
+- Managed K8s cluster: €300-400/month
+- Persistent storage: €50/month
+- **Total: ~€350-450/month (~€4.2-5.4k/year)**
+
+**COST BENEFIT:** Open-Source Stack saves €10-25k/year vs. AWS (40-60% reduction)
+
+### Post-MVP (Laufende Betriebskosten monatlich - Open-Source)
+
+- Cloud/Infrastruktur: ~€200-300 (VPS + managed DB)
+- Operations/Support: ~€5k (1 FTE DevOps)
+- Enhancement & Maintenance: ~€8k (1 FTE Backend)
+- **TOTAL:** ~€13-14k / Monat
+
+**vs. Original AWS Estimate:** €18-25k/month (30-40% cost savings)
 
 ---
 
-## Entscheidungspriorisierung
+## Entscheidungspriorisierung (Open-Source Stack)
 
-### Must-Have für MVP:
+### Must-Have für MVP (Open-Source):
 1. ✅ DSGVO-Compliance (minimale Version)
-2. ✅ Password-Hashing & Authentifizierung
+2. ✅ Password-Hashing & Authentifizierung (bcrypt/Argon2)
 3. ✅ Chat-Verschlüsselung (TLS/SSL)
-4. ✅ AWS-Deployment & Auto-Scaling
+4. ✅ Self-Hosted Deployment (Docker + PostgreSQL)
 5. ✅ Inhalts-Moderations-Workflow
 
-### Nice-to-Have für MVP (falls Zeit):
-- 🔵 AI-Inhaltsfilter
-- 🔵 Mobile-Responsiv UI
-- 🔵 Analytics-Dashboard
+### OSS-Stack Components (MVP):
+- **Database:** PostgreSQL (self-hosted or managed)
+- **Cache:** Redis (self-hosted)
+- **Search:** Elasticsearch or Meilisearch (self-hosted)
+- **Storage:** MinIO (S3-compatible, self-hosted) or local NFS
+- **Reverse Proxy:** Nginx or Caddy (self-hosted)
+- **Monitoring:** Prometheus + Grafana (self-hosted)
+- **Logging:** Loki (self-hosted)
+
+### Nice-to-Have für MVP (if time/budget):
+- 🔵 Jaeger distributed tracing (Phase 1)
+- 🔵 AI-Inhaltsfilter (Phase 1)
+- 🔵 Kubernetes Setup (Docker Compose sufficient for MVP)
 
 ### Post-MVP Priorisierung (WSJF):
 - Value = User-Impact + Business Value
