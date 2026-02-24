@@ -1,0 +1,2123 @@
+=== PAGE 1 ===
+Ostfalia
+Hochschule für angewandte Wissenschaften
+Fakultät Maschinenbau
+Studienarbeit
+Entwicklung eines Prototyps für einen Nano-Marktplatz
+Im Rahmen des Projekts DiWeiWei
+Verfasserin: Jana Bode
+Matr.-Nr.: 70476607
+Prüfer: Prof. Dr.-Ing. Udo Triltsch
+Betreuer: Jean-Michel Meier, M. Eng.
+Datum: Januar 2025
+
+=== PAGE 2 ===
+Eigenständigkeitserklärung
+Hiermit erkläre ich an Eides statt, dass ich die vorliegende Arbeit selbstständig und ohne
+unerlaubte Hilfe angefertigt, andere als die angegebenen Quellen nicht benutzt und die den
+benutzten Quellen wörtlich oder inhaltlich entnommenen Stellen (explizit auch aus (KI-)
+Chatverläufen) als solche kenntlich gemacht habe.
+Diese Arbeit wurde noch nicht, auch nicht auszugsweise, für eine andere Studien- oder
+Prüfungsleistung verwendet. Ich bin damit einverstanden, dass diese Arbeit einer
+elektronischen Plagiatsprüfung unterzogen werden kann.
+Sickte, 27. Januar 2026
+___________________________
+(Unterschrift Jana Bode)
+I
+
+=== PAGE 3 ===
+Inhaltsverzeichnis
+Eigenständigkeitserklärung ................................................................................................................. I
+1 Einleitung ...................................................................................................................................4
+2 Stand der Technik .......................................................................................................................6
+2.1 Charakteristika digitaler Plattformen ....................................................................................7
+2.2 Online-Markplätze ...............................................................................................................9
+2.3 Weiterbildung im Internet .................................................................................................. 12
+2.4 Vorgehensmodell zum Aufbau und zur Steuerung digitaler Plattformen nach Steur ............ 13
+2.5 Einführung in Datenbanken ............................................................................................... 15
+2.6 Einführung Graphical User Interface .................................................................................. 16
+2.7 Einführung Webserver ....................................................................................................... 17
+3 IST-Analyse .............................................................................................................................. 19
+3.1 Analyse eines Nanos .......................................................................................................... 24
+4 Entwurf des Nano-Marktplatzes ................................................................................................ 27
+4.1 Allgemeine Konzeptionierung ........................................................................................... 27
+4.2 Handelskonzept ................................................................................................................. 28
+4.3 Designkonzept ................................................................................................................... 31
+5 MySQL-Datenbank ................................................................................................................... 37
+5.1 Strukturierung der Daten.................................................................................................... 37
+5.2 Aufsetzen der Datenbank und Integration in Python ........................................................... 39
+6 Aufbau der GUI ........................................................................................................................ 41
+6.1 Login ................................................................................................................................. 43
+6.2 Startseite ........................................................................................................................... 44
+6.2.1 Detailansicht .............................................................................................................. 47
+6.2.2 Herausgeberprofil und Page-Manager ........................................................................ 48
+6.2.3 Kommentarfunktion ................................................................................................... 49
+6.3 Nano-Upload ..................................................................................................................... 50
+6.4 Nanos verwalten ................................................................................................................ 51
+6.5 Profilseite .......................................................................................................................... 52
+6.6 Chat .................................................................................................................................. 53
+6.7 Privatchat .......................................................................................................................... 54
+7 Fazit .......................................................................................................................................... 55
+8 Ausblick.................................................................................................................................... 57
+9 Literaturverzeichnis................................................................................................................... 59
+Abbildungsverzeichnis ...................................................................................................................... 61
+Tabellenverzeichnis .......................................................................................................................... 63
+Abkürzungsverzeichnis ..................................................................................................................... 64
+II
+
+=== PAGE 4 ===
+Anhang A – Strukturierung der Datenbank ........................................................................................ 65
+Anhang B – Code ............................................................................................................................. 66
+Anhang B.1 – Startskript (main.py) ............................................................................................... 67
+Anhang B.2 - Startseite (home.py)................................................................................................ 67
+Anhang B.3 - Upload-Seite (upload.py) ........................................................................................ 69
+Anhang B.4 – Profilseite (profil.py) .............................................................................................. 72
+Anhang B.5 – Nano-Management (manage_nanos.py) .................................................................. 75
+Anhang B.6 – Chat (chat_main.py) ............................................................................................... 76
+Anhang B.7 – Nano-Ansicht (view_nano.py) ................................................................................ 77
+Anhang B.8 – Login-Seite (login.py) ............................................................................................. 80
+Anhang B.9 – Nano-Update (update_nano.py) .............................................................................. 82
+Anhang B.10 – Privatchat (private_chat.py) .................................................................................. 85
+Anhang B.11 – Kommentarseite (comment.py) ............................................................................. 87
+Anhang B.12 – Nutzerprofil (user_profil.py) ................................................................................. 88
+Anhang B.13 – Globale Variablen (global_variables.py) ............................................................... 89
+Anhang B.14 – Page-Manager (open_selected_page.py) ................................................................ 89
+Anhang B.15 – Datenbankkommunikation (db_connect.py) .......................................................... 90
+III
+
+=== PAGE 5 ===
+1 Einleitung
+Heutzutage spielt das Internet im alltäglichen Leben eine nicht mehr wegzudenkende Rolle.
+Dies zeigt sich unter anderem an dem Verhalten der Menschen zum Thema wirtschaftliches
+Handeln, welches ohne Vernetzung und elektronisch abgewickelte Transaktionen nicht mehr
+vorstellbar scheint (Wirtz 2024). Neben Kartenzahlungen in einem örtlichen Geschäft und
+Online-Bezahlfunktionen wie PayPal oder Klarna, ist auch Online-Shopping ein großer
+Bestandteil des heutigen Alltags geworden – unabhängig davon, ob es um einen reinen
+Vergleich von Produkten und Preisen oder um den tatsächlichen Kauf dieser geht. Ein paar der
+größten Online-Marktplätze sind beispielsweise Amazon Marketplace, ebay und kleinanzeigen,
+aber auch Otto, Temu oder Etsy. Auf diesen Seiten können Nutzer verschiedenste Produkte
+vergleichen und kaufen oder teilweise auch selbst Produkte einstellen und diese
+weiterverkaufen.
+Allerdings kann nicht nur der Kauf von Waren und Dienstleistungen online abgewickelt
+werden. Auch die Weiterbildung (eigenständig oder berufsbedingt) kann über Online-
+Plattformen durchgeführt werden. Bekannte Beispiele für solche Plattformen sind unter
+anderem LinkedIn Learning, Udemy und Coursera. Im Bereich der Schul- und
+Hochschulbildung sind Moodle, Studysmarter und Studyflix bekannte Anbieter von
+Weiterbildungsmöglichkeiten.
+Das Projekt Digitale Weiterbildung der Weiterbilder (kurz DiWeiWei) beschäftigt sich mit dem
+Thema Weiterbildung in der Region Süd-Ost Niedersachsen. Aus dem vorangegangenen
+Projekt Digitale Kompetenzen in der Weiterbildung ging hervor, dass das aktuelle Angebot der
+vorherrschenden Weiterbildungslandschaft den Bedarf an Weiterbildung von regionalen
+Unternehmen nur unzureichend abdeckt – gerade in Zeiten der digitalen Transformation.
+Anhand dieser Erkenntnisse wird die Notwendigkeit von Nano-Einheiten abgeleitet. Nano-
+Einheiten sind kleine, in sich geschlossenen Lerneinheiten, welche zeitlich und örtlich
+unabhängig digital durchgeführt werden können. Das Ziel des Projektes DiWeiWei ist es, einen
+digitalen Marktplatz zu schaffen, auf dem Nutzer einerseits Nano-Lerneinheiten austauschen
+und andererseits systematisch zusammenarbeiten können, um gemeinsam neue Lerneinheiten
+zu entwickeln und sich ein Netzwerk aufbauen zu können. (Triltsch und Robra-Bissantz) Dazu
+werden vier Unterpunkte benannt:
+1. Entwicklung von Handlungsempfehlungen zum Voranbringen der digitalen
+Transformation,
+2. Befähigung der Weiterbilder zur eigenständigen Gestaltung von (neuen) Nano-
+Lerneinheiten,
+3. Bereitstellung eines Nano-Marktplatzes als Austauschoption,
+4. Entwicklung von Geschäftsmodell-Optionen zur Sicherstellung der wirtschaftlichen
+Nachhaltigkeit.
+Im Rahmen der vorliegenden Arbeit wird primär bzw. ausschließlich Punkt 3 – Bereitstellung
+eines Nano-Marktplatzes als Austauschoption betrachtet. Dieser untergliedert sich wiederum in
+weitere Kernpunkte:
+- Durchführung einer detaillierten Analyse der Kommunikations- und
+Kooperationspotenziale zwischen den Stakeholdern der Weiterbildungslandschaft.
+4
+
+=== PAGE 6 ===
+- Erarbeitung von potenziellen Kooperationskonzepten der verschiedenen Stakeholder.
+- Entwicklung eines Geschäftsmodells unter Berücksichtigung der verschiedenen
+Stakeholder.
+- Abschließende konzeptionelle und prototypische Umsetzung des Nano-Marktplatzes.
+(Technische Universität Braunschweig, Ostfalia Hochschule für angewandte Wissenschaften
+2024)
+Aus den aufgeführten Punkten ergibt sich, dass die vorliegende Arbeit die konzeptionelle und
+besonders die prototypische Umsetzung des Nano-Marktplatzes thematisiert. Dazu wird als
+Erstes eine allgemeine Literaturrecherche zum Thema Online-Marktplatz und Online-
+Weiterbildung durchgeführt, sowie zentrale Themen für das allgemeine Verständnis der Arbeit
+erläutert. Anschließend wird eine umfangreiche IST-Analyse verschiedener Online-
+Marktplätze durchgeführt, bei der insbesondere die Handlungskonzepte und
+Nutzungsmöglichkeiten für die Anwender bzw. Nutzer im Vordergrund stehen. Hieraus
+resultieren zentrale Anforderungen (untergliedert in Fest, Wunsch und Ziel) an den zu
+entwickelnden Prototypen, die in Kapitel 4 - Entwurf des Nano-Marktplatzes konkretisiert
+werden. In den folgenden Kapiteln wird die genaue Entstehung des Prototyps beschrieben. Das
+Ziel dabei ist es, alle festgelegten Anforderungen sowie 50% der optionalen bzw.
+Wunschanforderungen innerhalb des Prototyps umzusetzen. Anschließend wird im Fazit der
+entwickelte Prototyp mit den gestellten Anforderungen abgeglichen, um die Umsetzung zu
+bewerten. Die Arbeit schließt mit einem Ausblick auf das weitere Vorgehen und weiterer
+möglicher Funktionen, die implementiert werden können, um die Qualität des Nano-
+Marktplatzes weiter zu verbessern.
+5
+
+=== PAGE 7 ===
+2 Stand der Technik
+In der Literatur existieren verschiedene Definitionen für Plattformen, insbesondere für digitale
+und Online-Plattformen. Für eine einheitliche Begriffsdefinition innerhalb dieser Arbeit werden
+die Begriffe Plattform, digitale Plattform und Online-Plattform im Nachfolgenden erläutert,
+um ein klares Verständnis dieser sicherzustellen.
+Plattformen werden im Allgemeinen als ein Geschäftsmodell definiert, welches Interaktionen
+und im besten Fall anschließende Transaktionen zwischen verschiedenen Akteuren ermöglicht
+oder vereinfacht. Sie dienen dem Zweck, verschiedenen Nutzergruppen zusammenzubringen,
+um so eine wertschöpfende Interaktion zwischen Anbieter und Nachfrager zu ermöglichen.
+Demnach agieren Plattformen als neutrale Intermediäre zwischen den Akteuren, welche weder
+die Interessen des Anbieters noch des Nachfragers bzw. Konsumenten verfolgen. Diese
+Definition entspricht ebenfalls der eines zwei- bzw. mehrseitigen Marktes. Solche Plattformen
+bzw. mehrseitige Märkte existieren bereits schon immer. (Harwardt und Haselhoff 2022a)
+Basierend auf der eben genannten Plattformdefinition werden digitale Plattformen als ein
+Geschäftsmodell definiert, welches „darauf beruht, effiziente und wertschöpfende
+Interaktionen zwischen externen Anbietern und Kunden zu ermöglichen.“ (Haselhoff und
+Harwardt 2022, S. 138) Hierfür wird den Nutzern eine offene Infrastruktur bereitgestellt, sowie
+die Regeln und Rahmenbedingungen für Interaktionen definiert. Der Zweck einer digitalen
+Plattform ist das Zusammenkommen von Nutzern zu ermöglichen und zu vereinfachen, den
+Austausch von Waren und Dienstleistungen zu fördern und dabei allen beteiligten Akteuren die
+Möglichkeit zur Wertschöpfung zu geben. Allgemein lässt sich sagen, dass digitale Plattformen
+als technologische Infrastruktur fungieren, die der Vernetzung verschiedener Akteure dient.
+(Harwardt und Haselhoff 2022a)
+Im Vergleich zu der allgemeinen Plattformdefinition ist bei den digitalen Plattformen die
+Informationstechnologie der wesentliche Unterschied. Diese vereinfacht und vergünstigt den
+Aufbau und die Skalierung von digitalen Plattformen deutlich, wodurch es zu einer
+Verbesserung der Datenerfassung, -analyse und -auswertung sowie einer Verstärkung der
+Netzwerkeffekte kommt. Netzwerkeffekte beschreiben die Auswirkungen der Nutzerzahl auf
+die Wertschöpfung für jeden einzelnen Nutzer und können direkt oder indirekt und positiv oder
+negativ ausfallen (s. Kapitel 2.1). (Harwardt und Haselhoff 2022a)
+Wie bereits angesprochen sind digitale Plattformen all solche Plattformen, die auf digitalen
+Technologien beruhen. Beispiele hierfür sind IoT-Plattformen, lokale softwarebasierte oder
+auch internetbasierte Plattformen. Online-Plattformen sind weiterführend spezielle digitale
+Plattformen, die ausschließlich über das Internet erreichbar sind. Dabei gibt es verschiedenste
+Arten von Online-Plattformen (Haselhoff und Harwardt 2022), wobei auch hier die Art der
+Unterteilung je nach Quelle variiert. Häufig wird unter anderem zwischen Suchmaschinen,
+Sozialen Medien, Online-Lernplattformen und E-Commerce-Plattformen unterschieden. Der
+Begriff E-Commerce beschreibt „den elektronischen Handel mit Waren und Dienstleistungen,
+deren Transaktion […] über das Internet mithilfe interaktiver Informations- und
+Kommunikationstechnologien durchgeführt wird.“ (Deges 2023, S. 2) E-Commerce-
+Plattformen dienen daher als Online-Marktplätze, auf denen Nutzer Produkte aus aller Welt
+jederzeit über das Internet kaufen und verkaufen können (s. Kapitel 2.2).
+6
+
+=== PAGE 8 ===
+Online-Lernplattformen stellen wiederum eine spezielle Form der Online-Plattformen dar
+und sind im Rahmen dieser Arbeit gleichzusetzen mit sogenannten web-basierten
+Lernplattformen, welche von Baumgartner et al. (2004, S. 97) wie folgt definiert sind: „Unter
+einer web-basierten Lernplattform ist eine serverseitig installierte Software zu verstehen, die
+beliebige Lerninhalte über das Internet zu vermitteln hilft und die Organisation der dabei
+notwendigen Lernprozesse unterstützt.“ Online-Lernplattformen werden in der Regel im
+Zusammenhang mit e-Learning, mobilem Lernen oder auch Mikrolernen betrachtet. Dabei steht
+das Mikrolernen für Lernaktivitäten unterschiedlichster Art von kurzer Dauer und mit kleinen
+Inhaltsbereichen (Hug 2018). Diese kurzweiligen Lerneinheiten mit einem in sich
+geschlossenen Inhalt werden auch als Nanos betitelt (Engel et al. 2022).
+2.1 Charakteristika digitaler Plattformen
+Digitale Plattformen charakterisieren sich anhand verschiedener Merkmale, darunter
+grundlegenden Plattformfunktionalitäten, Netzwerkeffekte und der Überlegenheit von digitalen
+Plattformen gegenüber dem klassischen Ansatz, Produkte über Groß- und Einzelhändler an den
+Endkunden zu verkaufen (Harwardt und Haselhoff 2022a).
+Wie bereits angesprochen beschreiben Netzwerkeffekte die Auswirkungen der Nutzeranzahl
+auf die Wertschöpfung des einzelnen Nutzers. Dabei wird zwischen direkten und indirekten
+sowie positiven und negativen Netzwerkeffekten unterschieden (s. Abbildung 2.1). Allgemein
+spricht man von direkten Netzwerkeffekten, wenn der Wert der Plattform mit der Anzahl an
+Nutzern - beispielsweise auf der Seite der Nachfrager - steigt. Dies gilt analog auch für die Seite
+der Anbieter. Positive direkte Netzwerkeffekte entstehen beispielsweise, wenn der Wert für den
+einzelnen Nutzer mit der Anzahl der Nutzer der eigenen Seite steigt. (Harwardt und Haselhoff
+2022a) Das bedeutet, die Plattform wird für den Anbieter A attraktiver, umso mehr Anbieter
+dort vertreten sind. Indirekte Netzwerkeffekte sind wiederum solche, die beispielsweise Nutzer
+auf der Angebotsseite auf Nutzer auf der Nachfragerseite bewirken. Diese entstehen, wenn auf
+der Plattform mindestens zwei Nutzergruppen miteinander interagieren und so eine Reaktion
+zwischen den Seiten (z.B. Anbieter – Nachfrager) entsteht. Demnach steigt die Attraktivität der
+Plattform, wenn die Anzahl der Nutzer auf der anderen Seite steigt. Die Schwierigkeit besteht
+folglich darin, alle vier Netzwerkeffekte gleichermaßen zu beobachten und zu verwalten, da in
+der Praxis immer mehrere Effekte gemeinsam auftreten. Damit die besagten Netzwerkeffekte
+eintreten und zu sich selbst verstärkenden Wachstumsdynamiken werden können, wird
+allerdings eine sogenannte kritische Masse an Nutzern benötigt, die die Plattform erst
+erfolgreich werden lässt. (Harwardt und Haselhoff 2022a) Da der Wert einer digitalen Plattform
+durch das Auftreten von Netzwerkeffekten entsteht, welche wiederum für den
+selbstverstärkenden Wachstumsprozess sorgen, werden ausreichend Nutzer einer Seite
+benötigt, damit Nutzer der anderen Seite beitreten (Steur 2022). Das bedeutet, dass genügend
+Nachfrager vorhanden sein müssen, damit Anbieter der Plattform beitreten, andersrum aber
+auch genügend Anbieter vorhanden sein müssen, damit Nachfrager der Plattform beitreten.
+Dieses Problem wird in der Literatur auch als „Henne-Ei-Problem“ beschrieben und ist
+charakteristisch für digitale Plattformen (Steur 2022). Um dieses Problem zu lösen und die
+kritische Masse zu erreichen kann es hilfreich sein, die Zutritts- und Markteinstiegsbarrieren
+möglichst gering zu halten, ohne die Qualität möglicher Interaktionen und Transaktionen zu
+gefährden (Harwardt und Haselhoff 2022a).
+7
+
+=== PAGE 9 ===
+Die besagten Netzwerkeffekte sorgen dafür, dass digitale Plattformen dem klassischen Ansatz
+aus verschiedenen Gründen überlegen sind. Einerseits können Netzwerkeffekte einen rasanten
+Zuwachs der Nutzerzahl bewirken (Wirtz 2024) und andererseits ist eine Skalierung der
+digitalen Plattform durch das Fehlen von physikalischen Grenzen deutlich einfacher und auch
+kostengünstiger (Harwardt und Haselhoff 2022a). Außerdem können die mithilfe der
+Informationstechnologie gesammelten Daten einer digitalen Plattform analysiert und
+ausgewertet werden, um daraus Maßnahmen zur Weiterentwicklung der Plattform abzuleiten.
+Für die Überlegenheit einer digitalen Plattform spricht ebenfalls eine Senkung der
+Transaktionskosten, die Möglichkeit komplexe Nutzerversprechen durch die Koordination von
+Partnern zu adressieren, sowie die Option für Anbieter sogenannte „temporäre monopolartige
+Effekte durch Nachfrager-Skaleneffekte“ (Harwardt und Haselhoff 2022a, S. 23) erzielen zu
+können. Durch technologische Innovationen auf der Konsumentenseite entstehen starke
+Netzwerkeffekte, welche zu temporären monopolähnlichen Stellungen auf der Anbieter-Seite
+führen können. (Harwardt und Haselhoff 2022a)
+Abbildung 2.1 – Netzwerkeffekte (nach Steur 2022, Abb. 2.2)
+Ein weiteres Merkmal stellen die grundlegenden Plattformfunktionalitäten dar. Dies sind die
+Kernfunktionen einer digitalen Plattform und bestehen nach Harwardt und Haselhoff (2022a,
+S. 26) aus den folgenden drei Punkten:
+1. Interaktionspartnern durch eine offene Infrastruktur einen einfachen Zugang bieten,
+2. Regeln und Rahmenbedingungen für die Interaktion festlegen,
+3. Realisierung des „Matchings“
+Beim Matching entstehen im ersten Schritt Interaktionen zwischen zwei Akteuren, um die
+zentralen Informationen zu einem Produkt bzw. einer Dienstleistung auszutauschen.
+Anschließend wird das Beworbene bereitgestellt und gegen eine Form der Bezahlung
+ausgetauscht. Die Bezahlung muss dabei allerdings nicht zwingend in Form von Geld erfolgen,
+sondern kann auch beispielsweise mit sozialer Währung stattfinden. Plattformnutzer tauschen
+8
+
+=== PAGE 10 ===
+bei der Interaktion folglich Informationen, Produkte/ Dienstleistungen und eine Form von
+Währung aus. Wie bereits beschrieben besteht die Aufgabe der Plattform primär darin, Nutzer
+zusammenzubringen und Interaktionen zu vereinfachen. Demnach sollten digitale Plattformen
+für den Austausch von Informationen ausgelegt sein. (Harwardt und Haselhoff 2022a)
+2.2 Online-Markplätze
+Online-Marktplätze (auch elektronische Marktplätze genannt) sind eine spezielle Form der
+digitalen Plattformen. Ähnlich wie digitale Plattformen dienen sie der Verbindung von
+Anbietern und Nachfragern an einem virtuellen Ort, um mit Hilfe digitaler Technologien
+wirtschaftliche Transaktionen zu ermöglichen. Dabei entsteht ein zwei- bzw. mehrseitiger
+Markt, der mindestens zwei Akteursgruppen zusammenbringt, um Interaktionen zwischen
+diesen zu initiieren. Im Normalfall agieren drei Gruppen von Akteuren auf einem
+(elektronischen) Marktplatz: Anbieter, Nachfrager und der Marktplatz-Betreiber (s. Abbildung
+2.2). (Harwardt und Haselhoff 2022b) Anbieter präsentieren ihre Waren auf dem Marktplatz
+und bieten diese beispielsweise zum Kauf an, während die Nachfrager (auch Konsumenten
+genannt) die angebotenen Waren vergleichen und beziehen können. Im Gegensatz zu den
+beiden anderen Akteursgruppen gehen die Marktplatz-Betreiber im Idealfall keinen Handel ein
+(true market maker), sondern dienen lediglich als neutrale Vermittler zwischen den Akteuren.
+Sie werden daher auch als Intermediäre bzw. im Internet als Cybermediäre betitelt, stellen die
+Infrastruktur für den Online-Marktplatz bereit und koordinieren das Zusammenwirken von
+Anbieter und Nachfrager. Der Marktplatz-Betreiber sorgt folglich dafür, dass Anbieter und
+Nachfrager die angebotenen Produkte zeit- und ortsunabhängig austauschen können. (Harwardt
+und Haselhoff 2022b)
+Abbildung 2.2 – Grundprinzip eines Online-Marktplatzes (nach Harwardt und Haselhoff 2022b,
+Abb. 6.3)
+Da der Marktplatz-Betreiber die digitale Plattform bereitstellt, trägt dieser die Kosten für den
+Aufbau, den Betrieb, die Weiterentwicklung sowie für die Wartung und Instandhaltung.
+Folglich ist der Betreiber dafür verantwortlich, dass diese Kosten gedeckt werden, auch wenn
+9
+
+=== PAGE 11 ===
+er selbst als true market maker keinen Handel eingeht. Er generiert für sich einen Gewinn durch
+die digitale Plattform, indem er den Anbietern und/ oder Konsumenten Nutzungsgebühren
+berechnet und den Anbietern von Waren eine zusätzliche Provision für erfolgreiche
+Transaktionen oder Pauschalgebühren für ein Angebot auferlegt. Eine weitere Einnahmequelle
+können Werbeanzeigen auf dem Online-Marktplatz sein. (Harwardt und Haselhoff 2022b)
+Elektronische Marktplätze charakterisieren sich wie allgemeine digitale Plattformen auch durch
+drei wesentliche Funktionen: Matching, Transaktionsunterstützung und Gewährleistung der
+institutionellen Infrastruktur. Das Matching beinhaltet das Zusammenführen von Anbieter und
+möglichem Käufer mit dem Ziel einer erfolgreichen Transaktion. Bei der
+Transaktionsunterstützung geht es um die Vereinfachung von Transkationen mit Hilfe des
+Marktplatzes. Die Gewährleistung der institutionellen Infrastruktur beinhaltet die Festlegung
+von Rahmenbedingungen und (Transaktions-)Regelungen eines Marktplatzes. Elektronische
+Marktplätze beinhalten zusätzlich den Aspekt der Multilieferantenkataloge. Dieser beinhaltet,
+dass die Produktkataloge der einzelnen Anbieter zu einem Gesamtkatalog zusammengefügt
+werden (müssen), damit die Nachfrager die unterschiedlichen Angebote vergleichen können.
+Dies ist ein weiterer zentraler Aspekt von Online-Marktplätzen, auf denen mehrere Anbieter
+agieren. (Harwardt und Haselhoff 2022b) Zusätzlich werden weitere Funktionalitäten
+implementiert, die die zentralen Funktionen unterstützen. Allerdings soll auf diese im Rahmen
+der vorliegenden Arbeit nicht weiter eingegangen werden.
+Wie bei den digitalen Plattformen, unterliegen auch elektronische bzw. Online-Marktplätze den
+Netzwerkeffekten (s. hierzu Kapitel 2.1). Neben der Erreichung der kritischen Masse lassen
+sich weitere Erfolgsfaktoren definieren, die die Reichweite und Stellung des Marktplatzes
+fördern. Dazu ist unter anderem wichtig, dass ein möglichst hoher Übereinstimmungsgrad
+zwischen Angebot und Nachfrage besteht, damit erfolgreiche Transaktionen zu Stande
+kommen. Zusätzlich sollten die realen Produkte und Dienstleitungen den digital hinterlegten
+Informationen entsprechen, da es ansonsten zu Reklamationen, Rückgaben oder negativen
+Bewertungen kommen kann. Weiterhin spielen die Transaktionskosten, die Wahrnehmung des
+Marktplatz-Betreibers, der Mobile Commerce sowie die Usability eine entscheidende Rolle für
+den Erfolg des Online-Marktplatzes. Je niedriger die Transaktionskosten sind, desto
+wahrscheinlicher ist der Erfolg des Marktplatzes, da sie für Anbieter interessanter werden. Wie
+der Betreiber des Marktplatzes wahrgenommen wird spielt insofern eine Rolle, als das dieser
+Vertrauen ausstrahlen sollte, damit sich die Nutzer sicher fühlen. Zusätzlich ist es für den Erfolg
+unerlässlich, die Nutzung des elektronischen Marktplatzes für alle Beteiligten möglichst
+einfach zu gestalten (Usability) und auch den Zugang und die Nutzung mit mobilen Endgeräten
+zu gewährleisten (Mobile Commerce). (Harwardt und Haselhoff 2022b)
+Da die Bedeutung von solchen Online-Marktplätzen immer weiter steigt, was sich anhand der
+hohen Wachstumsraten (Harwardt und Haselhoff 2022b) zeigt, müssen Teilnehmer solcher
+Marktplätze gewisse Vorteile aus ihnen ziehen. Diese sind in Tabelle 2.1 für Anbieter und
+Nachfrager gegenübergestellt.
+Der wesentliche Vorteil für die Seite der Konsumenten (Nachfrager) liegt in dem Vergleich der
+vielen Angebote von unterschiedlichen Anbietern (Harwardt und Haselhoff 2022b). Ist der
+Konsument auf der Suche nach einem bestimmten Produkt X, kann er auf dem Online-
+Marktplatz mehrere vergleichbare Produkte gegenüberstellen und bekommt alle relevanten
+Informationen zu diesen – unabhängig von den unterschiedlichen Anbietern. Weiterhin kann
+10
+
+=== PAGE 12 ===
+dies zeitlich und örtlich ohne Beschränkungen erfolgen (Harwardt und Haselhoff 2022b).
+Anders als bei den klassischen Läden (wie beispielsweise in Einkaufszentren) können
+Nachfrager Online-Marktplätze jederzeit und dank mobilen Endgeräten von überall nutzen.
+Weiterhin sind solche Marktplätze anonym, wodurch die Hemmschwelle zum Besuchen eines
+Ladens entfällt und folglich die „sozialen Grenzen schwinden“ (Harwardt und Haselhoff 2022b,
+S. 125). Da der Online-Marktplatz von einem Betreiber verwaltet und gesteuert wird, werden
+die Produkte einheitlich und für den Nutzer anschaulich dargestellt. Folglich sind persönliche
+Einstellungen zu interessanten Themen oder spezielle, personalisierte Konfigurationen oftmals
+mit einem hohen Maß an Individualität für den Nutzer verbunden. Zusätzlich bieten die
+Marktplatz-Betreiber vielfältige Online-(Selbst-)Hilfen oder Kontaktmöglichkeiten an.
+(Harwardt und Haselhoff 2022b)
+Tabelle 2.1 – Vorteile eines Online-Marktplatzes für Anbieter und Nachfrager (nach Harwardt und
+Haselhoff 2022b)
+Anbieter Nachfrager
+- Teilnahme an stark wachsendem und - Vergleich verschiedener Angebote
+reichweitenstarkem Vertriebskanal von unterschiedlichen Anbietern
+- Erschließung neuer Zielgruppen - Kostensenkung für
+- Erreichung von Randgruppen ohne Informationsbeschaffung
+zusätzlichen Vertriebsaufwand - Aufhebung von zeitlichen und
+- Direkte Erreichung großer geografischen Beschränkungen
+Konsumentengruppe - Aufhebung von sozialen Grenzen
+- Verzicht auf klassische Intermediäre - Anschauliche Darstellung der
+(ausgenommen Marktplatz selbst) Produkte auf allen Endgeräten
+- Einfachere und kostengünstigere - Hohes Maß an Individualität
+Einführung und Testung neuer - Vielfältige Online-Hilfen und
+Produkte Kontaktmöglichkeiten
+- Einsatz des Marktplatzes für die
+Marktforschung
+- Vereinfachte Internationalisierung
+- Einsparung und Reduzierung von
+Kosten
+- Marktplatz in der Regel immer auf
+dem technisch neusten Stand (dank
+Wartung und Instandhaltung durch
+Marktplatz-Betreiber)
+Für die Anbieter stellen Online-Marktplätze einen reichweitenstarken und weiter stark
+anwachsenden Vertriebskanal dar, welcher zur Erschließung neuer Zielgruppen und auch zur
+Erreichung von Randgruppen ohne zusätzlichen Aufwand genutzt werden kann. Dadurch kann
+der Anbieter eine große Gruppe an Nachfragern direkt erreichen, ohne einen zusätzlichen
+Intermediär, ausgenommen des Marktplatzes selbst, zu nutzen. Für den Anbieter bedeutet das
+folglich einen verkürzten Absatzmarkt mit einem parallel ansteigendem Gewinn (Harwardt und
+Haselhoff 2022b), da die Kosten für die Nutzung des Online-Marktplatzes vergleichsweise
+gering sind. Weiter kann der Anbieter den Marktplatz zur Marktforschung und die Bewertungen
+und Rezensionen von Kunden für die Weiterentwicklung nutzen. Neben diesen Aspekten ist
+die einfache Möglichkeit zur Internationalisierung ein weiterer zentraler Faktor. Da Online-
+11
+
+=== PAGE 13 ===
+Marktplätze oftmals in verschiedenen Sprachen und verschiedenen Ländern verfügbar sind,
+können die Produkte ebenfalls in weiteren Ländern angeboten werden. Zusätzlich lassen sich
+diverse Kosten einsparen bzw. reduzieren, wenn Anbieter vorhandene Online-Marktplätze
+nutzen: Einerseits reduzieren sich Kosten und Aufwand für das Aufsetzen und Betreiben eines
+eigenen Webshops, für reale Verkaufsflächen und Mitarbeiter, sowie die Gewinnbeteiligungen
+bzw. Kosten für die Nutzung von klassischen Intermediären (z.B. Groß- und Einzelhändler).
+Anderseits werden die Kosten für Marketing, Vertrieb und Auftragsbearbeitung gesenkt.
+(Harwardt und Haselhoff 2022b)
+Neben den vielen Vorteilen existieren auch einige Nachteile. Für den Anbieter ist es häufig
+aufwendiger und zeitintensiver, seine eigenen Systeme an den vorhandenen elektronischen
+Marktpatz anzubinden, was wiederum sehr kostenintensiv sein kann. Weitere Kosten entstehen
+für die Nutzung des Marktplatzes mit möglichen zusätzlichen Provisionen und Aufschlägen.
+Weiterhin entfällt der persönliche Kontakt zwischen den Parteien, da alle benötigten Schritte
+zur Kaufabwicklung online bzw. elektronisch stattfinden. Zusätzlich führt es zu einem
+transparenten Markt, wenn viele verschiedene Anbieter ihre Produkte über den (Online-)
+Marktplatz anbieten. Für die Konsumenten führt dies zu einem einfachen Vergleich vieler
+Produkte. Andersherum führt es für den Anbieter zu einem großen Innovations- und Preisdruck,
+um sich von den Konkurrenten abzuheben und die Konsumenten an sich zu binden. Zusätzlich
+kommen oftmals negative Bewertungen infolge kleinerer Mängel auf, welche je nach
+Funktionalität des Marktplatzes transparent für andere Nachfrager sichtbar sind. Dies führt
+wiederum zu einem „Abschrecken“ möglicher Käufer. Ein weiterer großer Nachteil für den
+Marktplatz-Betreiber ist das Multi-Homing, bei dem Anbieter und auch Nachfrager auf
+mehreren vergleichbaren Marktplätzen parallel aktiv sind. (Harwardt und Haselhoff 2022b)
+2.3 Weiterbildung im Internet
+Nachdem bisher lediglich Online-Marktplätze betrachtet wurden, bei denen es um den Erwerb
+von Waren oder Dienstleitungen und damit primär um Transaktionen und Erträge geht, sollen
+nun einige Webseiten im Bereich der Weiterbildung thematisiert werden. Dabei wird
+unterschieden zwischen Webseiten, die Kurse vertreiben (z. B. Udemy oder Coursera) und
+Webseiten, die als Lernmanagementsystem dienen (z. B. Moodle).
+Udemy, in diesem Fall speziell Udemy Business, ist eine integrierte Lernplattform, auf der über
+30.000 Kurse zu unterschiedlichen Themenbereichen (u.a. Data Science oder Personalwesen)
+angeboten werden. Udemy selbst bewirbt sich als integrierte Lernplattform, da sie Nutzern die
+Möglichkeit bietet, Weiterbildungen durch Kurse und das Erstellen von Lernpfaden selbst dem
+eigenen Bedarf entsprechend zusammenstellen zu können. Zusätzlich bietet die Plattform
+Online-Schulungsprogramme für Gruppen an und ein interaktives Praxistraining, bei dem
+Nutzer in einer geschützten Umgebung praxisorientiert lernen können. (Udemy Business (1))
+Aus dieser Beschreibung der Plattform resultiert, dass Udemy Busniess für den Vertrieb von
+Weiterbildungen an den Endkunden entwickelt wurde, nicht aber für die Erstellung von Kursen.
+Es basiert auf einem Abo-Modell, bei dem Unternehmen abhängig vom Abonnement einen
+festen Preis pro Monat und pro Nutzer zahlen (Udemy Business (2)).
+Im Gegensatz zu Plattformen wie Udemy Business, sind Lernmanagementsysteme wie Moodle
+darauf ausgelegt, Nutzern die Möglichkeit zu bieten, eigene Kurse technisch durchzuführen.
+Für Unternehmen biete Moodle eine eigene Anwendung, Moodle Workspace, an, bei dem sich
+12
+
+=== PAGE 14 ===
+der Kunde durch verschiedene Funktionalitäten und Add-ons ein auf die eigenen Bedürfnisse
+angepasstes Lernmanagementsystem zusammenstellen kann. Der Preis für die Nutzung von
+Moodle Workspace ist dabei abhängig von dem Funktionalitätsumfang und damit nicht
+pauschal definiert. (Moodle)
+Anhand dieses kurzen Vergleichs zwischen beispielhaften Plattformen im Bereich der
+Weiterbildung soll deutlich werden, dass ein Online-Marktplatz, wie er im Projekt DiWeiWei
+aufgebaut werden soll, nach aktuellem Stand noch nicht existiert. Auf den existierenden
+Plattformen haben Nutzer nicht die Möglichkeit zur (systematischen) Kooperation oder dem
+Austausch von Weiterbildungsinhalten, um gezielt die geforderten Weiterbildungen zu
+erstellen, anzubieten oder austauschen zu können oder sich untereinander zu vernetzen. Diese
+Aspekte sollen aufgegriffen werden und im Rahmen des Projektes realisiert werden.
+2.4 Vorgehensmodell zum Aufbau und zur Steuerung digitaler
+Plattformen nach Steur
+Durch die zuvor beschriebenen Charakteristika digitaler Plattformen, müssen bei dem Aufbau
+und der Steuerung dieser viele Herausforderungen bewältigt werden. Dazu identifiziert Steur
+(2022) ein Modell mit sechs Phasen (s. Abbildung 2.3), um die Herausforderungen erfolgreich
+adressieren zu können. Dabei können die einzelnen Phasen sowohl in Reihe oder auch parallel
+ausgeführt werden.
+Abbildung 2.3 – Vorgehensmodell zum Aufbau und zur Steuerung digitaler Plattformen (nach Steur
+2022, Abb. 2.3)
+Die erste Phase, das Ökosystemdesign, dient der Identifikation relevanter Nutzer auf beiden
+Marktseiten und der Integration dieser in die Plattform. Dabei werden die Nutzer in der Regel
+zwischen Anbieter, Nachfrager und Betreiber differenziert betrachtet. Zusätzlich werden das
+Leistungsangebot der Plattform und die Nutzeranbindung definiert. In dieser Phase gilt es
+ebenfalls die Komplexität einer Plattform abzudecken, wobei zwischen struktureller
+Komplexität und Verhaltenskomplexität unterschieden wird. Strukturelle Komplexität
+beschreibt die Schwierigkeit, die strukturellen Nutzerverbindungen und Funktionsweisen
+abzubilden, während sich die Verhaltenskomplexität auf die Schwierigkeit bezieht, das
+Nutzerverhalten vorherzusehen und zu steuern. Um diese Schwierigkeiten zu managen ist es
+wichtig, dass die Plattform modular aus einzelnen Teilsystemen und erweiterbar aufgebaut
+wird. Außerdem sollte analysiert werden, welche potenziellen Akteure über die aufzubauende
+13
+
+=== PAGE 15 ===
+Plattform interagieren, um Netzwerkeffekte zu initiieren. Mit Hilfe dieser Informationen kann
+die Komplexität neben der Plattformarchitektur ebenfalls über die Zusammenführung von
+Nutzern angesprochen werden. Neben diesen Aspekten wird ebenfalls das Matching von
+Nutzern diskutiert und festgelegt. Weiter sollte die Integration der Nutzer definiert werden.
+Dies kann beispielsweise über eine einfache Registrierung erfolgen. (Steur 2022)
+In der zweiten Phase, der Skalierung, werden Strategien abgeleitet, um Nutzer zu gewinnen und
+so die kritische Masse an Nutzern zu erreichen. In dieser Phase steht demnach die Lösung des
+Henne-Ei-Problems im Vordergrund. Zur Gewinnung von Nutzern wird zwischen ein- und
+mehrseitigen sowie hybriden Strategien unterschieden. Bei einseitigen Strategien wird zuerst
+nur eine Nutzergruppe (z.B. die Anbieter) adressiert. Erst nach Erreichen der kritischen Masse
+und einem daraus resultierenden großen Wert für die andere Seite, wird die Strategieform für
+diese erweitert. Ein Beispiel für eine einseitige Strategie ist die Anbieter-Fokus-Strategie, bei
+der sich der Marktplatz-Betreiber zunächst auf einen einzelnen Anbieter konzentriert. Dieser
+soll durch ein zusätzliches nutzenspezifisches Angebot gewonnen werden und anschließend
+seine bisherigen Kunden für Teilnahme an der Plattform überzeugen. Mehrseitige
+Strategieformen hingegen adressieren von Beginn an mindestens zwei Marktseiten (z.B.
+Anbieter und Nachfrager) und versuchen so, beide Seiten parallel aufzubauen. Ein Beispiel für
+eine mehrseitige Strategie ist die Erweiterungsstrategie. Hierbei wird die Plattform schrittweise
+ausgebreitet, indem im ersten Schritt ein Teil potenzieller Nutzer direkt angesprochen und
+überzeugt wird, über die Plattform zu interagieren. Die Plattform wächst bei dieser Strategie
+durch die Weiterempfehlung von Nutzern und einer schrittweisen Integration weiterer Anbieter.
+(Steur 2022)
+Die dritte Phase beschreibt das Pricing, mit der zentralen Herausforderung, ein für die Plattform
+geeignetes Preismodell zu entwickeln. „Das richtige Pricing ist dabei relevant, um die
+Nutzer:innen innerhalb der Skalierungsphase gewinnen zu können und eine kritische Masse an
+Nutzer:innen zu erreichen.“ (Steur 2022, S. 51) Das richtige Preismodell ist ebenfalls wichtig,
+um langfristig Gewinn zu generieren und als Plattform überleben zu können. (Steur 2022)
+Das oberste Ziel in der vierten Phase, der Verhaltenssteuerung, ist es, geeignete
+Steuerungsmechanismen zu entwickeln. Einerseits um das Vertrauen der Nutzer in die
+Plattform zu fördern und andererseits um die Transaktionsqualität zu sichern. Dafür werden in
+dieser Phase Verhaltensregeln und Rahmenbedingungen für die Nutzer festgelegt. Eine
+typische Form der Verhaltenssteuerung sind Feedbackmechanismen, bei denen Nutzer
+bisherige Transaktionen bewerten und auf Basis dieser zukünftige Transaktionsentscheidungen
+treffen. Feedbackmechanismen helfen, die Vertrauenswürdigkeit in eine Plattform zu fördern
+und setzen zusätzliche Anreize für Anbieter, ihre Leistungen zu steigern und korrekte
+Informationen zu ihren Produkten bereitzustellen. Damit der Feedbackmechanismus auf einer
+Plattform erfolgreich zum Tragen kommt, sollten Anreize gesetzt werden, nach einer
+Transaktion ein Feedback zu dieser zu geben. Diese können in unterschiedlichen Formen
+stattfinden, beispielsweise durch Erstattungen oder Rabatte auf den nächsten Einkauf. (Steur
+2022)
+Die vorletzte Phase – Performance Measures – beschreibt die Entwicklung und Festlegung
+geeigneter Kennzahlen (sog. Performance Measures) zur Steuerung der Plattform in den
+einzelnen Lebensphasen. Solche Kennzahlen sollten dabei „relevante ökonomische
+Sachverhalte in verdichteter, quantitativ messbarer Form“ (Steur 2022, S. 89) wiedergeben.
+14
+
+=== PAGE 16 ===
+Diese sollten neben der Qualitätssicherung und der Verhaltenssteuerung betrachtet werden, da
+sie eine zentrale Herausforderung zum Messen des Plattformerfolgs darstellen. (Steur 2022)
+In der letzten Phase des Modells, der Wettbewerbs-Phase, werden geeignete
+Wettbewerbsstrategien entwickelt, mit denen sich die entwickelte Plattform auf dem Markt
+positionieren soll. Hierbei sollte die Marktkonzentration beachtet werden, da im Kontext mit
+digitalen Plattformen häufig von einem Winner-takes-it-all-Effekt gesprochen wird. Bei diesem
+Effekt setzt sich langfristig nur eine Plattform bzw. setzten sich nur sehr wenige Plattformen
+am Markt durch. Für das Eintreten dieses Effektes ist das Single-Homing (Gegenteil von Multi-
+Homing) ein entscheidender Aspekt, wobei Nutzer an eine Plattform gebunden werden. Dies
+wird häufig durch hohe Wechselkosten begünstigt, bei denen der Nutzer für den Wechsel der
+Plattform einen Fixpreis oder andere mit dem Wechsel verbundenen Kosten oder Aufwände
+tragen muss. Folglich sollten digitale Plattformen hohe Wechselkosten anstreben und zusätzlich
+einen Lock-in Effekt fördern, bei dem die Nutzerbindung an die Plattform unter anderem durch
+starke positive Netzwerkeffekte sichergestellt wird. (Steur 2022)
+2.5 Einführung in Datenbanken
+Eine Datenbank (DB) ist eine Sammlung von logisch miteinander verbundenen Daten und dient
+der dauerhaften Speicherung und Verwaltung von Daten. Diese Datenbanken werden mittels
+einem Datenbankmanagementsystem (DBMS) vollständig abgeschottet und können über eine
+definierte Schnittstelle des DBMS nach außen abgefragt und verändert werden. (Schicker 2025)
+Wie in Abbildung 2.4 dargestellt, wird das Datenbankmanagementsystem mit seinen zu
+verwaltenden Datenbanken unter dem Begriff des Datenbanksystems (DBS) zusammengefasst
+(Adams 2022). Weiterhin zeigt die Abbildung, dass Anwendungen lediglich über die
+Schnittstelle des DBMS auf die Daten zugreifen können. Dafür ist es essentiell, dass die Daten
+strukturiert und im Falle von SQL in Tabellenform abgelegt werden, damit die Anfragen
+automatisiert bearbeitet werden können. SQL ist eine Zugriffssprache für relationale
+Datenbanken und steht für Structured Query Language. Es ist heute die wichtigste und
+gängigste Schnittstelle für Datenbanken. (Schicker 2025)
+Abbildung 2.4 – Schematischer Zugriff auf Datenbanken (nach Adams 2022, Abb. 1.1)
+15
+
+=== PAGE 17 ===
+Relationale Datenbanken sind eine Form von Datenbanken, wie sie heute am meisten
+verwendet werden. Weitere Datenbankmodelle sind objektorientierte, hierarchische oder
+netzwerkartige Datenbanken, welche im Rahmen dieser Arbeit allerdings nicht weiter
+betrachtet werden. Relationale Datenbanken bestehen aus Tabellen (auch Relationen genannt),
+welche über Beziehungen miteinander verknüpft werden. Dies bietet den Vorteil, dass der
+Aufbau der Datenbank leicht veränderbar ist und zusätzliche Abfragen leicht programmierbar
+und leicht zu verwalten sind. Nachteilig an diesem Modell ist, dass häufig viele Ein- und
+Ausgaben notwendig sind, um bestimmte Informationen zu bekommen. Weiterhin ist eine hohe
+Rechenleistung erforderlich. Ein weit verbreitetes relationales Datenbanksystem ist MySQL.
+(Schicker 2025)
+Datenbanken haben das Ziel, abgelegte Daten möglichst redundanzarm, das heißt möglichst
+ohne Dopplungen, abzulegen (Schicker 2025). Um dies zu erreichen ist es ratsam, vor dem
+Anlegen einer (relationalen) Datenbank einen strukturellen Entwurf dieser anzufertigen. Dazu
+kann das Entity-Relationship-Modell (ERM) verwendet werden, welches 1976 von Peter Chen
+vorgestellt wurde (Jung). Bei diesem Modell werden Entitäten, Beziehungstypen und Attribute
+identifiziert und miteinander in Verbindung gebracht. Entitäten sind Aspekte der realen Welt,
+Beziehungstypen charakterisieren den Zusammenhang zwischen Entitäten, und Attribute
+dienen der genaueren Beschreibung von Entitäten. Es gibt verschiedenen Beziehungstypen, wie
+beispielsweise die 1:1-, 1:n- oder m:n-Beziehung. (Gadatsch 2019) Diese sollen in der
+vorliegenden Arbeit allerdings nicht betrachtet werden, Näheres dazu ist in Gadatsch (2019),
+Kapitel 3.3.5ff zu finden. Mit Hilfe dieses Modells lassen sich relationale Datenbanken
+strukturiert aufbauen und anschließend über das Datenbankmanagementsystem abfragen und
+verändern.
+Neben der Vermeidung von Redundanzen werden weitere Anforderungen an Datenbanken
+gestellt. Darunter allgemein die Möglichkeit, Daten abzufragen und zu verändern. Hierbei ist
+allerdings zu beachten, dass nicht immer alle Nutzer Zugriff auf alle Daten haben sollten, was
+eine Zugriffsregelung bzw. einen Zugriffsschutz notwendig macht. Bestimmte Nutzer (-
+gruppen) bekommen dabei bestimmte Rechte, mit denen sie einen Ausschnitt der gespeicherten
+Daten einsehen können. Weiterhin ist die Integrität der Daten wichtig, was in der Praxis
+allerdings schwer zu erfüllen ist. (Schicker 2025)
+2.6 Einführung Graphical User Interface
+Grafische Benutzeroberflächen sind heute ein Standard bei der Entwicklung und Erstellung von
+Softwareprogrammen. Sie werden im Englischen Graphical User Interface (GUI) genannt und
+bilden die Schnittstelle zwischen einem Benutzer (User) und dem Softwarecode (Maul 1998).
+Die Programmierung grafischer Oberflächen erfolgt nicht wie bei anderen Anwendungen von
+oben nach unten, sondern ereignisbasiert. Das bedeutet, dass der Programmablauf von den
+Ereignissen abhängig ist, die der Nutzer auslöst. Der Programmcode läuft in einer
+Endlosschleife und wartet auf die Interaktion eines Nutzers mit der Oberfläche, aufgrund dieser
+dann ein bestimmter Abschnitt des Programms durchlaufen wird. Anschließend verfällt das
+Programm wieder in die Endlosschleife und wartet auf die nächste Nutzerinteraktion. (Schmid
+und Keller, Kap. 9) Ein wichtiger Bestandteil der Benutzeroberfläche ist folglich, dass die GUI
+nicht nur die Ereignisse entgegennimmt, sondern ebenfalls auf diese reagiert.
+16
+
+=== PAGE 18 ===
+Moderne GUIs werden nach Maul (1998) durch die Verwendung von Dialog- und
+Interaktionsformen und E/A-Geräten (Ein-/ Ausgabe-Geräten), sowie durch die Anwendung
+der Fenstertechnik charakterisiert. Aus der Fenstertechnik resultieren einige Vorteile für eine
+GUI, unter anderem eine bessere Bildschirmausnutzung durch frei einstell-, positionier- und
+überlappbare Fenster. Zusätzlich besteht die Möglichkeit eines direkten Zugriffs auf
+unterschiedliche Informationen und deren Verknüpfungen, sowie das Einblenden von
+Eingabehilfen. Die Anwendung der Fenstertechnik führt allgemein zu einer Reduzierung der
+Verfahrenskomplexität, da hierarchische Strukturen die intuitive Bedienbarkeit fördern.
+Weiterhin wird die objektorientierte Programmierung verwendet, um grafische Elemente als
+Objekte zu verstehen, welche Daten enthalten und Funktionen zur Verfügung stellen. (Maul
+1998) Ein Beispiel dafür ist, dass eine Schaltfläche auf einer Oberfläche grafisch dargestellt
+wird, einen Titel (z.B. „Bearbeiten“, „Löschen“ oder „Teilen“) besitzt und mit einer
+entsprechenden Funktion verknüpft ist, welche die Aktion ausführt. Ziel der Objektorientierung
+ist folglich die Beseitigung von Nachteilen durch die klassische Funktions- und
+Datenorientierung in Anwendungen, bei der diese streng voneinander getrennt behandelt
+werden (Maul 1998).
+Die Dialog- und Interaktionsführung einer GUI sollte die intuitive Arbeitsweise des Nutzers
+fördern, in dem Icons und Funktionen aus gewohnten Anwendungen wiederverwendet werden.
+Die Direkte Manipulation verfolgt dabei das Ziel, diese zu fördern und dementsprechend die
+Schwierigkeit der Nutzung zu reduzieren. Dabei wird das Objekt-Aktions-Prinzip verfolgt, bei
+dem zuerst ein Objekt ausgewählt und anschließend eine dem Objekt zugewiesene Aktion
+ausgeführt wird. Zusätzlich ist noch die Interaktivität ein entscheidender Punkt, bei der der
+Nutzer kleinschrittig durch die Anwendung navigiert und jeweils eine direkte Rückmeldung
+erhält. (Maul 1998) Ein Beispiel dafür ist, dass wenn der Nutzer auf ein Haus-Symbol klickt,
+er wieder direkt zu der Startseite der Anwendung gelangen kann. Dies ist eine häufig
+verwendete visuelle Darstellung, die mit einer direkten Rückmeldung an den Nutzer – das
+Öffnen der Startseite – verbunden ist.
+2.7 Einführung Webserver
+Allgemein ist ein Webserver ein Computer oder eine Software zur Speicherung und Verwaltung
+von Dateien zu Webseiten. Er steuert, wie Nutzer auf die gehosteten Dateien zugreifen. In der
+Regel wird dafür ein HTTP-Server verwendet, welcher das HTTP versteht (MDN). HTTP steht
+für Hypertext Transfer Protocol und dient als Basis für die Kommunikation zwischen einem
+Webserver und einem Browser (Kersken 2012). Die Kommunikation zwischen diesen Parteien
+sieht dabei prinzipiell immer identisch aus und entspricht dem Request/ Response-Verfahren
+(s. Abbildung 2.5). Im ersten Schritt ermittelt der Browser aus der URL den Hostnamen des
+Servers und stellt eine Verbindung zu diesem her. Standardmäßig wird dafür der Port 80
+verwendet. Wird ein anderer Port genutzt, ist dieser ebenfalls in der URL angegeben.
+Anschließend übermittelt der Browser die Anfrage (Request) an den Server. Diese besteht aus
+einem HTTP-Befehl, dem Pfad der abgefragten Datei, der Protokollversion, sowie weiteren
+optionalen Informationen. Der Server nimmt die Anfrage entgegen und wählt abhängig von
+dem Dateityp der angefragten Datei das weitere Vorgehen aus. Bei einem statischen Dokument
+wird dieses direkt an den Browser zurückgesendet. Ist die angefragte Datei beispielsweise ein
+serverseitiges Skript, wird dieses zunächst ausgeführt und die Rückgabe wie eine statische
+Datei an den Browser gesendet. (Kersken 2012)
+17
+
+=== PAGE 19 ===
+Ein Beispiel für einen häufig verwendeten und sehr bekannten Webserver ist Apache. Apache
+ist eine Open-Source-Anwendung für einen robusten und stabilen Webserver mit einer großen
+Anzahl an Funktionalitäten und Modulen (Hockmann und Knöll 2008), der auf fast allen
+Betriebssystemen installiert werden kann. Aufgrund des öffentlich zugänglichen Quellcodes
+kann dieser sehr individuell an die eigenen Anforderungen angepasst werden. Dies führt zu
+einem hohen Maß an Flexibilität. Weiterhin ist der Apache-Webserver modular aufgebaut,
+sodass zusätzliche Module bei Bedarf implementiert werden können. Im Vergleich zu anderen
+kommerziellen Webservern, bietet Apache eine bessere Performance, da Multiprocessing-
+Module (MPM) genutzt werden. Diese beinhalten unterschiedliche Mechanismen, wie
+beispielsweise das Preforking, um Anfragen schneller bearbeiten zu können. Beim Preforking
+werden voneinander unabhängige Serverprozesse erzeugt, bevor sie benötigt werden, sodass
+jederzeit freie Prozesse zur Bearbeitung von eingehenden Anfragen vorhanden sind. (Kersken
+2012)
+Abbildung 2.5 – Kommunikation zwischen Browser und Webserver
+18
+
+=== PAGE 20 ===
+3 IST-Analyse
+Für den zu entwickelnden Marktplatz sollen zunächst einige grundlegende Anforderungen
+definiert werden, um anschließend anhand dieser Kriterien einige bekannte Online-Marktplätze
+(Amazon, ebay und Etsy) miteinander zu vergleichen.
+Zentrale Anforderungen an das Design des Frontends des Nano-Marktplatzes sind ein
+schlichtes und ruhiges bzw. farblich stimmiges (modernes) Design, ein übersichtlicher Aufbau,
+sowie eine einfache und intuitive Bedienbarkeit. Durch diese Anforderungen soll die
+Nutzerfreundlichkeit gewährleistet werden, da der Nutzer alle relevanten Funktionen und
+Informationen durch möglichst wenig Klicks finden kann. An Funktionalitäten sollte der
+Prototyp zwingend eine Möglichkeit bieten, Nano-Einheiten veröffentlichen zu können.
+Folglich sollte es ebenfalls eine Funktionalität geben, mit der Nutzer Inhalte anderer Nutzer
+finden und ansehen können. Hierfür ist es wiederum notwendig, dass die hochgeladenen Nanos
+zentral gespeichert werden, beispielsweise in einer Datenbank oder einer Cloud. Im
+Zusammenhang mit den genannten Anforderungen bietet sich die Implementierung einer Such-
+bzw. Filterfunktion an, mit der Nutzer andere Nanos anhand von festgelegten Parametern finden
+können. Damit eine Such- bzw. Filterfunktion funktionieren kann, müssen Nanos ebenfalls
+bestimmte Anforderungen erfüllen. Dazu muss der Ersteller des Nanos zuvor definierte
+Angaben zu diesem machen, um so eine Vergleichbarkeit zwischen den unterschiedlichen
+Nanos herstellen zu können (s. Kapitel 3.1). Weiterhin ist es wünschenswert, eine Funktion zu
+implementieren, mit der Nutzer ein Feedback zu einem Nano (an den jeweiligen Ersteller)
+verfassen können (Vgl. Phase 4 des Vorgehensmodells nach Steur). So können
+Verbesserungsvorschläge und Kritik direkt an den Ersteller zurückgespiegelt und von diesem
+ggf. eingepflegt werden. Eine weitere zentrale Anforderung stellt eine Login-Funktion dar. Da
+Weiterbilder ihr Wissen in Form von Nano-Einheiten auf dem Marktplatz anbieten sollen, ist
+eine Begrenzung des Zugriffs auf diese notwendig, um den Marktplatz attraktiver zu machen.
+Durch einen notwendigen Login können nur registrierte Nutzer auf Plattforminhalte zugreifen,
+wodurch das Wissen nicht für jeden öffentlich zugänglich wird. Abschließend sollte der finale
+Nano-Marktplatz online über das Internet verfügbar sein. Dies ist allerdings keine konkrete
+Anforderung an den Prototypen, wird aber als Ziel-Anforderung mit aufgeführt. Eine Übersicht
+über die gestellten Anforderungen ist noch einmal in Tabelle 3.1 zu finden.
+Anhand dieser Anforderungen sollen im nächsten Schritt drei große und auf dem Markt
+etablierte Online-Marktplätze miteinander verglichen werden, um so eine funktionierende Best
+Practice für den zu entwickelnden Prototypen herauszuarbeiten. Ergänzend sollen ebenfalls die
+Handlungskonzepte der einzelnen Plattformen kurz umschrieben werden, um auch hier eine
+optimale Lösung zu finden. Die ausgewählten Marktplätze sind der Amazon Marketplace, ebay
+und Etsy. Oberflächlich betrachtet unterscheiden diese sich nur geringfügig in Bezug auf die
+grundlegende Funktionalität: Auf allen drei Marktplätzen können Nutzer Waren beziehen.
+Dennoch gibt es bei genauerer Betrachtung einige Unterschiede, welche im Folgenden näher
+analysiert werden sollen.
+19
+
+=== PAGE 21 ===
+Tabelle 3.1 – Anforderungen an den Prototypen des Nano-Marktplatzes
+Anforderung Fest Wunsch Ziel
+Schlichtes und ruhiges Design X
+Übersichtlicher Aufbau X
+Einfache und intuitive Bedienbarkeit X
+Nano-Einheiten veröffentlichen X
+Speicherung der Nano-Einheiten X
+Such- bzw. Filterfunktion X
+Angabe definierter Nano-Merkmale X
+Feedback-Funktion X
+Login-Funktion X
+Nano-Marktplatz online verfügbar X
+Die erste zu betrachtenden Online-Plattform ist der Amazon Marketplace. Dies ist ein sehr
+bekannter und beliebter Online-Marktplatz für verschiedenste Waren, darunter beispielsweise
+Bücher, eBooks, Haushaltsgegenstände und -geräte oder auch Kleidung und Hygieneartikel.
+Ein zentrales Merkmal ist, dass hier sowohl Produkte von Amazon selbst als auch von anderen
+gewerblichen Anbietern verfügbar sind. Zusätzlich können Nutzer über weitere Sparten der
+Amazon-Marke auch Filme und Serien (Amazon Prime Video) oder Musik (Amazon Music)
+streamen, sowie Cloud-Dienstleistungen buchen (aws – Amazon Web Services). Diese Sparten
+sollen in der vorliegenden Arbeit allerdings nicht näher betrachtet werden.
+Abbildung 3.1 – Amazon-Startseite (https://www.amazon.de/ref=ap_frn_logo, 18.09.2025)
+20
+
+=== PAGE 22 ===
+In Bezug auf die in Tabelle 3.1 gestellten Anforderungen, verfügt Amazon über eine Login-
+Funktion, welche die zentralen Funktionalitäten (wie zum Beispiel das Bestellen von Waren)
+schützt. Nutzer können sich die angebotenen Produkte ansehen, benötigen zum Bestellen dieser
+allerdings zwingend ein Amazon-Kundenkonto. Wird die Startseite des Amazon Marketplace
+aufgerufen (s. Abbildung 3.1), stehen dem Nutzer direkt eine Such- und Filterfunktion (Leiste
+zentral am oberen Rand), sowie eine Auswahl an vorgeschlagenen Produkten zur Verfügung.
+Anhand dieser Seite wird der übersichtliche und strukturierte Aufbau der Webseite deutlich, da
+alle für den Nutzer relevanten Funktionen, unter anderem zu den Bereichen Kontoverwaltung
+und Bestellungen, zu jedem Zeitpunkt bzw. aus jeder Ansicht heraus durch die eingebaute
+Headerbar (dunkler abgesetzt am oberen Rand) erreichbar sind. Weiterhin verfügt der
+Marktplatz über eine einfache und intuitive Bedienbarkeit, da für die meisten Funktionen nur
+wenige Klicks notwendig sind.
+Eine weitere zentrale Anforderung ist die Verfügbarkeit definierter Informationen zu einem
+Produkt (bzw. die Angabe fest definierter Merkmale zu einem Nano), sowie eine optionale
+Feedback-Funktion. Zur Beurteilung dieser Aspekte soll die Produktansicht (s. Abbildung 3.2)
+näher betrachtet werden. Auf dieser sind zentrale Informationen zu dem ausgewählten Produkt
+einsehbar. Weiter unten auf der Seite befinden sich Rezensionen als Sternebewertung und mit
+Kommentaren von anderen Nutzern, die dieses Produkt ebenfalls gekauft haben. Daraus folgt,
+dass sowohl detaillierte Informationen zu einem Produkt angegeben werden müssen, sowie eine
+Feedback-Funktion vorhanden ist.
+Abbildung 3.2 - Amazon Produktseite
+(https://www.amazon.de/s?k=Hundebett&i=pets&__mk_de_DE=%C3%85M%C3%85%C5%BD%C3
+%95%C3%91&crid=1Y2Y37EG8LWB&sprefix=hundebet%2Cpets%2C695&ref=nb_sb_noss_2,
+25.09.2025
+Das Handlungskonzept des Amazon Marketplace soll nun anhand eines Beispiels
+veranschaulicht werden. Angenommen, ein Nutzer ist auf der Suche nach einem neuen
+Hundekörbchen. Der erste Schritt ist dabei bereits, dass er sich für die Suche auf dem Amazon
+Marketplace entscheidet, diesen anschließend im Internet aufruft und über die Suchfunktion die
+Produkte nach „Hundkörbchen“ filtert. Daraufhin werden ihm verschiedenste Ergebnisse für
+seine Suchanfrage angezeigt. Durch das Anklicken eines Angebots bekommt der Nutzer
+detailliertere Informationen zu einem bestimmten Produkt. Nachdem er sich für ein
+21
+
+=== PAGE 23 ===
+Hundekörbchen entschieden hat, kann er dieses über den Button „In den Warenkorb“ in seinen
+Einkaufswagen legen oder über den Button „Jetzt kaufen“ direkt zur Kasse gehen. In diesem
+Beispiel wird der Nutzer das Produkt direkt über die „Jetzt kaufen“-Funktion bestellen. Im
+nächsten Schritt wählt er seine bevorzugte Zahlungsmethode und die Lieferadresse aus (beides
+ist bereits in seinem Kundenkonto hinterlegt) und kann anschließend die Bestellung
+abschließen. Dieses Beispiel zeigt, dass das Bestellen von Waren auf dem Amazon Marketplace
+sehr einfach und intuitiv erfolgt und nur sehr wenige Angaben beinhaltet, da im Regelfall die
+meisten Informationen bereits im Kundenkonto hinterlegt sind.
+Als nächstes soll ebay näher betrachtet werden. Ebay ist ein weiterer populärer Online-
+Marktplatz, der zugleich von gewerblichen als auch von privaten Verkäufern genutzt wird. Im
+Unterscheid zu Amazon können Käufer hier Waren direkt erwerben oder auch in einem
+Auktionsverfahren ersteigern. Ein weiterer zentraler Unterschied ist, dass ebay lediglich die
+Infrastruktur zur Verfügung stellt und nicht selbst als Händler auftritt. Weiterhin ist ebay für
+die Zahlungsabwicklung sowie den Kundenservice verantwortlich.
+In Bezug auf die in Tabelle 3.1 genannten Anforderungen, verfügt auch ebay über eine Login-
+Funktion. Hier wird für die Bestellung von Waren allerdings kein Kundenkonto verlangt,
+sondern Nutzer können als Gast Waren bestellen. Hierdurch entfallen allerdings einige
+Funktionalitäten der Seite, wie beispielweise die Möglichkeit den Verkäufer zu kontaktieren
+oder selbst Artikel zu verkaufen.
+Die Startseite von ebay (s. Abbildung 3.3) ist vergleichbar aufgebaut wie die Startseite des
+Amazon Marketplace. Auch hier befindet sich eine Suchleiste mit Filterfunktion im oberen
+Bereich der Seite, sowie verschiedenen Produktvorschläge in der Mitte bzw. dem unteren
+Bereich der Seite. Durch den strukturierten und übersichtlichen Aufbau des Markplatzes wird
+zusätzlich die einfache und intuitive Bedienbarkeit für den Nutzer gewährleistet.
+Abbildung 3.3 – Startseite ebay (https://www.ebay.de/, 30.12.25 )
+Um auch bei diesem Marktplatz die Angabe von Merkmalen sowie die Möglichkeit für
+Feedback betrachten zu können, wird die Detailseite eines Produktes geöffnet. Hier sind
+ebenfalls weitere Merkmale zum Produkt angegeben, sowie weitere Informationen zum
+Händler (unabhängig, ob dieser privat oder gewerblich ist). Ebenfalls auf der Produktseite
+22
+
+=== PAGE 24 ===
+befinden sich Rezensionen zu dem ausgewählten Produkt – auch hier in Form von einer
+Sternebewertung und als Kommentare. Folglich sind auch diese beiden Anforderungen aus der
+Tabelle 3.1 erfüllt.
+Das Handlungskonzept von ebay ist vergleichbar mit dem des Amazon Marketplace, wenn es
+um die Suche eines bestimmten Produktes geht, wodurch es an dieser Stelle nicht noch einmal
+wiederholt wird. Ein Unterschied ist allerdings, dass bei der Suche sowohl gewerblich, als auch
+privat angebotene Produkte angezeigt werden. Hierbei kann über die Filterfunktion allerdings
+unterschieden werden, welche Produkte angezeigt werden (z. B. nur gebrauchte/ neue
+Produkte). Wie bereits am Anfang erwähnt, können über ebay ebenfalls private Anbieter ihre
+(gebrauchten) Dinge verkaufen. Der Nutzer kann (nach Anlegen eines Kundenkontos) seine
+Artikel einstellen und muss dabei ebenfalls eine Vielzahl an Informationen zu dem Produkt
+(beispielsweise Art, Name, Preis, Versand und Produktfotos) angeben. Anschließend kann der
+Nutzer das Angebot veröffentlichen, wodurch es für andere sichtbar bzw. auffindbar wird.
+Interessierte Nutzer können zusätzlich nach der Registrierung bzw. einem Login den Verkäufer
+(privat oder gewerblich) über ein Chatfunktion kontaktieren und so in direkten Kontakt zu
+diesem treten.
+Als letztes Beispiel soll Etsy näher betrachtet werden. Etsy ist ein Online-Marktplatz für
+handgearbeitete Artikel (beispielsweise selbstgenähte Shirts oder Taschen, Letterings oder
+Schmuck und Material). Nutzer können Artikel anbieten und verkaufen oder selbst etwas
+erwerben.
+Die Startseite (s. Abbildung 3.4) ist sehr schlicht und modern gestaltet und beinhaltete ebenfalls
+eine Suchleiste mit Filterungsfunktion. Hier ist allerdings anzumerken, dass die Filterfunktion
+des Online-Marktplatzes die Produkte nicht korrekt filtert und unpassende Produkte nicht
+zuverlässig aus den Suchergebnissen entfernt. Beispielsweise wird die Suche nach einer Tasche
+durch einen Preisfilter bis maximal 25€ ergänzt. Die angezeigten Ergebnisse enthalten zum Teil
+allerdings auch Preise, die über dem angegebenen Limit liegen.
+Abbildung 3.4 – Startseite Etsy (https://www.etsy.com/de/?ref=lgo, 30.12.25)
+Durch den strukturierten und übersichtlichen Aufbau wird auch hier eine nutzerfreundliche
+Bedienbarkeit gewährleistet. Weiterhin besitzt der Marktplatz ebenfalls eine Login-Funktion.
+23
+
+=== PAGE 25 ===
+Diese wird allerdings nicht zwingend für den Kauf von Artikeln benötigt, sondern für den
+Kontakt zu Verkäufern, das Verfassen von Rezensionen oder für das Einstellen von Angeboten.
+Ein Nachteil von Etsy ist, dass die Beschreibung von Artikeln bzw. Angeboten nicht an feste
+bzw. konkrete Angaben gebunden ist, wie das bei ebay oder Amazon Marketplace der Fall ist.
+Bei Etsy kann der Ersteller des Angebots die Artikelbeschreibung frei verfassen und benötigt
+keine weiteren Angaben (i. Vgl. zu Amazon oder ebay).
+Das Handlungskonzept ist hier als Nutzer, der einen Artikel käuflich erwerben möchte,
+vergleichbar mit dem Handlungskonzept von Amazon. Daher wird es an dieser Stelle nicht
+noch einmal darauf eingegangen.
+Die gestellten Anforderungen werden in Bezug auf die eben vorgestellten Online-Marktplätze
+noch einmal in Tabelle 3.2 zusammengefasst. Aus dieser Übersicht wird deutlich, dass die
+strukturellen bzw. konzeptionellen Merkmale und Funktionalitäten bei allen drei betrachteten
+Marktplätzen in den meisten Punkten identisch sind. Folglich können alle drei Plattformen als
+Best Practice Beispiel genutzt werden, allerdings ist ebay zu bevorzugen, da hier alle
+Anforderungen erfüllt sind.
+Tabelle 3.2 – Zusammenfassung Abgleich der Anforderungen
+Anforderung Amazon ebay Etsy
+Markeplace
+Schlichtes und ruhiges Design O ✓ ✓
+Übersichtlicher Aufbau ✓ ✓ ✓
+Einfache und intuitive Bedienbarkeit ✓ ✓ ✓
+Eigenes Angebot veröffentlichen X ✓ ✓
+Such- bzw. Filterfunktion ✓ ✓ ✓
+Angabe definierter Artikel-Merkmale ✓ ✓ X
+Feedback-Funktion ✓ ✓ ✓
+Login-Funktion ✓ ✓ ✓
+3.1 Analyse eines Nanos
+Wie bereits in den vorherigen Kapiteln erwähnt, sollen auf dem Marktplatz Nano-Einheiten
+angeboten und ausgetauscht werden können. In diesem Zusammenhang soll nun das einzelne
+Nano noch einmal näher betrachtet und definiert werden, um zentrale Merkmale abzuleiten,
+welche durch den Herausgeber bei dem Upload angegeben werden müssen.
+Nanos sind kurze, inhaltlich in sich geschlossenen Lerneinheiten, die thematisch klar
+abgegrenzt und trotzdem miteinander verbunden sind (beispielsweise in dem sie aufeinander
+24
+
+=== PAGE 26 ===
+aufbauen). Die Bearbeitung eines Nanos erfolgt primär digital, wodurch diese zeitlich und
+örtlich flexibel durchgeführt werden kann. Nanos sind individuell kombinierbar und bilden
+zusammen sogenannte Module, was ein „adaptives, selbstbestimmtes Lernen“ (Engel et al.
+2022, S. 14) ermöglichen soll. Diese Module können wiederum miteinander kombiniert werden
+und bilden dann sogenannte Schulungen, welche ein bestimmtes Themenfeld (ganzheitlich)
+behandeln.
+Innerhalb eines Moduls beleuchtet jedes Nano ein bestimmtes (Teil-)Thema und ist daher in
+drei Kompetenzstufen untergliedert: Die erste Kompetenzstufe dient dazu, das Interesse an
+dem behandelten Thema bei den Teilnehmenden zu wecken und ein erstes, einheitliches
+Grundwissen zu schaffen (grundlegende Wissensvermittlung). Diese Stufe wird daher meist
+digital durchgeführt. Hierbei ist es zentral, den Teilnehmenden deutlich die Kompetenzen
+aufzulisten, die mit den Inhalten des Nanos vermittelt bzw. erlangt werden sollen. Die zweite
+Kompetenzstufe dient vollumfänglich der Wissensvermittlung bzw. der theoretischen
+Kompetenzvermittlung. Hierbei sind Inhalte für die Vor- und Nachbereitung und potenzielle
+Vertiefungen auf unterschiedlichen Schwierigkeitsniveaus vorzusehen, mit denen die
+Teilnehmenden das Wissen aus der ersten Kompetenzstufe erweitern, vertiefen und festigen
+können. Die dritte Kompetenzstufe dient der Anwendung des Gelernten anhand eines
+konkreten Beispiels. Dies wird in der Regel in Präsenz durchgeführt und durch Lehrende
+unterstützt. Die Teilnehmenden arbeiten meist in Gruppen, in denen sie thematisch
+abgestimmte, der Realität entsprechende Herausforderungen bzw. Aufgaben erhalten, diese
+selbstständig analysieren und konkrete Lösungsvorschläge und Vorgehensweisen erarbeiten
+sollen. Die digital durchgeführten Abschnitte eines Nanos sollten sich bei der Gestaltung auf
+interaktive Inhalte fokussieren und unterschiedliche Medienformate (z.B. Text, Video, Quiz,
+usw.) nutzen. (Engel et al. 2022)
+Durch den beschriebenen Aufbau eines Nanos und den definierten Kompetenzstufen lässt sich
+für den Prototypen des Nano-Marktplatzes eine Auswahl an Informationen definieren, die für
+den Vergleich mehrere Nanos essenziell sind. Diese Informationen werden von dem
+Herausgeber (d.h. dem Nutzer, der das Nano auf dem Marktplatz anbietet) beim Upload
+ausgefüllt. Die Vorgabe dieser Merkmale soll dafür sorgen, dass andere Nutzer mehrere Nanos
+anhand dieser Merkmale miteinander vergleichen können, und so das für den eigenen
+Anwendungsfall am besten geeignete Nano auswählen zu können. Vom Herausgeber
+notwendige Angaben sind daher einerseits grundlegende Informationen wie der Titel oder die
+geschätzte Bearbeitungsdauer und andererseits spezifische Angaben zum Lernziel oder
+behandelten Themengebieten. Eine Auflistung aller Merkmale ist in Abbildung 3.5 dargestellt.
+Das Merkmal Titel soll dem Nutzer einen ersten Eindruck darüber vermitteln, was in dem Nano
+thematisiert wird und ist folglich das Erste, was ein Nutzer liest. Der Titel entscheidet darüber,
+ob das Interesse eines Nutzers geweckt wird oder nicht. Die Dauer bezieht sich auf die
+durchschnittliche Zeit (Schätzung), die ein Nutzer zur Bearbeitung des Nano benötigt. Anhand
+dieses Merkmals soll ein Eindruck über den benötigten Zeitaufwand und im weitesten Sinne
+auch über den Umfang eines Nanos vermittelt werden. Wie bereits beschrieben, besteht ein
+Modul aus mehreren Kompetenzstufen. Folglich ist die Angabe dieser ein weiteres essentielles
+Kriterium, welches für ein Nano angegeben werden sollte. Unter dem Merkmal Themengebiet
+soll bzw. kann der Nutzer Themengebiete angeben, welche zu dem Nano passen.
+Beispielsweise könnten zu einem Nano, welches Erklärungen zu den Grundlagen der
+Elektrotechnik beinhaltet, die Schlagworte Grundlagen, Strom, Spannung, Schaltung und
+25
+
+=== PAGE 27 ===
+Kenngrößen als Themengebiete aufgeführt werden. Unter Modus gibt der Nutzer die Art und
+Weise der Durchführung an, beispielsweise ob das Nano online (d.h. ausschließlich am
+Computer) oder offline (als Workshop oder Lehrveranstaltung) durchgeführt wird. Das
+Merkmal Datei dient der Zuweisung des eigentlichen Inhalts eines Nanos. Das Attribut Dozent
+gibt an, ob ein Nano durch einen Lehrenden (z.B. einen Lehrer, Dozenten oder Workshopleiter)
+begleitet oder durchgeführt wird. Das Merkmal Sprache gibt an, auf welcher Sprache die
+Lerninhalte vermittelt werden. So kann der Nutzer beispielsweise konkret nur
+englischsprachige Nanos auswählen, wenn es um eine internationale Gruppe von Lernenden
+geht. Das letzte Attribut, die Art, gibt an, in welcher Form die Lerninhalte vermittelt werden.
+Wie bereits beschrieben sollen Module bzw. Nanos unterschiedliche Medienformate enthaltet.
+Folglich ist es für Nutzer eine wichtige Information, die Art der Wissensvermittlung eines
+Nanos zu kennen.
+Abbildung 3.5 – Ausgewählte Nano-Merkmale
+26
+
+=== PAGE 28 ===
+4 Entwurf des Nano-Marktplatzes
+4.1 Allgemeine Konzeptionierung
+Wie bereits in Kapitel 2.2 erläutert, sind verschiedenen Akteure auf einem Marktplatz aktiv. Im
+Regelfall sind diese untergliedert in Plattform-Betreiber, Anbietende und Nachfragende - dies
+ist auch bei dem zu entwickelnden Marktplatz der Fall. Zur Entwicklung eines Handels- und
+Rollenkonzepts müssen mehrere Punkte berücksichtigt werden, welche im Folgenden für den
+vorliegenden Anwendungsfall vorgestellt und besprochen werden sollen. Dies entspricht der
+ersten Phase des Vorgehensmodells nach Steur (Vgl. s. Kapitel 2.4).
+Neben den agierenden Personengruppen ist es ebenfalls entscheidend die Zielgruppe zu
+definieren. Hierbei handelt es sich um eine Personengruppe, die mit der Plattform angesprochen
+bzw. erreicht werden soll. Der zu entwickelnde Marktplatz richtet sich an Unternehmen der
+Weiterbildungslandschaft Südost Niedersachsen mit dem Ziel, Nano-Inhalte gemeinsam zu
+erstellen und auszutauschen. Wie hieraus bereits deutlich wird, soll auf dem Marktplatz mit
+Nano-Einheiten gehandelt werden. Allerdings dient die Plattform nicht zur klassischen
+Transaktion, sondern soll primär zur Vernetzung zwischen den Akteuren dienen. Daraus
+resultiert, dass das Matching zwischen einem Anbieter und einem Nachfrager durch eine
+Suchfunktion zustande kommt. Der Nachfragende kann über die Suchfunktion nach Inhalten
+suchen und durch Auswahl eines Nanos den Kontakt zu dem entsprechenden Anbieter mittels
+einer Chatfunktion herstellen. Wie genau der Handel zwischen den Parteien verläuft, wird im
+nachfolgenden Kapitel (Kapitel 4.2) erläutert. Die Qualität einer Nano-Einheit wird insofern
+sichergestellt, als dass zum Upload eines Nanos bestimmte Informationen (wie zum Beispiel
+der Titel, die Bearbeitungsdauer, die Art des Nanos, usw.) angegeben werden müssen (s. hierzu
+Kapitel 3.1). Dies hilft, um Inhalte auffindbar und vergleichbar zu machen. Die spezifischen
+Anforderungen an den Aufbau eines Nanos sorgen dafür, dass dieses didaktisch sinnvoll
+aufgebaut ist. Dadurch werden unstrukturierte Inhalte und didaktische Inkonsistenz vermieden.
+Neben den Anforderungen spielen auch die Qualitätssicherung und Qualitätskontrolle eine
+zentrale Rolle. Die Qualitätssicherung hat eine vorbeugende Funktion und dient dazu, Fehler
+präventiv zu vermeiden. Dafür können die Angaben, die ein Nutzer während des Uploads eines
+Nanos macht, automatisiert auf Sinnhaftigkeit geprüft werden. Sinnhaftigkeit meint in diesem
+Fall, dass die gemachten Angaben schlüssig sind und keine unsinnigen Eingaben (wie
+beispielsweise 0 Minuten bei der Bearbeitungsdauer) getätigt werden. Die Qualitätskontrolle
+wiederum hat eine prüfende Funktion, bei der Nanos entweder stichprobenartig durch den
+Marktplatzbetreiber oder auch durch die anwendenden Nutzer auf ihre Funktionalität und den
+Inhalt hin geprüft werden. Zu welchem Zeitpunkt im Upload-Prozess die Prüfinstanz die
+Qualitätssicherung durchführt, soll in Abbildung 4.1 noch einmal verdeutlicht werden.
+Abbildung 4.1 – Prozess des Uploads eines Nanos inkl. Einsatz der Prüfinstanz
+27
+
+=== PAGE 29 ===
+Technisch soll der Markplatz durch eine GUI mit Backend- und Datenbank-Anbindung
+realisiert werden. Wie später genauer erläutert, wird zur Erstellung der GUI das Python-Modul
+solara gewählt, welches über einen integrierten Webserver verfügt (Vgl. s. Kapitel 6). Folglich
+wird kein separater Webserver benötigt. Damit das Webinterface intuitiv wird, ist es ratsam im
+Rahmen der Konzeptionierung ebenfalls über die Nutzerführung zu sprechen. Diese soll im
+Kapitel 4.3 anhand des Designkonzepts näher erläutert werden.
+Während der Konzeptionierung ist es ebenfalls sinnvoll, bereits mögliche
+Skalierungsmöglichkeiten sowie zu beachtende Regelungen und Vorgaben zu betrachten. Da
+bei dem vorliegenden Anwendungsfall neben den Informationen zu einem Nano auch Login-
+und personenbezogenen Daten in einer Datenbank gespeichert werden sollen, muss für den
+späteren Nano-Marktplatz die Datenschutzgrundverordnung (DSGVO) beachtet werden.
+Neben dieser muss ebenfalls über das Urheberrecht gesprochen werden, da Inhalte – für eine
+beschränkte Personengruppe - veröffentlicht werden. Durch die Implementierung einer Chat-
+Funktion wird später ebenfalls eine Verschlüsselung der Nachrichten erforderlich.
+Die DSGVO „enthält Vorschriften zum Schutz natürlicher Personen bei der Verarbeitung
+personenbezogener Daten“ (DSGVO, Art.1). Das bedeutet die DSGCO enthält Vorgaben
+darüber, wie Personen bei der Verarbeitung ihrer persönlichen Daten (z.B. Name, Anschrift,
+Telefonnummer) geschützt werden sollen. Dies ist für den zu entwickelnden Nano-Marktplatz
+relevant, da Informationen der Nutzer abgefragt, gespeichert und verarbeitet werden. Das
+Urheberrecht enthält Vorschriften zum Schutz von selbsterstellten Werken (z.B.
+wissenschaftliche Werke) (UrhG, Art. 1), darunter fallen ebenfalls auch die Nano-Einheiten.
+Wie bereits angesprochen, soll der in dieser Arbeit zu entwickelnde Prototyp lediglich ein
+(lokales) Modell des später zu entwickelnden, realen Nano-Marktplatzes sein. Aus diesem
+Grund sind die notwendigen Ressourcen (noch) vergleichsweise gering, was bei dem realen
+Marktplatz nicht der Fall sein wird. Aus Recherchen geht hervor, dass das Modell gut auf aws-
+Module übertragbar und durch Verwendung dieser eine Skalierungsmöglichkeit gegeben ist
+(näheres hierzu s. Kapitel 8).
+4.2 Handelskonzept
+Zur Festlegung des Handlungskonzepts für den Nano-Marktplatz sollen zunächst drei
+Handlungskonzepte vorgestellt und bewertet werden. Das Handlungskonzept, was als am
+besten bewertet wird, soll anschließend im Prototyp berücksichtigt und umgesetzt werden.
+Konzept 1: Kauf eines Nanos mit einem festen Preis
+Bei diesem Konzeptentwurf wird das Nano von dem Herausgeber zu einem festgelegten Preis
+angeboten. Der Nachfrager kann auf dem Marktplatz unterschiedliche Nanos vergleichen und
+ein für sich passendes auswählen. Dieses kann anschließend käuflich erworben werden. Die
+Transaktionsabwicklung wird komplett über den Marktplatz erfolgen, sodass die beiden
+Akteure keinen Aufwand dafür investieren müssen. Folglich treten Anbieter und Nachfrager
+nicht miteinander in Kontakt, sodass folglich auch keine Kommunikation zwischen diesen
+entsteht. Der Marktplatz agiert als Intermediär zwischen den beiden Parteien und ist für die
+Kaufabwicklung und die Auslieferung der hinterlegten Nano-Inhalte zuständig. Besitzt ein
+Nano keinen digital hinterlegten Inhalt (da es beispielsweise von einem Dozenten in Präsenz
+gehalten oder angeleitet wird), kann über ein Online-Buchungstool der nächste freie
+28
+
+=== PAGE 30 ===
+Schulungstermin gebucht werden. Dieses Konzept funktioniert ähnlich wie der Kauf von
+Waren über den Amazon Marketplace oder einem anderen in Kapitel 3 vorgestellten
+Marktplatz. Der Vorteil besteht darin, dass durch den festgelegten Preis ebenfalls ein fester
+Gewinn pro Nano für den Anbieter generiert wird. Weiterhin wird durch die Nutzung des Nano-
+Marktplatzes der Vertrieb des Nanos für den Anbieter deutlich erleichtert. Der Nachfrager kann
+auf dem Marktplatz ohne einen großen Aufwand mehrere, unterschiedliche Nanos von
+verschiedenen Anbietern vergleichen und Nanos zu fest definierten Preisen käuflich erwerben.
+Dies erleichtert die Beschaffung von Inhalten für den Nachfrager deutlich. Nachteilig für beide
+Parteien ist, dass diese nicht miteinander interagieren, indem beispielsweise eine
+Kommunikation oder ein Austausch zwischen diesen stattfindet.
+Konzept 2: Verhandlung über den Preis des Nanos
+Dieser Konzeptentwurf charakterisiert sich durch die Verhandlung zwischen Anbieter und
+Nachfrager über den Preis eines Nanos. Der Anbieter bietet das Nano auf dem Marktplatz zu
+einem Preis auf Verhandlungsbasis an. Daraufhin kann der Nachfrager auch bei diesem
+Konzept mehrere Nanos von unterschiedlichen Anbietern vergleichen und anschließend dem
+Anbieter des Nanos ein Angebot unterbreiten. Dies erfolgt über eine automatische Nachricht,
+ähnlich wie die Funktion „Direkt kaufen“ bei kleinanzeigen. Der Anbieter kann daraufhin
+entscheiden, ob er dem vorgeschlagenen Preis zustimmt und den Vorschlag annimmt oder aber
+dem Nachfrager ein Gegenvorschlag unterbreitet. Auf diese Weise interagieren die beiden
+Parteien miteinander, ohne dass eine richtige Kommunikation stattfindet. Wie bei dem ersten
+Konzeptentwurf auch, erfolgt die Transaktions- und Kaufabwicklung automatisiert über den
+Marktplatz. Dieses Konzept bietet ebenfalls den Vorteil, dass der Vertrieb von Nanos für den
+Anbieter deutlich erleichtert wird, da die Transaktions- und Kaufabwicklung von dem
+Marktplatz automatisiert übernommen wird. Nachteilig für den Anbieter ist, dass durch den
+verhandelbaren Preis ein variabler Gewinn pro Nano entsteht. Dies hat wiederum
+Auswirkungen auf die Budgetplanung und hinterfragt folglich die Nutzung des Nano-
+Marktplatzes. Ein weiterer Aspekt, der sowohl als positiv als auch als negativ angesehen
+werden kann ist, dass ein Kontakt ohne einen „freien“ Austausch (d.h. die Parteien
+kommunizieren lediglich über die Preisvorschlags-Funktion, nicht mit frei geschriebenen
+Nachrichten) stattfindet.
+Konzept 3: Tauschgeschäfte
+Der letzte Konzeptentwurf hebt sich deutlich von den beiden zuvor beschrieben Konzepten ab,
+da ein Nano hier nicht mit einem Preis versehen wird – unabhängig davon, ob es ein festgelegter
+oder verhandelbarer Preis ist. Ein Nano wird auf dem Marktplatz ohne einen fest definierten
+Wert hochgeladen, sodass Anbieter und Nachfrager sich über den Wert austauschen müssen.
+Der Nachfrager kann den Anbieter über eine Chat-Funktion kontaktieren, sodass beide Akteure
+miteinander kommunizieren. Dabei kann ein Nachfrager ein Nano erwerben, indem es dem
+Anbieter zum Beispiel eins seiner Nanos im Tausch anbietet. Folglich steht bei diesem Konzept
+nicht der Wert des Nanos, sondern die Kommunikation und das Connecten zwischen den
+Akteuren im Fokus des Marktplatzes. Die Chat-Funktion soll dabei ähnlich wie der Chat bei
+der Plattform kleinanzeigen aufgebaut sein und sich immer auf ein bestimmtes Nano beziehen.
+Im Vergleich zu den vorangegangenen Konzepten ist die direkte und freie Kommunikation
+zwischen Anbieter und Nachfrager ein großer Vorteil. Allerdings kann es bei einem häufigen
+29
+
+=== PAGE 31 ===
+Kontakt zwischen denselben zwei Nutzern dazu kommen, dass diese ihre Kommunikation mit
+der Zeit vom Nano-Marktplatz verlagern und einen anderen Weg der Kommunikation nutzen.
+In der Tabelle 4.1 sind die Kernaspekte, Vor- und Nachteile der vorgestellten Konzepte noch
+einmal zusammengefasst und gegenübergestellt. Das zentrale Merkmal für die Bewertung der
+Konzepte ist die Möglichkeit der Kommunikation zwischen Anbieter und Nachfrager. Da bei
+dem ersten und zweiten Konzept keine bzw. lediglich eine indirekte Kommunikation zwischen
+den Akteuren möglich ist, wird das dritte Konzept gewählt und in dem Prototypen umgesetzt.
+Die mögliche Abwanderung ist noch zu vernachlässigen und muss erst zu einem späteren
+Zeitpunkt berücksichtigt und durch eine (gezielte) Nutzerbindung vermieden werden.
+Tabelle 4.1 – Gegenüberstellung der Handlungskonzepte
+Konzept 1 Konzept 2 Konzept 3
+Kernaspekte - Ähnliche wie bei - Ähnlich wie - Nano ohne definierten
+Amazon Direkt-kaufen- Preis
+Marketplace Funktion bei - Freie Kommunikation
+- Nano mit kleinanzeigen zwischen den Akteuren
+festgelegtem - Nano mit - Chat-Funktion ähnlich
+Preis verhandelbarem wie bei kleinanzeigen
+- Kein Kontakt Preis
+zwischen - Indirekte
+Anbieter und Kommunikation
+Nachfrager zwischen
+Anbieter und
+Nachfrager
+Vor- und + Einfacher + Einfacher + direkte
+Nachteile Vertrieb Vertrieb Kommunikation
++ Automatisierte + Automatisierte zwischen den Akteuren
+Transkations- Transkations-
+und und - Mögliche
+Kaufabwicklung Abwanderung zu
+Kaufabwicklung
++ Fester Gewinn anderen
+pro Nano für Kommunikationswegen
+o Indirekte
+Anbieter bei häufigem Kontakt
+Kommunikation
+derselben zwei Akteure
+zwischen
+- Keine
+Anbieter und
+Interaktion/
+Nachfrager
+Kommunikation
+zwischen den
+- Variabler
+Akteuren
+Gewinn pro Nano
+für Anbieter
+30
+
+=== PAGE 32 ===
+4.3 Designkonzept
+Wie bereits in der Einleitung beschrieben, handelt es sich bei der zu entwickelnden Anwendung
+um einen Prototyp für einen Nano-Marktplatz, wie er im Rahmen des „DiWeiWei“-Projekts
+erstellt werden soll. Aufgrund dieser Tatsache dient die in dieser Arbeit entwickelte
+Anwendung lediglich als ein Prototyp, weshalb primär die zentralsten Funktionalitäten und
+Vorgänge des späteren Nano-Marktplatzes abgebildet werden sollen. Die in Kapitel 3 gestellten
+Anforderungen sowie die Nutzerführung (Vgl. s. Kapitel 4.1) sollen mit Hilfe eines Design-
+Mock-ups (DMU) visuell dargestellt werden, um eine Vorstellung für die Benutzeroberfläche
+(GUI) zu erhalten. Ein Mock-up dient im Allgemeinen als ein visuelles (digitales)
+Produktmodell, welches in verschiedenen Branchen zur Visualisierung in der
+Entwicklungsphase verwendet wird. Es zielt darauf ab, eine abstrakte Idee in eine verständliche
+bzw. anschauliche Form zu bringen, um die Kommunikation zwischen verschiedenen Parteien
+zu vereinfachen. (awork)
+Abbildung 4.2 – DMU Startseite Nano-Marktplatz
+Als erstes soll die Startseite vorgestellt werden, welche in Abbildung 4.2 dargestellt ist. Geplant
+ist eine Mainbar (blau hinterlegt) im oberen Bereich der Seite, die den Titel der Seite, eine
+Suchleiste, eine Filterfunktion sowie einen Menübereich (dargestellt als Benutzer-Icon)
+beinhaltet. Darunter sollen Nanos angezeigt werden, die der Suchanfrage entsprechen. Dabei
+wird sich auf die zentralen Informationen Titel des Nanos, (Bearbeitungs-)Dauer,
+Themenbereiche, Modus (in der Abbildung als „On/ Off“ gezeigt) sowie die Information über
+den Dozenten (mit/ ohne Dozenten) beschränkt. Abhängig von der Anzahl an Treffern der
+Suchanfrage werden dynamisch mehr oder weniger Nanos angezeigt. Über das Anklicken eines
+Nanos gelangt man anschließend zur Detailansicht (s. Abbildung 4.3). Diese beinhaltet
+detailliertere Informationen über das ausgewählte Nano. Auf der linken Seite wird unterhalb
+des Titels des Nanos das entsprechende Titelbild (dargestellt als blaues Rechteck) angezeigt.
+Darunter befinden sich die Angaben zum Herausgeber des Nanos, sowie zwei Buttons (grau
+dargestellt). Einer davon dient der Kontaktaufnahme mit dem Herausgeber des Nanos, der
+31
+
+=== PAGE 33 ===
+andere dient zum Verfassen eines Kommentars. Zentral auf der Seite befinden sich die
+genaueren Informationen, sowie die Bewertung des Nanos und die Kommentare zu diesem.
+Rechts befinden sich mehrere Shortcuts bzw. Buttons: der Pfeil stellt die „Zurück“-Taste dar
+und lässt den Nutzer zurück zur Startseite navigieren, wo er wie bereits angesprochen die
+Übersicht über alle Suchergebnisse findet. Das Herz hat die Funktion, dass der Nutzer das
+angezeigte Nano als Favorit speichern kann, das Haus dient der Navigation zur Startseite (ohne
+Suchergebnisse) und ein Benutzer-Icon.
+Abbildung 4.3 – DMU Detailansicht eines Nanos
+Abbildung 4.4 – DMU Menü hinter dem Benutzer-Icon
+32
+
+=== PAGE 34 ===
+Über das angesprochenen Benutzer-Icon lässt sich ein Menü öffnen (s. Abbildung 4.4), welches
+die Optionen „Nano hochladen“, „Nanos verwalten“, „Profil anzeigen“ und „Abmelden“
+beinhaltet. Diese werden als Buttons angelegt, mit denen der Nutzer zu den jeweiligen Seiten
+navigieren kann. Über den „Abmelden“-Button meldet der Nutzer sich von seinem Konto ab
+und gelangt zurück zur Login-Seite (s. Abbildung 4.5).
+Die Login-Seite ist hier sehr schlicht und vergleichsweise funktionsarm gehalten, da sie
+lediglich ein Schutzmechanismus darstellt. Mittig befinden sich zwei Eingabefelder (grau
+hinterlegt, ohne schwarzen Rand), über die der Nutzer seinen Nutzername und sein Passwort
+eintragen kann. Über den Button „Login“ (grau hinterlegt mit schwarzem Rand) werden die
+Eingaben mit den in der Datenbank hinterlegten Angaben auf eine Übereinstimmung geprüft.
+Ist dies der Fall, kann der Nutzer auf sein Konto zugreifen. Ist dies nicht der Fall, bleibt die
+Login-Seite sichtbar. Über die Schaltfläche „Registrieren“ können sich neue Nutzer (ohne ein
+bestehendes Kundenkonto) auf dem Marktplatz anmelden und ein Nutzerkonto anlegen.
+Abbildung 4.5 – DMU Login-Seite Nano-Marktplatz
+Die Seite für den Nano-Upload (s. Abbildung 4.6) beinhaltet mehrere Eingabefelder (grau
+hinterlegt), sowie ein Drag&Drop-Feld zum Hochladen der Nano-Datei. Die vom Nutzer
+hochgeladenen Nanos können über die Seite Nanos verwalten eingesehen, bearbeitet, archiviert
+und gelöscht werden (s. Abbildung 4.7). Dies geschieht über die entsprechenden Schaltflächen
+(grau hinterlegt mit schwarzem Rand), wobei die Schaltfläche Bearbeiten zurück zur Upload-
+Seite (Abbildung 4.6) führt. Die Schaltfläche „Archivieren“ sorgt dafür, dass das entsprechende
+Nano weiterhin erhalten bleibt, allerdings für andere Nutzer nicht mehr sichtbar ist. Diese
+Funktion ist hilfreich, wenn Nanos beispielsweise nicht mehr dem aktuellen Stand entsprechen
+und nachgearbeitet werden müssen. Für den Zeitraum zwischen der Feststellung, dass das Nano
+nicht mehr aktuell ist und der Bearbeitung kann das Nano archiviert werden, sodass die Inhalte
+für anderen Nutzer nicht weiter verfügbar sind und das Nano dennoch weiterhin erhalten bleibt.
+33
+
+=== PAGE 35 ===
+Abbildung 4.6 – DMU Nano-Upload-Seite
+Abbildung 4.7 – DMU Nanos verwalten
+Die Abbildung 4.8 zeigt das Design-Mock-up für die Profilseite (erreichbar über das Menü,
+„Profil anzeigen“). Auf der linken Seite werden die persönlichen Daten angezeigt und können
+über die Schaltfläche „Bearbeiten“ aktualisiert werden. Auf der rechten Seite befinden sich
+Angaben zu persönlichen Präferenzen, die der Nutzer angeben kann, und darunter die
+favorisierten Nanos.
+34
+
+=== PAGE 36 ===
+Abbildung 4.8 – DMU Persönlicher Bereich
+Wie vorher festgelegt, sollen die Akteure mittels einer Chat-Funktion in Kontakt treten können.
+Der Chat soll neben den gesendeten und empfangenen Nachrichten eine Eingabeleiste für die
+Nachrichten besitzen, sowie einen Button, um die eingegebene Nachricht abzuschicken (s.
+Abbildung 4.9). Weiter soll am linken Rand noch einmal der Titel des Nanos stehen, welches
+von dem interessierten Nutzer angefragt wird. Darunter soll ein Button sein, mit dem der Nutzer
+zur Detailansicht des Nanos gelangen kann, sowie Angaben zu dem Chatpartner und ggf. dessen
+Firma. Zusätzlich kann der Nutzer über den Button „Profil ansehen“ das Nutzerprofil seines
+Chatpartners ansehen.
+Abbildung 4.9 – DMU Chat
+35
+
+=== PAGE 37 ===
+Das DMU des Nutzerprofils ist in Abbildung 4.10 dargestellt. Hier sind der Name und ggf. die
+zugehörige Firma angegeben, sowie alle Nanos, die von diesem Nutzer hochgeladen wurden.
+Durch klicken auf ein Nano gelangt der Nutzer auch hier wieder zu der Detailansicht (s.
+Abbildung 4.3) des entsprechenden Nanos.
+Abbildung 4.10 – DMU Nutzerprofil
+36
+
+=== PAGE 38 ===
+5 MySQL-Datenbank
+Wie bereits in Kapitel 2.5 angesprochen, dienen Datenbanken zur Speicherung und Verwaltung
+von großen Datenmengen und verfolgen das Ziel, Redundanzen zu vermeiden und die Software
+(wie beispielsweise eine Webapplikation) von der Datenstruktur zu entkoppeln. Zur
+Kommunikation zwischen einer Datenbank und der Software werden
+Datenbankmanagementsysteme verwendet. Für die vorliegende Arbeit wurde das
+Datenbanksystem MySQL gewählt, da dieses eine weit verbreitete und einfach zu verwendende
+OpenSource-Anwendung ist und somit für einen ersten, lokalen Prototypen ausreichend ist.
+5.1 Strukturierung der Daten
+Um die zu erhebenden Daten sinnvoll in einer Datenbank zu strukturieren, wird mit Hilfe des
+Entity-Relationship-Modells (ERM) ein konzeptioneller Entwurf der Datenbank erarbeitet. Wie
+bereits erklärt, ist das ERM ein Modell zur konzeptionellen Strukturierung von Daten eines
+definierten Realitätsauschnitts (Jung). Dabei werden Entitäten, Beziehungstypen und Attribute
+identifiziert und miteinander in Verbindung gebracht. Entitäten sind Aspekte der realen Welt,
+wie beispielsweise Kunden, Teile oder wie hier User und Nanos, und werden im ERM als
+Rechteck dargestellt. Beziehungstypen charakterisieren den Zusammenhang zwischen
+Entitäten und werden als Raute dargestellt. Hierbei gibt es verschiedenen Typen, wie die 1:1-,
+1:n- oder m:n-Beziehung. Attribute dienen der genaueren Beschreibung von Entitäten und
+werden als Oval dargestellt. (Gadatsch 2019)
+Abbildung 5.1 – Entity-Relationship-Modell (ERM) zum Nano-Marktplatz (Schritt 1)
+Zur Erstellung eines konzeptionellen Datenbankentwurfs werden folgende Schritte nach
+Gadatsch (2019) angewandt:
+37
+
+=== PAGE 39 ===
+1. Identifizierung von Entitäten, (Schlüssel-)Attributen und des Beziehungstyps
+2. Überführung der Entitäten und Relationen in relationales Datenbankmodell
+3. Normalisierung
+Das in Schritt 1 erstellte Entity-Relationship-Modell ist in Abbildung 5.1 dargestellt. Als
+Entitäten wurden User und Nanos identifiziert, wobei die Verbindung zwischen diesen beiden
+durch den Upload eines Nanos durch einen User definiert ist. Die zentrale Frage, die sich zur
+Charakterisierung der Beziehung gestellt werden muss lautet: Ein User X ist mit Y Nanos
+verknüpft. Folglich kann ein User (1) mehrere Nanos (n) hochladen, allerdings kann ein Nano
+lediglich nur einem User als Ersteller zugeordnet sein. Folglich ist der Beziehungstyp zwischen
+User und Nanos 1:n. Damit die Entitäten und Relationen im zweiten Schritt in eine
+Tabellenform überführt werden können, wird ein sogenannter Primärschlüssel benötigt. Dies
+ist ein Attribut bzw. Identifikator, um einen Datensatz eindeutig identifizieren zu können
+(Gadatsch 2019). Aus den in Abbildung 5.1 dargestellten Attributen lässt sich keines als
+eindeutiger Primärschlüssel verwenden. Aus diesem Grund wird für die Seite der User das
+Attribut User_ID und für die Seite der Nanos das Attribut Nano_ID eingeführt, welche als
+sogenannte Surrogatschlüssel definiert werden. Surrogatschlüssel sind Identifikatoren von
+Datensätzen, die nicht aus den Daten selbst erzeugt werden, sondern unabhängig von diesen
+generiert werden (Eilebrecht und Starke 2024). Zur Überführung der Relationen wird weiterhin
+der Primärschlüssel User_ID als Fremdschlüssel für die Tabelle der Nanos verwendet. Der
+Fremdschlüssel wird benötigt, um eindeutig auf einen anderen Datensatz zu verweisen. In
+diesem Fall ordnet der Fremdschlüssel jedem hochgeladenen Nano einen Ersteller (User) zu.
+Nach der Überführung der Entitäten und Relationen in ein relationales Datenbankmodell
+werden Normalisierungsschritte angewandt, um Redundanzen in den Daten zu vermeiden und
+die Daten in einfache Relationen zerlegen zu können ohne einen Verlust von Informationen
+(Gadatsch 2019). Die erste Normalform (1NF) besagt, dass pro Zelle nur ein Wert enthalten
+sein darf. Ein Beispiel hierfür wäre, dass eine Spalte mit dem Spaltennamen „Adresse“ und der
+Information „Hauptstr. 4, 10001 Berlin“ aufgespaltet wird in die Spalten „Straße“,
+„Hausnummer“, „Postleitzahl“ und „Wohnort“ mit den jeweils zugehörigen Informationen. Die
+zweite Normalform (2NF) besagt, dass jede Relation lediglich einen Sachverhalt abbilden darf.
+Aus diesem Grund werden aus 2 umfangreichen Tabellen mehrere kleinere, bei denen die Daten
+über Primär- und Fremdschlüssel eindeutig einander zuzuordnen sind. In Abbildung 5.2 ist der
+konzeptionelle Datenbankentwurf für die vorliegende Anwendung dargestellt.
+Abbildung 5.2 – Strukturierung der relationalen Datenbank (normalisiert)
+38
+
+=== PAGE 40 ===
+Im dritten Normalisierungsschritt (3NF) wird noch einmal geprüft, ob Nicht-Schlüsselattribute
+durch andere Nicht-Schlüsselattribute beschrieben werden können. Im abgebildeten
+Datenbankentwurf kann das Attribut „Ort“ durch das Attribut „PLZ“ beschrieben werden.
+Allerdings wurde in diesem speziellen Fall davon abgesehen, den dritten
+Normalisierungsschritt durchzuführen, um die spätere Datenabfrage einfacher zu halten, da nur
+Daten aus einer Tabelle abgefragt werden müssen. Weiter wurden die Informationen zu den
+Themengebieten eines Nanos in einer separaten Tabelle ausgelagert. Der Grund dafür ist, dass
+bei einer späteren Umsetzung des Nano-Marktplatzes ggf. eine größere Anzahl an
+Themengebieten angegeben werden kann, als es bei dem Prototyp vorgesehen ist und daher die
+Tabelle mit den Informationen eines Nanos nicht zu groß werden zu lassen. Im Falle des
+vorliegenden Prototyps wird die maximale Anzahl an Themengebieten auf fünf beschränkt, da
+dies eine ausreichende Angabe ist, um diese Funktionalität anhand des Modells abzubilden und
+zu testen. Zusätzlich wurde die zip-Datei sowie das Titelbild zu einem Nano in einer separaten
+Relation gespeichert. Ursache ist hier, dass die Datei nur bei Bedarf benötigt wird und nicht bei
+jeder Abfrage der Tabelleninformationen.
+5.2 Aufsetzen der Datenbank und Integration in Python
+Nach dem konzeptionellen Entwurf der Datenbank soll dieser als eine MySQL-Datenbank
+realisiert werden. Dazu wird das Programm xampp installiert, mit dem ein Apache Webserver
+und eine MySQL-Datenbank installiert, konfiguriert und gestartet werden können. Der
+Webserver ist dabei notwendig, um PHP-basierte Webanwendungen bereitzustellen, welche
+dann wiederum mit der Datenbank kommunizieren (IONOS Redaktion 2023). Nachdem die
+Software installiert wurde, kann über das xampp Control Panel der Webserver sowie MySQL
+gestartet werden (s. Abbildung 5.3). Über die Schaltfläche „Admin“ wird die phpMyAdmin-
+Seite geöffnet, auf der die Datenbank mit den Relationen angelegt wird. Die Relationen werden
+dabei wie in Abbildung 5.2 dargestellt angelegt. Zusätzliche werden weitere Tabellen angelegt,
+in denen die persönlichen Präferenzen eines Nutzers, die favorisierten Nanos, Chat-Nachrichten
+und Kommentare gespeichert werden. Eine Übersicht über alle angelegten Relationen ist in
+Anhang A zu finden.
+Abbildung 5.3 – xampp Control panel
+39
+
+=== PAGE 41 ===
+Anschließend an die Erstellung der einzelnen Relationen soll die Kommunikation mit dem
+Datenbankmanagementsystem (DBMS) aus Python heraus ermöglicht werden. Dazu wird im
+Projektordner in der Entwicklungsumgebung PyCharm ein Ordner Database angelegt, der eine
+Datei namens db_connect.py enthält (s. hierzu Kapitel 6). In dieser Datei sollen alle Funktionen
+enthalten sein, die für die Kommunikation mit dem DBMS zuständig sind. Um eine MySQL-
+Datenbank aus Python ansprechen zu können, wird das Modul mysql.connector importiert,
+welches die Funktion zur Verbindung mit dem DBMS enthält. Um die Datenbankverbindung
+nicht dauerhaft offen halten zu müssen, wird für die Verbindung eine separate Funktion erstellt.
+Diese kann später in anderen Funktionen aufgerufen werden, um die Verbindung zu öffnen und
+Daten aus der Datenbank abzufragen (s. Abbildung 5.4).
+Abbildung 5.4 – Ausschnitt db_connect.py
+Als Beispiel soll die Funktion get_nutzerdaten() dienen (s. Abbildung 5.5), bei der als erstes
+die Verbindung zu der Datenbank mittels der Funktion connect_to_db() geöffnet wird und nach
+Abfrage der Daten die Verbindung mittels cursor.close() und connection.close() geschlossen
+wird.
+Abbildung 5.5 – Ausschnitt 2 db_connect.py
+40
+
+=== PAGE 42 ===
+6 Aufbau der GUI
+Zur Umsetzung des Designentwurfs aus Kapitel 4.3 wird das Python-Modul solara verwendet.
+Solara ist eine OpenSource-Library in Python, mit der datenfokussierte Webapplikationen
+aufgebaut werden können und besteht aus zwei zentralen Komponenten: Dem Solara Server
+und der Solara UI. Da solara auf IPyWidgets basiert, wird der Server unter anderem zum
+Rendern der Widgets und zum Routing zwischen verschiedenen Seiten (Pages) verwendet.
+(Solara Documantation) IPyWidgets sind interaktive HTML-Widgets, die zum Aufbau von
+interaktiven Benutzeroberflächen in Jupyter-Notebooks verwendet werden (PyPi). Die Solara
+UI bietet unter anderem verschiedene UI-Komponenten (UI = Userinterface) zum Aufbau von
+datenschweren Webapplikationen (Solara Documantation).
+Ein entscheidender Vorteil dieses Moduls ist, dass es eine reaktive Programmierung verwendet,
+wodurch das Userinterface (UI) bei Änderungen von Variablen automatisch an diese angepasst
+und neu geladen wird. Zusätzlich beinhaltet solara wie eben beschrieben einen eigenen
+Webserver, auf dem die Anwendung ausgeführt wird. Dadurch ist es für den Prototypen nicht
+unbedingt erforderlich, einen eigenen, externen Server aufzusetzen und zu nutzen, um die
+Anwendung zu starten. Dies mindert ebenfalls den Wartungsaufwand der Webanwendung.
+Aufgrund dieser Tatsache wird für den zu entwickelnden Prototyp des Nano-Marktplatzes auf
+einen separaten Webserver verzichtet. Ein weiterer entscheidender Vorteil ist, dass solara
+komponentenbasiert ist, wodurch die Anwendung aus einzelnen Modulen individuell
+zusammengesetzt werden kann.
+Um zwischen verschiedenen Seiten navigieren zu können, nutzt solara das sogenannte Routing.
+Dabei wird ein Zustand der Weboberfläche mit einem bestimmten Pfadnamen verknüpft,
+welcher im Regelfall zu einer neuen Page führt. (Solara Documantation) Für den zu
+entwickelnden Prototyp werden fünf Pages benötigt, welche jeweils in separaten Python-
+Dateien aufgebaut werden. Die Dateistruktur (s. Abbildung 6.1) sieht dabei wie folgt aus:
+Übergeordnet gibt es einen Code-Ordner, dieser beinhaltet wiederum die Ordner Database und
+Webinterface. In dem Database-Ordner befindet sich eine leere __init__.py, damit der Ordner
+von Python als Modul interpretiert wird, und die db_connect.py, in der alle Funktionen zur
+Kommunikation mit der Datenbank enthalten sind. Der Ordner Webinterface beinhaltet eine
+main.py, sowie einen Ordner pages. In diesem befinden sich die Python-Dateien für die
+jeweiligen Pages (zum Beispiel home.py, upload.py, profil.py) sowie für die zusätzlichen
+Subpages, wie beispielsweise login.py, view_nano.py. Damit auch dieser Ordner als Modul
+erkannt wird, befindet sich hier ebenfalls wieder eine leere __init__.py-Datei.
+Die Pages und Subpages besitzen jeweils eigene Dateien, um den Aufbau modular zu gestalten
+und die Übersichtlichkeit in den einzelnen Dateien zu gewährleisten. Dabei besitzt in der Regel
+jede Page-Datei die gleiche Struktur: Zuerst erfolgt der Import von solara sowie ggf. solara.lab
+(falls dieses benötigt wird), sowie nachstehend alle weiteren benötigten python-Bibliotheken
+und (Sub-)Pages des Projekts bzw. relevanten Dateien. Anschließend werde alle reaktiven
+Variablen definiert, welche auf der Page benötigt werden. Diese erfolgt immer mit der Angabe
+des erwarteten Typs (zum Beispiel “ “ für einen String oder [] für eine Liste). Nach der
+Definition der Variablen wird die eigentliche Page-Komponente aufgebaut. Diese besteht
+immer aus dem Dekorator @solara.component und darunter einer Funktionsdefinition
+def PageName(). Der Dekorator wird benötigt, um mitzuteilen, dass es sich bei der darunter
+stehenden Funktion um eine solara Komponente handelt, welche gerendert werden soll. Die
+41
+
+=== PAGE 43 ===
+erste Zeile innerhalb einer Komponente ist immer solara.Title(„Nano-Marktplatz“) und gibt
+den Titel der Seite an, welcher oben links in der Headerbar angezeigt wird. Anschließend
+werden alle Funktionen definiert, welche innerhalb der Komponente benötigt werden und
+hiernach kommt der eigentliche Code für den Aufbau der GUI. Abschließend werden benötigte
+Popups für Fehlermeldungen definiert.
+Abbildung 6.1 - Dateistruktur
+Um nun zwischen den Pages navigieren zu können, wird die solara.Route()-Funktion genutzt.
+Diese stellt die Verknüpfung zwischen einer Komponente und einem URL-Pfad her. Diese
+Pfade werden in dem Startskript der Anwendung (Anhang B.1) definiert. Weiter soll der
+Quellcode dieser Datei näher beschrieben werden: Im ersten Codeabschnitt des Startskripts (bis
+inkl. Zeile 7) wird sichergestellt, dass Python den übergeordneten Ordner, in diesem Fall den
+Code-Ordner, in den Modul-Suchpfad aufnimmt. Dieser Schritt ist notwendig, da die GUI über
+die main.py gestartet wird, diese allerdings im Ordner Webinterface liegt. Durch die Aufnahme
+von Code in den Suchpfad, kann ebenfalls der Database-Ordner gefunden werden, wodurch
+die Funktionen zur Kommunikation mit der Datenbank verfügbar und damit in den Page-
+Dateien nutzbar sind. Im zweiten Abschnitt der Datei werden die fünf zentralen Page-
+Komponenten mit den entsprechenden URL-Pfaden verknüpft, um so eine Navigation zwischen
+diesen zu ermöglichen. Auffällig dabei ist, dass diese von der Funktion require_login() umhüllt
+sind. Diese Funktion ist ein sogenannter Wrapper und dient der Zugriffssteuerung. Die fünf
+Hauptpages sind erst erreichbar, nachdem sich der Nutzer eingeloggt hat und dadurch die
+Variable logged_in auf True gesetzt wurde. Hat diese Variable nicht den Wert True, ist lediglich
+die Login-Subpage erreichbar.
+In den nachfolgenden Kapiteln soll jeweils auf unterschiedliche Seiten der Webapplikation
+eingegangen werden. Dabei sollen einerseits Besonderheiten innerhalb des Programmcodes als
+42
+
+=== PAGE 44 ===
+auch die eigentliche Darstellung als Webapplikation betrachtet werden. Der gesamte
+Programmcode befindet sich in Anhang B.
+6.1 Login
+Gestartet wird die Anwendung mit dem Befehl solara run .\main.py im Webinterface-Ordner.
+Anschließend wird http://localhost:8765/ in die URL-Zeile des Browsers eingegeben, um auf
+die Startseite der Anwendung zu gelangen. Wie bereits zuvor beschrieben, sind die Hauptseiten
+durch eine notwendige Login-Variable geschützt, wodurch folglich zunächst die Login-Seite
+angezeigt wird (s. Abbildung 6.2). Der obere Bereich der Seite (blau hinterlegt) ist die Mainbar
+bzw. Headerbar der Anwendung, welche jederzeit verfügbar ist. Der Nutzer kann sich mithilfe
+der Headerbar zu jeder Zeit zwischen den Hauptseiten bewegen. Aufgrund dieser Tatsache
+werden die Reiter Home, Nano upload, usw. angezeigt, auch wenn der Nutzer noch nicht
+eingeloggt ist. Allerdings kann der Nutzer, wenn er zwischen den Seiten navigiert, nicht den
+Inhalt der Seite sehen, sondern sieht immer das Login-Fenster. Die Ursache hierfür wurde zuvor
+bereits erläutert und liegt in der Definition des Routings in der main.py: Die Seiten sind mit
+einem Wrapper versehen, der den Inhalt erst freigibt, wenn die Login-Variable auf True gesetzt
+ist. Dies geschieht, wenn der Nutzer sich erfolgreich eingeloggt hat.
+Abbildung 6.2 – GUI Login-Seite
+Auf der Login-Seite hat der Nutzer – wie in Kapitel 4.3 angedeutet – die Auswahl zwischen
+einem Login oder einer Registrierung. Ist der Nutzer nicht registriert, kann dieser sich über den
+entsprechenden Button ein Nutzerkonto anlegen, indem er einen Nutzernamen und ein Passwort
+wählt, sowie seine persönlichen Daten angibt (s. Abbildung 6.3). Nach Eingabe des
+gewünschten Nutzernamen wird im Hintergrund geprüft, ob dieser bereits an einen anderen
+Nutzer vergeben ist. Ist dies der Fall, öffnet sich ein Popup-Fenster, welches den Nutzer darauf
+hinweist einen anderen Nutzernamen zu wählen. Zusätzlich wird nach Eingabe des Passworts
+und deren Wiederholung ebenfalls geprüft, ob beide Eingaben identisch sind. Ist dies nicht der
+Fall, öffnet sich auch hier wieder ein Popup-Fenster und weist den Nutzer auf den Fehler hin.
+Nachdem der Nutzer alle Felder ausgefüllt hat, kann dieser seine Registrierung abschließen,
+indem er seine Angaben über den Speichern-Button speichert. Dadurch werden die Angaben in
+43
+
+=== PAGE 45 ===
+die Datenbank übertragen und der Nutzer kann sich anschließend über das Login-Feld
+anmelden.
+Abbildung 6.3 – GUI Registrierungs-Seite
+Im Anhang B.8 befindet sich der Programmcode zu diesem Ausschnitt der Anwendung. Für die
+Login-Seite wird im Code eine Unterscheidung benötigt, ob der Nutzer bereits registriert ist
+und sich lediglich einloggt oder ob er sich neu registriert. Dafür wurde die reaktive Variable
+registered eingeführt, welche standardmäßig True ist. Klickt der Nutzer auf den Registrieren-
+Button, wird die Variable auf False gesetzt und es wird die Registrierungsseite (s. Abbildung
+6.3) gezeigt. Hat sich der Nutzer erfolgreich eingeloggt, wird die Variable logged_in auf True
+gesetzt, welche die Zugriffsteuerung durch den Wrapper bestimmt.
+6.2 Startseite
+Abbildung 6.4 – GUI Startseite
+44
+
+=== PAGE 46 ===
+Nachdem sich der Nutzer erfolgreich (registriert und) eingeloggt hat, sind die fünf Hauptseiten
+(Startseite, Nano upload, Nanos verwalten, Profil und Chat) sichtbar. Die Startseite besteht
+ebenfalls wieder aus der blauen Headerbar, sowie darunter aus einer Suchleiste mit Auswahl
+des Suchgebiets. Unterhalb der Suchleiste werden die Suchergebnisse, inklusive fünf zentraler
+Merkmale angezeigt (s. Abbildung 6.4). Bei den zentralen Merkmalen handelt es sich um die
+Angaben zum Titel des Nanos, der (Bearbeitungs-)Dauer, der Themenbereiche, dem Modus
+und des Dozenten. Der Modus gibt an, ob das Nano online oder offline durchgeführt wird, die
+Angabe Dozent gibt an, ob das Nano mit oder ohne einen Dozenten bearbeitet bzw. ausgeführt
+wird. Diese Merkmale wurden ausgewählt, da der Nutzer anhand dieser Angaben eine erste
+Auswahl treffen kann, ob das Nano für ihn infrage kommt (Vgl. s. Kapitel 3.1).
+Um die Suchfunktion der Anwendung zu nutzen, muss im ersten Schritt ein Suchgebiet
+ausgewählt werden. Hierbei hat der Nutzer die Auswahl zwischen der Suche nach einem Titel,
+einem Themenbereich, der Art der Durchführung (Theorie/ Praxis) und der Sprache. Die
+Funktion soll anhand eines Beispiels näher erläutert werden. Dazu wird für das Suchgebiet der
+Titel ausgewählt und als Suchbegriff „Spannung“ eingetragen. Anschließend wird auf den
+Suchen-Button rechts neben der Suchleiste geklickt. Die Ergebnisse zu diesem Suchbegriff
+werden unterhalb der Überschriften Titel, Dauer, usw. angezeigt (s. Abbildung 6.5). Der
+eingegebene Suchbegriff führte in diesem Beispiel zu zwei Ergebnissen. Zu jedem gefundenen
+Nano werden die genannten Merkmale angezeigt, sowie rechts ein Button „Ansicht“, über den
+die Detailansicht zu dem Nano geöffnet werden kann (s. hierzu Kapitel 6.2.1).
+Abbildung 6.5 – Startseite mit Suchergebnis
+Anhand dieser Suchanfrage soll ebenfalls der Code für die Suchfunktion erklärt werden. Der
+dazugehörige Programmablaufplan (PAP) ist in Abbildung 6.6 dargestellt, der in diesem
+Beispiel durchlaufende Pfad ist mit blauen Pfeilen gekennzeichnet. Wie bereits erklärt werden
+im ersten Schritt das Suchgebiet (Titel) ausgewählt und der Suchbegriff („Spannung“)
+eingetragen. Anschließend wird auf den Suchen-Button geklickt. Mit diesem Klick wird eine
+Funktion aufgerufen, welche im PAP nicht als Unterprogramm gekennzeichnet ist, da der Inhalt
+dieser die eigentliche Suchfunktion darstellt. Damit geprüft werden kann, ob es zu dem
+Suchbegriff passende Nanos auf dem Marktplatz gibt, wird eine Datenbankverbindung
+benötigt.
+45
+
+=== PAGE 47 ===
+Abbildung 6.6 – Programmablaufplan Suchfunktion
+Nachdem diese erfolgreich hergestellt wurde, wird abhängig von dem Suchgebiet die
+Datenbank durchsucht. Im vorliegenden Beispiel wird nach einem Titel gesucht, wodurch die
+erste Bedingung „area = Titel“ zutrifft. Das Programm durchläuft diesen Code-Ast, weshalb
+aus der Tabelle Nanoinformationen von allen Nanos die Nano_ID und der Titel in einer Liste
+zurückgegeben werden. Anschließend wird die Verbindung zur Datenbank geschlossen. Im
+nächsten Schritt wird unterschieden, ob das Suchwort „Theorie“ ist. Dies ist eine notwendige
+Unterscheidung, da im Suchgebiet „Durchführung“ zwischen Theorie und Praxis unterschieden
+46
+
+=== PAGE 48 ===
+werden soll. Da in diesem Beispiel nicht hiernach gesucht wird, wird an dieser Verzweigung
+der „nein“-Pfad verfolgt. Im nächsten Schritt werden in einer Schleife die Titel aller Nanos
+nacheinander nach dem Suchbegriff durchsucht. Dafür wird vorher sowohl das Suchwort als
+auch der Titel des Nanos in Kleinbuchstaben umformatiert, sodass die Groß- und
+Kleinschreibung irrelevant ist. Immer wenn das Suchwort in dem Titel eines Nanos enthalten
+ist, wird die entsprechende Nano_ID zu einer Liste hinzugefügt (im PAP ID genannt). Nachdem
+alle Titel durchsucht wurden, wird die Schleife verlassen. Anschließend wird überprüft, ob die
+Liste mit den Nano_IDs leer ist. Da dies bei dieser Suchanfrage nicht der Fall ist, werden
+anschließend zu jeder Nano_ID die oben genannten Merkmale aus der Datenbank abgefragt.
+Dies ist im PAP als Unterprogramm dargestellt, da die Ausführung dieses Schritts für die
+eigentliche Suchfunktion eine untergeordnete Relevanz hat. Die aus der Datenbank abgefragten
+Informationen (Merkmale) werden in Variablen gespeichert und abschließend auf der
+Benutzeroberfläche - wie in Abbildung 6.5 dargestellt - angezeigt.
+In dem Programmablaufplan ist ein Pfeil orange eingefärbt. Dieser beschreibt, dass nachdem
+die Eingaben aufgrund der Fehlermeldung gelöscht wurden, der Nutzer wieder neue Eingaben
+zu Suchgebiet und Suchbegriff machen muss und dieser Codeabschnitt folglich von vorne
+durchlaufen wird.
+6.2.1 Detailansicht
+Abbildung 6.7 – GUI Detailansicht
+In der Detailansicht werden detaillierte Informationen zu einem ausgewählten Nano gezeigt,
+inklusive einer Bewertung von diesem (s. Abbildung 6.7). Unterhalb der Headerbar steht auf
+der linken Seite zunächst der Titel des ausgewählten Nanos – in diesem Fall lautet der Titel
+Erklärvideos zu Grundschaltungen, Stromstärke und Spannung. Auf der rechten Seite befinden
+sich zwei Buttons: einer zum Schließen der Detailansicht und einer, um das Nano als Favorit
+zu markieren. Unterhalb dieser Angaben befindet sich auf der linken Seite ein Bereich, in dem
+die Informationen zum Herausgeber angezeigt werden und darunter mehrere Buttons. Der
+oberste dient der Kontaktaufnahme mit dem Herausgeber, indem ein Chat mit diesem geöffnet
+wird (s. Kapitel 6.6). Mit dem mittleren Button kann das Profil des Herausgebers angezeigt
+werden (s. Kapitel 6.2.2) und der untere Button dient dazu, einen Kommentar zu dem
+47
+
+=== PAGE 49 ===
+beschriebenen Nano zu verfassen. In der Mitte der Seite befinden sich die detaillierten
+Informationen zu dem angezeigten Nano und auf der rechten Seite kann die Sterne-Bewertung
+des Nanos, sowie zu verfasste Kommentare eingesehen werden. Die Bewertung beschreibt den
+Mittelwert aller abgegebenen Bewertungen zu diesem Nano. Dabei wird ein Nano immer mit
+ein bis maximal fünf Sternen bewertet (s. Kapitel 6.2.3).
+Die Informationen zu einem Nano werden anhand von Datenbank-Abfragen ermittelt und
+anschließend auf der Seite ausgegeben. Der Code zu dieser Seite befindet sich in Anhang B.7.
+Ein zentraler Aspekt dieser Detailansicht ist zusätzlich, dass aus der Übersicht mehrerer Nanos
+die Ansicht für ein spezifisches Nano geöffnet werden soll. Wie bereits in dem übergeordneten
+Kapitel (Kapitel 6.2) beschrieben, werden die Ergebnisse einer Suchanfrage mithilfe einer for-
+Schleife entsprechend der Menge an Suchergebnissen angezeigt. Hierbei muss der Ansicht-
+Button immer die Detailansicht des entsprechenden Nanos öffnen. Damit dies geschieht, ist es
+wichtig, in der Definition des Buttons unter dem on_click-Parameter ein lambda i=i einzufügen
+(s. Abbildung 6.8). Dies sorgt einerseits dafür, dass die hinterlegte Funktion erst beim
+Anklicken des Buttons ausgeführt wird und andererseits, dass der korrekte Wert für i übergeben
+wird. Ansonsten wird immer der letzte Wert für i übergeben, wodurch mit jedem Button
+lediglich das zuletzt gefundene Nano geöffnet werden würde.
+Abbildung 6.8 – Ausschnitt home.py
+6.2.2 Herausgeberprofil und Page-Manager
+Ausgehend von den Detailseite des Nanos kann die Profilseite des Herausgebers (s. Abbildung
+6.9) geöffnet und angesehen werden. Diese besteht aus der Angabe der Nutzerinformationen
+auf der linken Seite, sowie der Anzeige weiterer erstellter Nanos (mittig auf der Seite). Für
+diese kann ebenfalls wieder über den Ansicht-Button die Detailansicht geöffnet werden. Rechts
+oben befindet sich der Button, um die Ansicht zu schließen. Auch hier werden alle Angaben
+wieder aus einer Datenbank abgefragt.
+Da sowohl von der Detailseite aus die Profilseite geöffnet werden soll, also auch anders herum,
+besteht hier das Problem des zirkulären Imports. Dies bedeutet, dass Dateien sich gegenseitig
+importieren, was zu einem Fehler führt. Um dennoch zwischen den Seiten wechseln zu können,
+wurde ein zusätzliche Datei eingeführt, die ausschließlich für die Navigation zwischen
+verschiedenen Subpages verantwortlich ist (s. Anhang B.14). Wie später deutlich wird, besteht
+dieses Problem ebenfalls zwischen der Detailseite und der Subpage für einen Chat. Durch die
+Implementierung dieses Page-Managers werden zirkuläre Importe zwischen den Pages
+vermieden. Dazu muss der Page-Manager ebenfalls den Dekorator @solara.component
+48
+
+=== PAGE 50 ===
+besitzen und somit als UI-Komponente ausgewiesen sein, da dieser reaktive Variablen
+verwendet und andere UI-Komponenten aufruft. Mithilfe der Logik des Page-Managers wird
+für den Wechsel zu einer Subpage diese nicht direkt importiert und aufgerufen, sondern durch
+die Änderung einer reaktiven Variable geöffnet. Diese Variable current_view bewirkt, dass
+abhängig ihres Wertes eine andere Subpage geöffnet wird. Dies soll im nachfolgenden anhand
+eines Beispiels näher erläutert werden. Im Beispiel soll von der Profilseile aus die Detailansicht
+eines spezifischen Nanos geöffnet werden. Dazu wird beim Anklicken des Ansicht-Buttons der
+Wert der Variable current_view auf detail geändert. Durch die Wertänderung wird die Seite
+neu gerendert und somit die Detailansicht geöffnet.
+Abbildung 6.9 – GUI Profilseite eines anderen Nutzers
+6.2.3 Kommentarfunktion
+Abbildung 6.10 – GUI Kommentarseite
+Die Kommentarseite (s. Abbildung 6.10) wird von der Detailseite aus geöffnet und dient der
+Bewertung eines Nanos. Dazu wird in dem oberen Feld eine Bewertung eingetragen, welche
+49
+
+=== PAGE 51 ===
+zwischen 1.0 und 5.0 (Sternen) liegt, wobei 1.0 sehr schlecht und 5.0 sehr gut bedeutet. Im
+darunterliegenden Feld kann ein Kommentar verfasst werden. Über die Schaltfläche Speichern
+(rechts) werden die Eingaben in einer Datenbankrelation gespeichert, der Button Abbrechen
+führt zurück zur Detailansicht.
+6.3 Nano-Upload
+Damit ein Nutzer ein erstelltes Nano auf dem Marktplatz anbieten kann, muss dieses in der
+Datenbank hinterlegt sein. Damit das Nano in der Datenbank gespeichert werden kann, müssen
+die notwendigen Angaben auf der Seite Nano-Upload (s. Abbildung 6.11) eingefügt und
+gespeichert werden. Die Seite ist untergliedert in drei Spalten: In der linken Spalte werden
+Angaben zum Nano wie beispielsweise der Titel, die Bearbeitungsdauer, Themengebiete usw.
+eingefügt. Weiter kann dort die Kompetenzstufe (1 – 3) und die Sprache (im Prototyp Deutsch,
+Englisch oder andere) angegeben werden, sowie Angaben zu der Durchführung des Nanos
+(online/ offline, mit/ ohne Dozent). In der mittleren Spalte kann über Checkboxen ausgewählt
+werden, welcher Art die Inhalte des Nanos sind. Die Art des Nanos beschreibt, ob das Nano
+beispielsweise aus einem Text, einem Video oder einem Quiz besteht. Hier können auch
+mehrere Checkboxen parallel aktiviert sein, da ein Nano auch aus verschiedenen Teilen
+bestehen kann. In der rechten Spalte kann das Nano als „privat“ gekennzeichnet werden, d.h.
+es wird in der Datenbank hinterlegt, kann allerdings nicht über die Suchfunktion gefunden
+werden (ähnlich wie archivierte Nanos). Weiterhin befindet sich auf der rechten Seite ein
+Drag&Drop-Feld, in dem die ZIP-Datei für das Nano abgelegt wird. Unterhalb dieser befindet
+sich ein Button „Dateien entfernen“, um die abgelegte ZIP-Datei zu löschen, und ein Button
+„Speichern“, mit dem die Angaben in die Datenbank eingefügt werden.
+Die hier abgefragten Informationen zu einem Nano wurden in Kapitel 3.1 als zentrale
+Anforderungen definiert und müssen für den Upload angegeben werden. Dies ist wichtig, um
+für die Nutzer eine Vergleichbarkeit der Nanos zu gewährleisten.
+Abbildung 6.11 – GUI Nano hochladen
+Wie bereits erwähnt, wird im Ablagefeld eine ZIP-Datei erwartet. Um dies zu überprüfen, bevor
+die Angaben in die entsprechenden Relationen eingefügt werden, wird der Code aus Abbildung
+50
+
+=== PAGE 52 ===
+6.12 verwendet. Hier ist zu sehen, dass das Drag&Drop-Feld über den Parameter on_file mit
+der Funktion check_file verknüpft ist. Diese Funktion überprüft, ob die abgelegte Datei die
+Endung „.zip“ enthält. Ist dies nicht der Fall, öffnet sich ein Popup-Fenster, welches den Nutzer
+darauf hinweist, dass nur ZIP-Dateien akzeptiert werden.
+Abbildung 6.12 – Ausschnitt upload.py
+6.4 Nanos verwalten
+Abbildung 6.13 – GUI Nanos verwalten
+Über den Reiter Manage-Nanos können alle vom eingeloggten Nutzer hochgeladenen Nanos
+verwaltet werden. Die Seite (s. Abbildung 6.13) untergliedert sich in zwei Bereiche: In dem
+oberen Bereich werden alle aktiven, d.h. von allen Nutzern einsehbare Nanos angezeigt und in
+dem unteren Bereich alle archivierten, d.h. von anderen Nutzern nicht einsehbare Nanos. Für
+jedes Nano besteht die Möglichkeit dieses zu bearbeiten, zu archivieren bzw. zu aktivieren oder
+das Nano zu löschen. Über die Schaltfläche „Bearbeiten“ gelangt der Nutzer zu einer Subpage,
+die identisch aufgebaut ist, wie die Seite zum Upload eines Nanos (s. Abbildung 6.14). Wird
+diese Seite geöffnet, werden parallel die Informationen zu dem ausgewählten Nano aus der
+Datenbank abgefragt und in die Eingabefelder eingefügt. So kann der Nutzer zentrale
+Informationen einsehen und ggf. bearbeiten. Über den Speichern-Button werden die
+Informationen in den entsprechenden Relationen überschrieben und der Nutzer gelangt zurück
+zur Übersicht seiner Nanos. Über die Schaltfläche Abbrechen (oben rechts) gelangt der Nutzer
+51
+
+=== PAGE 53 ===
+ebenfalls zurück zu der Nano-Übersicht, allerdings werden die Informationen in der Datenbank
+nicht geändert.
+Abbildung 6.14 – GUI Nano aktualisieren
+Die Schaltfläche Archivieren bzw. Aktivieren (s. Abbildung 6.13) ändert den Status, sodass
+dieses Nano für andere Nutzer nicht bzw. wieder sichtbar ist. Dafür wird in der Relation
+Nanoinformationen (Vgl. s. Abbildung 5.2) der Status des Nanos verändert. Ist der Wert in der
+Spalte 0, ist das Nano für andere Nutzer sichtbar. Ist der Wert 1, ist das Nano nicht sichtbar.
+Um den Status zu ändern, wird eine Funktion verwendet, die ebenfalls erst eine Verbindung zur
+Datenbank herstellt und schließend über ein UPDATE-Query den Wert überschreibt (s. Anhang
+B.15). Abschließend wird die Verbindung zur Datenbank wieder geschlossen. Die Möglichkeit,
+ein Nano zu archivieren soll dazu dienen, dass Nutzer ihre Nanos vom Markt nehmen können,
+wenn diese nicht mehr aktuell sind oder Fehler enthalten. Anbieter können ihre Nanos zu einem
+späteren Zeitpunkt bearbeiten und anschließend wieder aktivieren. Dies soll den Aufwand,
+veraltete Nanos löschen und neu hochzuladen zu müssen vermeiden.
+Über die Schaltfläche Löschen können Nanos aus der Datenbank entfernt werden, wodurch sie
+folglich nicht mehr auf dem Marktplatz zu finden sind.
+6.5 Profilseite
+Die Profilseite des Nano-Marktplatzes (s. Abbildung 6.15) ist in zwei Spalten aufgeteilt. In der
+linken Spalte befinden sich die persönlichen Angaben des Nutzers. Hier kann er seinen
+Nutzernamen einsehen und das Passwort ändern. Darunter befinden sich seine persönlichen
+Angaben wie Name, Adresse, Firma und E-Mail-Adresse. Das Merkmal Funktion gibt an,
+welche Rolle der Nutzer auf dem Marktplatz hat (z.B. „Teilen“, wenn er als Herausgeber von
+Nanos agiert). In der rechten Spalte kann der Nutzer unter persönliche Präferenzen seine
+thematischen Interessen angeben. Diese werden anschließend in der Datenbank gespeichert und
+können in einer späteren Variante des Marktplatzes genutzt werden, um dem Nutzer zu seinen
+Interessen passende Nano-Einheiten vorzuschlagen. In dem Feld darunter werden die vom
+Nutzer als Favorit abgespeicherte Nanos aufgelistet und können über die Schaltfläche
+„Anzeigen“ geöffnet werden, wodurch die Detailansicht (s. Abbildung 6.7) geöffnet wird.
+52
+
+=== PAGE 54 ===
+Abbildung 6.15 – GUI Profilseite
+6.6 Chat
+Die Chat-Funktion stellt einen zentralen Bestandteil des Prototyps dar und dient der
+Kommunikation zwischen einem Anbieter und einem Nachfrager. Der eingeloggte Nutzer kann
+unter dem Reiter Chat alle seine bisherigen Konversationen einsehen (s. Abbildung 6.16). In
+der Hauptansicht sind die Chats jeweils untereinander aufgelistet, dabei ist jeder Chat einem
+bestimmten Nano zugeordnet. Der Titel des Nanos wird auf der linken Seite unterhalb des
+Namens des Chatpartners angezeigt. Über den Button „Chat öffnen“ auf der rechten Seite kann
+der Nutzer den Chat anzeigen lassen. Die daraus geöffnete Ansicht wird in dem Kapitel 6.7
+beschrieben.
+Abbildung 6.16 – GUI Übersicht aller Chats
+Um über den Button den richtigen Chat zu öffnen, wird im Code bei dem Parameter on_click
+auch hier wieder eine lambda-Funktion genutzt, die dafür sorgt, dass der korrekte Chat geöffnet
+wird. Dies geschieht durch die Übergabe der entsprechenden Nano-ID (nid) und Chat-ID (cid)
+53
+
+=== PAGE 55 ===
+(s. Abbildung 6.17). Würde keine lambda-Funktion genutzt werden, würde jeder Button immer
+den untersten (d.h. den zuletzt gefundenen) Chat öffnen.
+Abbildung 6.17 – Ausschnitt chat_main.py
+6.7 Privatchat
+Wird ein bestimmter Chat geöffnet, wird die in Abbildung 6.18 dargestellte Ansicht geöffnet.
+Auf der linken Seite befinden sich der Titel und der Name des Herausgebers des thematisierten
+Nanos, sowie der Name des Chatpartners. Zusätzlich können über die Buttons „Nano ansehen“
+und „Profil ansehen“, die Detailseite des Nanos (s. Kapitel 6.2.1) bzw. die Profilseite des
+Chatpartners (s. Kapitel 6.2.2) angezeigt werden. Mittig befindet sich der eigentliche Chat. Hier
+können die zuletzt gesendeten Nachrichten gelesen werden und neue verfasst und versendet
+werden. Da der hier integrierte Chat nicht über Websockets implementiert wurde, sondern
+lediglich als eine Datenbankabfrage, werden neue Nachrichten über den „Refresh“-Button oben
+rechts auf der Seite aus der Datenbank geladen. Diese Implementierung wurde so gewählt, da
+die grundlegende Funktionalität einer Chatfunktion so einfach abgebildet und in dem
+Prototypen getestet werden kann. Für den späteren Marktplatz wäre allerdings eine andere
+Implementierung (bspw. über Websockets) empfehlenswert (s. Kapitel 8). Weiterhin beinhaltet
+auch diese Subpage einen „Schließen“-Button, um zur vorherigen Übersicht über alle Chats
+zurückzukehren.
+Abbildung 6.18 – GUI Privatchat
+54
+
+=== PAGE 56 ===
+7 Fazit
+Das Ziel der vorliegenden Arbeit ist eine konzeptionelle und prototypische Umsetzung für einen
+Nano-Marktplatz zu entwickeln, welcher sich an die Weiterbilder und Unternehmen in der
+Region Süd-Ost-Niedersachsen richtet. Im Fokus stand dabei insbesondere die Umsetzung des
+Prototyps. Dazu wurde nach einer umfangreichen Literaturrecherche eine IST-Analyse von drei
+verschiedenen populären Online-Marktplätzen (Amazon Marketplace, ebay und Etsy)
+durchgeführt. Hierzu wurden im Vorfeld verschiedene Anforderungen definiert, anhand derer
+die Marktplätze miteinander verglichen wurden, um eine Art Best Practice herauszuarbeiten.
+Hierbei stellte sich heraus, dass alle betrachteten Marktplätze ähnliche Strukturen und
+Funktionen aufweisen und folglich als Beispiel für die gestellte Aufgabe dienen können,
+trotzdem ebay aufgrund der Funktionalität und Qualität der Funktionen bevorzugt betrachtet
+werden sollte. Anschließend wurde der Prototyp konzeptionell entwickelt, indem allgemeine
+Aspekte, ein Handlungs- und ein Designkonzept entwickelt wurden. Anhand dieser
+Konzeptionierung wurde der Prototyp im weiteren Verlauf der Arbeit umgesetzt. Dazu musste
+neben der eigentlichen Benutzeroberfläche zusätzlich noch eine Datenbank entwickelt und
+implementiert werden, um unterschiedliche Informationen, die während des Betriebs bzw. der
+Nutzung des Nano-Marktplatzes anfallen zu speichern.
+In der Einleitung dieser Arbeit wurde neben der Aufgabenstellung auch die Zielsetzung
+definiert: Die in Kapitel 3 gestellten Anforderungen – aufgeteilt in Fest-, Wunsch- und
+Zielanforderung – werden abschließend am Ende noch einmal mit dem entwickelten Ergebnis
+verglichen, um zu überprüfen, ob und in wie weit die Zielsetzung erreicht wurde. Als feste
+Anforderungen wurden folgende Punkte definiert:
+- Schlichtes und ruhiges Design der Nutzeroberfläche und ein übersichtlicher Aufbau,
+- Möglichkeit, Nano-Einheiten zu speichern und zu veröffentlichen,
+- Angabe definierter Merkmale zu jeder Nano-Einheit und
+- Integrierung einer Login-Funktion.
+Die Wunschanforderungen, welche optional umgesetzt werden konnten sind:
+- Eine einfache und intuitive Bedienbarkeit,
+- Die Integration einer Such- bzw. Filterfunktion und
+- Die Integration einer Feedback-Funktion.
+Die Zielanforderung ist, dass der Nano-Marktplatz online verfügbar ist.
+Mit Blick auf den entwickelten Prototypen lässt sich sagen, dass alle fest und optional (d.h.
+Wunsch) definierten Anforderungen erfolgreich umgesetzt wurden. Durch ein einheitliches
+Farbkonzept (blaue Headerbar und weißer Hintergrund) aller Seiten besitzt die
+Nutzeroberfläche des Prototyps ein schlichtes, ruhiges und modernes Design. Die Headerbar
+(Mainbar) sorgt für einen strukturierten und übersichtlichen Aufbau des Nano-Marktplatzes
+und dient zusätzlich der einfachen und intuitiven Bedienbarkeit, da alle Hauptseiten über diese
+erreichbar sind. Durch die Implementierung der Page „Nano-Upload“ wird dem Nutzer die
+Möglichkeit gegeben, Nano-Einheiten zu veröffentlichen, welche in der Datenbank gespeichert
+werden. Durch den Upload wird die Angabe einiger festgelegter Merkmale erforderlich,
+55
+
+=== PAGE 57 ===
+wodurch auch diese Festanforderung erfüllt wird. Durch die anfängliche Registrierung bzw.
+Anmeldung eines Nutzers ist ebenfalls eine Login-Funktion implementiert.
+Der Prototyp des Nano-Markplatzes beinhaltet weiterhin auch eine Suchfunktion mit einigen
+Filterfunktionen sowie die Möglichkeit ein Kommentar und eine Bewertung zu jedem Nano
+abzugeben. Folglich sind auch die letzten beiden Wunschanforderungen erfüllt. Die
+Zielanforderung wurde nicht erfüllt, da der Prototyp wie beschrieben zunächst nur als lokales
+Modell entwickelt wurde. Es lässt sich aber, wie in Kapitel 8 beschrieben wird, beispielsweise
+auf aws-Module übertragen, wodurch die Online-Verfügbarkeit gewährleistet werden kann.
+Zusammenfassend lässt sich sagen, dass die Zielsetzung erreicht wurde, da alle Fest- und alle
+Wunschanforderungen erfolgreich umgesetzt wurden.
+56
+
+=== PAGE 58 ===
+8 Ausblick
+Die vorliegende Arbeit hat gezeigt, dass der Prototyp des Nano-Marktplatz bereits zentrale
+Funktionen beinhaltet und die grundlegenden Anforderungen erfüllt. Auf dieser Grundlage
+kann der Prototyp schrittweise weiterentwickelt werden, um dem angestrebten realen Nano-
+Marktplatz zunehmend näher zu kommen. Dazu können weitere Funktionalitäten implementiert
+werden, um den Nutzern mehr Sicherheit und Funktionalität zu bieten.
+Im ersten Schritt kann die Chat-Funktion verbessert werden. Wie bereits angedeutet, ist der im
+Prototyp implementierte Chat lediglich eine Abfrage der hinterlegten Datenbank und
+funktioniert ohne Websockets. Hier kann angesetzt werden und die Chatfunktion auf
+Websockets umgestellt werden, sodass Nachrichten online versendet werden. Hierfür wird
+dann ebenfalls eine Verschlüsselung der Nachrichten erforderlich.
+Ein weiterer, essentieller Schritt ist die Berücksichtigung der DSGVO und des Urheberrechts.
+Für die Sicherheit des Nano-Marktplatzes ist dies unerlässlich, da diese gesetzlichen Vorgaben
+zwingend eingehalten werden müssen. Da der Prototyp aktuell lediglich ein lokales Modell mit
+fiktiven Angaben ist, ist es noch nicht zwingend erforderlich gewesen diese Vorgaben zu
+berücksichtigen, da sie keinen Einfluss auf die ersten grundlegenden Funktionalitäten haben.
+Zusätzlich sollte eine Instanz zur Qualitätsprüfung und -sicherung implementiert werden,
+welche die hochgeladenen Nanos auf Korrektheit überprüft. Dies ist essentiell um die Qualität
+des Marktplatzes und folglich auch die Beliebtheit bei Nutzern weiter zu steigern. Eine Form
+der Qualitätskontrolle ist bereits durch die Möglichkeit gegeben, Feedback zu Nanos zu geben.
+Dennoch sollten Nano-Einheiten stichprobenartig kontrolliert werden. Zusätzlich könnten auch
+Performance Measures (Vgl. s. Kapitel 2.4) eingeführt werden, um anhand von Kennzahlen
+die Entwicklung des Nano-Marktplatzes zu quantifizieren. Dies entspricht der Phase 5 des
+Vorgehensmodells nach Steur.
+Sind diese sicherheitstechnischen Strukturen, ein Chat über eine Online-Funktionalität (z.B.
+über Websockets) und eine Instanz für die Qualitätssicherung implementiert, kann der Prototyp
+auf aws-Module übertragen werden. Dies ermöglicht neben der Online-Verfügbarkeit auch eine
+bessere Skalierbarkeit des Marktplatzes und kann ggf. sogar kostengünstiger sein.
+Ein weiterer Optimierungsansatz wäre zusätzlich, dass Nanos nicht nur den Kompetenzstufen
+zugeordnet werden können, sondern dass der Herausgeber des Nanos dieses auch zu von ihm
+erstellte Module oder Schulungen zuordnen kann. Hierfür kann beispielsweise die Relation
+Nanoinformation mit den Spalten Modul und Schulung erweitert werden, sodass eine
+Zuordnung möglich wird. Diese Informationen können anschließend zusätzlich auch auf der
+Detailansicht des Nanos angezeigt werden, wodurch der Nutzer sich neben einzelnen Nanos
+auch ganze Module oder Schulungen anschauen und ggf. beziehen kann.
+Um die Nutzerfreundlichkeit weiter zu steigern, könnte beispielsweise ein Parameter
+(last_view) eingeführt werden, in dem gespeichert wird, auf welcher (Sub-)Page der Nutzer
+zuletzt war. So kann verhindert werden, dass Nutzer beim Schließen einer Subpage nicht wieder
+zur der ursprünglichen Mainpage gelangen, sondern zu der (Sub-)Page auf der sie vorher waren.
+57
+
+=== PAGE 59 ===
+Da auch das Thema Künstliche Intelligenz immer präsenter wird, könnte zusätzlich ein
+Algorithmus implementiert werden, der dem Nutzer automatisiert passende Nanos vorschlägt
+und eine Empfehlung über thematisch zusammenpassende bzw. sich ergänzende Nanos gibt.
+58
+
+=== PAGE 60 ===
+9 Literaturverzeichnis
+Adams, R. (2022): SQL. Der Grundkurs für Ausbildung und Praxis. 4. Aufl. München: Carl Hanser
+Verlag.
+awork: Mockup. Online verfügbar unter https://www.awork.com/de/glossary/mockup, zuletzt geprüft
+am 26.09.2025.
+Baumgartner, P.; Häfele, H.; Maier-Häferle, K. (2004): Lernplattformen für das Corporate e-Learning.
+In: S. Laske (Hg.): Virtuelle Personalentwicklung. Status und Trends IuKT-gestützten Lernens. Unter
+Mitarbeit von U. Hugl. 1. Aufl. Wiesbaden: Deutscher Universitäts-Verlag, S. 95–118.
+DSGVO: Datenschutzgrundverordnung. Online verfügbar unter https://dsgvo-gesetz.de/art-1-dsgvo/,
+zuletzt geprüft am 24.10.25.
+Deges, F. (2023): Grundlage des E-Commerce. Strategien, Modelle, Instrumente. 2. Aufl. Wiesbaden:
+Spinger Gabler.
+Eilebrecht, K.; Starke, G. (2024): Patterns kompakt. Entwurfsmuster für effektive
+Softwareentwicklung. 6. Aufl. Wiesbaden: Springer Vieweg.
+Engel, A.; Lahner, J.; Triltsch, U. (2022): Wie kann digitales Lernen in Weiterbildung funktionieren?
+Digitale Kompetenzen in der Weiterbildung. Abschlussbericht des Projekts DiKom. Hg. v. A. Engel,
+U. Harteisen und K. Maas, zuletzt geprüft am 30.10.25.
+Gadatsch, A. (2019): Datenmodellierung. Einführung in die Entity-Relationship-Modellierung und das
+Relationenmodell. 2. Aufl. Wiesbaden: Springer Vieweg.
+Harwardt, M.; Haselhoff, V. (2022a): Digitale Plattformen und Marktplätze. Grundlagen
+plattformbasierter Geschäftsmodelle. Wiesbaden: Spinger Gabler.
+Harwardt, M.; Haselhoff, V. J. (2022b): Elektronische Marktplätze - Potenziale, Vor- und Nachteile
+der Online-Intermediäre. In: Axel Steuernagel (Hg.): Praxisbeispiele der Digitalisierung. Trends, Best
+Practices und neue Geschäftsmodelle. Unter Mitarbeit von Mark Hardwardt, Peter F.-J. Niermann und
+Andre m. Schmutte. 1. Aufl. Wiesbaden: Spinger Gabler, S. 103–135.
+Haselhoff, V. J.; Harwardt, M. (2022): Digitale Plattformen - Grundlagen, Herausforderungen und
+Lösungsansätze. In: Axel Steuernagel (Hg.): Praxisbeispiele der Digitalisierung. Trends, Best
+Practices und neue Geschäftsmodelle. Unter Mitarbeit von Mark Hardwardt, Peter F.-J. Niermann und
+Andre m. Schmutte. 1. Aufl. Wiesbaden: Spinger Gabler, S. 137–158.
+Hockmann, V.; Knöll, H.-D. (2008): Profikurs Sicherheit von Web-Servern. Ein praxisorientiertes
+Handbuch - Grundlagen, Aufbau und Architektur - Schwachstellen und Hintertüren - Konkrete
+Praxisbeispiele realisiert unter Windows und Unix/Linux. 1. Aufl. Wiesbaden: Vieweg+Teubner.
+Hug, T. (2018): Mikrolernen und mobiles Lernen. In: C. Gloerfeld (Hg.): Handbuch Mobile Learning.
+Unter Mitarbeit von C. de Witt. Wiesbaden: SpringerVS, S. 321–340.
+IONOS Redaktion (Hg.) (2023): XAMPP-Tutorial: Installation und erste Schritte. Online verfügbar
+unter https://www.ionos.de/digitalguide/server/tools/xampp-tutorial-so-erstellen-sie-ihren-lokalen-
+testserver/, zuletzt geprüft am 24.10.25.
+Jung, R.: Entity Relationship Model (ERM). Online verfügbar unter https://wi-
+lex.de/index.php/lexikon/informations-daten-und-wissensmanagement/datenmanagement/daten/entity-
+relationship-model-erm/, zuletzt geprüft am 25.09.2025.
+Kersken, S. (2012): Apache 2.4. Das umfassende Handbuch. 4. Aufl. Bonn: Galileo Press.
+Maul, M. (1998): GUI - Graphical User Interface. Hg. v. A. Schwickert. Mainz. Online verfügbar
+unter https://d-nb.info/1057024147/34, zuletzt geprüft am 16.10.25.
+59
+
+=== PAGE 61 ===
+MDN: Was ist ein Webserver? Online verfügbar unter
+https://developer.mozilla.org/de/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_w
+eb_server, zuletzt geprüft am 02.11.25.
+Moodle: Moodle Workspace. Online verfügbar unter https://moodle.com/de/produkte/workplace/,
+zuletzt geprüft am 24.01.2026.
+PyPi: ipywidgets 8.1.7. Online verfügbar unter https://pypi.org/project/ipywidgets/, zuletzt geprüft am
+26.09.2025.
+Schicker, E. (2025): Datenbanken und SQL. Eine praxisorientierte Einführung mit Anwendungen in
+Oracle, SQL Server und MySQL. 6. Aufl. Wiesbaden: Springer Vieweg.
+Schmid, M.; Keller, B.: Einführung ins Programmieren mit Python. Online verfügbar unter
+https://pythonbuch.com/gui.html, zuletzt geprüft am 16.10.25.
+Solara Documantation. Online verfügbar unter https://solara.dev/documentation/, zuletzt geprüft am
+26.09.2025.
+Steur, A. (2022): Digitale Plattformen erfolgreich aufbauen und steuern. Grundlagen, Vorgehen,
+Beispiele. Wiesbaden: Spinger Gabler.
+Technische Universität Braunschweig, Ostfalia Hochschule für angewandte Wissenschaften (2024):
+Projekt-Kickoff. Digitale Weiterbildung der Weiterbilder - "DiWeiWei", zuletzt geprüft am
+30.10.2025.
+Triltsch, U.; Robra-Bissantz, S.: Projektbeschreibung für das Förderprogramm: Unterstützung
+Regionaler Fachkräftebündnisse (Strukturprojekte).
+Udemy Business (1): Weiterbildung zu allen Business-Themen für dein Team. Online verfügbar unter
+https://business.udemy.com/de/request-demo-business-
+courses/?utm_source=google&utm_medium=paid-search&utm_campaign=search-brand-emea-all-
+exact&utm_term=udemy+business&utm_content=g&utm_region=gb-
+emea&utm_audience=ub&gclid=Cj0KCQiA-
+NHLBhDSARIsAIhe9X1mk9AzxtaPs_pDfeXtU71hYflnccbFBkoFPiUq3zT25QkqBu4Z9xUaAshIEA
+Lw_wcB, zuletzt geprüft am 24.01.2026.
+Udemy Business (2): Abos. Online verfügbar unter
+https://business.udemy.com/de/plans/?utm_source=google&utm_medium=paid-
+search&utm_campaign=search-brand-emea-all-
+exact&utm_term=udemy+business&utm_content=g&utm_region=gb-
+emea&utm_audience=ub&gclid=Cj0KCQiA-
+NHLBhDSARIsAIhe9X1mk9AzxtaPs_pDfeXtU71hYflnccbFBkoFPiUq3zT25QkqBu4Z9xUaAshIEA
+Lw_wcB, zuletzt geprüft am 24.01.2026.
+UrhG: Urheberrecht. Online verfügbar unter https://www.gesetze-im-internet.de/urhg/__1.html,
+zuletzt geprüft am 24.10.25.
+Wirtz, B. W. (2024): Digital Business. Strategien, Geschäftsmodelle und Technologien. 8. Aufl.
+Wiesbaden: Spinger Gabler.
+60
+
+=== PAGE 62 ===
+Abbildungsverzeichnis
+Alle Abbildungen ohne eine Quellenangabe wurden selbstständig, ohne eine Vorlage erstellt.
+Abbildung 2.1 – Netzwerkeffekte (nach Steur 2022, Abb. 2.2) ............................................................8
+Abbildung 2.2 – Grundprinzip eines Online-Marktplatzes (nach Harwardt und Haselhoff 2022b,
+Abb. 6.3) ............................................................................................................................................9
+Abbildung 2.3 – Vorgehensmodell zum Aufbau und zur Steuerung digitaler Plattformen (nach Steur
+2022, Abb. 2.3) ................................................................................................................................. 13
+Abbildung 2.4 – Schematischer Zugriff auf Datenbanken (nach Adams 2022, Abb. 1.1) .................... 15
+Abbildung 2.5 – Kommunikation zwischen Browser und Webserver ................................................. 18
+Abbildung 3.1 – Amazon-Startseite (https://www.amazon.de/ref=ap_frn_logo, 18.09.2025) .............. 20
+Abbildung 3.2 - Amazon Produktseite
+(https://www.amazon.de/s?k=Hundebett&i=pets&__mk_de_DE=%C3%85M%C3%85%C5%BD%C3
+%95%C3%91&crid=1Y2Y37EG8LWB&sprefix=hundebet%2Cpets%2C695&ref=nb_sb_noss_2,
+25.09.2025 ........................................................................................................................................ 21
+Abbildung 3.3 – Startseite ebay (https://www.ebay.de/, 30.12.25 ) .................................................... 22
+Abbildung 3.4 – Startseite Etsy (https://www.etsy.com/de/?ref=lgo, 30.12.25) .................................. 23
+Abbildung 3.5 – Ausgewählte Nano-Merkmale ................................................................................. 26
+Abbildung 4.1 – Prozess des Uploads eines Nanos inkl. Einsatz der Prüfinstanz ................................ 27
+Abbildung 4.2 – DMU Startseite Nano-Marktplatz ............................................................................ 31
+Abbildung 4.3 – DMU Detailansicht eines Nanos.............................................................................. 32
+Abbildung 4.4 – DMU Menü hinter dem Benutzer-Icon .................................................................... 32
+Abbildung 4.5 – DMU Login-Seite Nano-Marktplatz ........................................................................ 33
+Abbildung 4.6 – DMU Nano-Upload-Seite........................................................................................ 34
+Abbildung 4.7 – DMU Nanos verwalten ........................................................................................... 34
+Abbildung 4.8 – DMU Persönlicher Bereich ..................................................................................... 35
+Abbildung 4.9 – DMU Chat .............................................................................................................. 35
+Abbildung 4.10 – DMU Nutzerprofil ................................................................................................ 36
+Abbildung 5.1 – Entity-Relationship-Modell (ERM) zum Nano-Marktplatz (Schritt 1) ...................... 37
+Abbildung 5.2 – Strukturierung der relationalen Datenbank (normalisiert)......................................... 38
+Abbildung 5.3 – xampp Control panel ............................................................................................... 39
+Abbildung 5.4 – Ausschnitt db_connect.py ....................................................................................... 40
+Abbildung 5.5 – Ausschnitt 2 db_connect.py..................................................................................... 40
+Abbildung 6.1 - Dateistruktur............................................................................................................ 42
+Abbildung 6.2 – GUI Login-Seite ..................................................................................................... 43
+Abbildung 6.3 – GUI Registrierungs-Seite ........................................................................................ 44
+Abbildung 6.4 – GUI Startseite ......................................................................................................... 44
+Abbildung 6.5 – Startseite mit Suchergebnis ..................................................................................... 45
+Abbildung 6.6 – Programmablaufplan Suchfunktion ......................................................................... 46
+Abbildung 6.7 – GUI Detailansicht ................................................................................................... 47
+Abbildung 6.8 – Ausschnitt home.py................................................................................................. 48
+Abbildung 6.9 – GUI Profilseite eines anderen Nutzers ..................................................................... 49
+Abbildung 6.10 – GUI Kommentarseite ............................................................................................ 49
+Abbildung 6.11 – GUI Nano hochladen............................................................................................. 50
+Abbildung 6.12 – Ausschnitt upload.py ............................................................................................. 51
+Abbildung 6.13 – GUI Nanos verwalten ............................................................................................ 51
+Abbildung 6.14 – GUI Nano aktualisieren ......................................................................................... 52
+Abbildung 6.15 – GUI Profilseite ...................................................................................................... 53
+61
+
+=== PAGE 63 ===
+Abbildung 6.16 – GUI Übersicht aller Chats ..................................................................................... 53
+Abbildung 6.17 – Ausschnitt chat_main.py ....................................................................................... 54
+Abbildung 6.18 – GUI Privatchat ...................................................................................................... 54
+62
+
+=== PAGE 64 ===
+Tabellenverzeichnis
+Tabelle 2.1 – Vorteile eines Online-Marktplatzes für Anbieter und Nachfrager (nach Harwardt und
+Haselhoff 2022b) .............................................................................................................................. 11
+Tabelle 3.1 – Anforderungen an den Prototypen des Nano-Marktplatzes ........................................... 20
+Tabelle 3.2 – Zusammenfassung Abgleich der Anforderungen .......................................................... 24
+Tabelle 4.1 – Gegenüberstellung der Handlungskonzepte .................................................................. 30
+63
+
+=== PAGE 65 ===
+Abkürzungsverzeichnis
+aws Amazon Web Services
+DB Datenbank
+DBMS Datenbankmanagementsystem
+DBS Datenbanksystem
+DiWeiWei Digitale Weiterbildung der Weiterbilder
+DMU Design-Mock-up
+DSGVO Datenschutzgrundverordnung
+E/A-Geräte Eingabe/ Ausgabe-Geräte
+ERM Entity-Relationship-Modell
+GUI Graphical User Interface
+HTTP Hypertext Transfer Protocol
+IoT Internet of Things
+MPM Multiprocessing-Module
+PAP Programmablaufplan
+UI Userinterface
+64
+
+=== PAGE 66 ===
+Anhang A – Strukturierung der Datenbank
+Wie bereits in Kapitel 5.2 angesprochen, werden verschiedenen Relationen innerhalb der
+Datenbank angelegt, um alle anfallenden und notwendigen Daten strukturiert zu speichern.
+Dazu wurde unter Anwendung des Entity-Relationship-Modells (ERM) die in Abbildung A1
+dargestellte Strukturierung erarbeitet. Die Tabellen Logindaten, Nutzerdaten, Nano,
+Nanoinformationen und Themengebiete wurden bereits näher erläutert. In der Relation Pers.
+Präferenzen werden die auf dem Profil angegebenen persönlichen Interessen gespeichert.
+Hierbei können maximal fünf Interessen angegeben werden, was ausreichend ist, um die
+Funktionalität innerhalb des Prototyps zu testen. Die Tabelle Favorisierte Nanos enthält alle
+Nanos, die von Nutzern als Favorit gespeichert wurden. In der Tabelle Chat werden die
+Chatpartner (Teilnehmer 1 und 2) mit einer Chat_ID verbunden gespeichert und zusätzlich wird
+weiterhin das angefragte Nano (Nano_ID) hinterlegt. Die Relation Chatnachrichten wiederum
+speichert alle gesendeten Nachrichten zu einer angegebenen Chat_ID mit der Zeit, zu der die
+Nachricht abgeschickt wurde. Abschließend speichert die Tabelle Kommentare alle
+Kommentare inkl. einer Bewertung mit der User_ID des Verfassers sowie der Nano_ID des
+Nanos dem der Kommentar gilt.
+Abbildung A1 – Strukturierung der Datenbank in Relationen
+65
+
+=== PAGE 67 ===
+Anhang B – Code
+In diesem Abschnitt ist der gesamte Code für den Prototyp des Nano-Marktplatzes enthalten.
+Wie in dem Hauptteil der vorliegenden Arbeit deutlich wurde, besteht der Code aus
+verschiedenen Dateien, welche im Zusammenspiel den Nano-Marktplatz darstellen. Wie genau
+die Dateien auf einander zugreifen ist in Abbildung B1 gezeigt. Wie der Legende zu entnehmen
+ist, beschreiben die orangefarbenen Dateien die Hauptpages des Marktplatzes, welche den
+Page-Manager aufrufen bzw. in denen dieser instanziiert wird. Der Page-Manager ist in der
+Datei open_selected_page.py enthalten und koordiniert die Zugriffe der einzelnen (Sub-)Pages
+untereinander. Diese Implementation ist notwendig, um zirkuläre Importe von Dateien zu
+vermeiden und dennoch den Aufruf von Pages untereinander (wie beispielsweise bei
+view_nano.py und private_chat.py) zu ermöglichen. Verknüpfungen zwischen Pages, die über
+den Page-Manager realisiert bzw. koordiniert werden, sind mit gestrichelten Pfeilen dargestellt.
+Verknüpfungen mit durchgezogenen Pfeilen werden durch direkte Importe der Dateien
+realisiert.
+Abbildung B1 – Verknüpfungen der einzelnen Seiten
+Wie die Abbildung 6.1 in Kapitel 6 zeigt, befinden sich deutlich mehr Dateien in dem
+Projektordner als auf der hier gezeigten Darstellung abgebildet. Der Code zu den weiteren
+Dateien befindet sich in den Anhängen B.13 bis einschließlich B.15. Wichtig zu erwähnen ist,
+dass die __init__.py-Dateien in den Ordnern Webinterface und Database hier nicht angehängt
+sind. Der Grund dafür ist, dass diese leer sind und lediglich dafür dienen, dass die Ordner als
+Module erkannt werden (s. hierzu auch Kapitel 6).
+66
+
+=== PAGE 68 ===
+Anhang B.1 – Startskript (main.py)
+Anhang B.2 - Startseite (home.py)
+67
+
+=== PAGE 69 ===
+68
+
+=== PAGE 70 ===
+Anhang B.3 - Upload-Seite (upload.py)
+69
+
+=== PAGE 71 ===
+70
+
+=== PAGE 72 ===
+71
+
+=== PAGE 73 ===
+Anhang B.4 – Profilseite (profil.py)
+72
+
+=== PAGE 74 ===
+73
+
+=== PAGE 75 ===
+74
+
+=== PAGE 76 ===
+Anhang B.5 – Nano-Management (manage_nanos.py)
+75
+
+=== PAGE 77 ===
+Anhang B.6 – Chat (chat_main.py)
+76
+
+=== PAGE 78 ===
+Anhang B.7 – Nano-Ansicht (view_nano.py)
+77
+
+=== PAGE 79 ===
+78
+
+=== PAGE 80 ===
+79
+
+=== PAGE 81 ===
+Anhang B.8 – Login-Seite (login.py)
+80
+
+=== PAGE 82 ===
+81
+
+=== PAGE 83 ===
+Anhang B.9 – Nano-Update (update_nano.py)
+82
+
+=== PAGE 84 ===
+83
+
+=== PAGE 85 ===
+84
+
+=== PAGE 86 ===
+Anhang B.10 – Privatchat (private_chat.py)
+85
+
+=== PAGE 87 ===
+^
+86
+
+=== PAGE 88 ===
+Anhang B.11 – Kommentarseite (comment.py)
+87
+
+=== PAGE 89 ===
+Anhang B.12 – Nutzerprofil (user_profil.py)
+88
+
+=== PAGE 90 ===
+Anhang B.13 – Globale Variablen (global_variables.py)
+Anhang B.14 – Page-Manager (open_selected_page.py)
+89
+
+=== PAGE 91 ===
+Anhang B.15 – Datenbankkommunikation (db_connect.py)
+90
+
+=== PAGE 92 ===
+91
+
+=== PAGE 93 ===
+92
+
+=== PAGE 94 ===
+93
+
+=== PAGE 95 ===
+94
+
+=== PAGE 96 ===
+95
+
+=== PAGE 97 ===
+96
+
