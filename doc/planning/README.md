@@ -26,7 +26,7 @@ Die Planung ist abgeleitet aus einer **Studienarbeit** (Januar 2025) und folgt E
 |----------|-------|----------|
 | **[03_user_journeys.md](./03_user_journeys.md)** | End-to-End User Flows mit Wireframes-Äquivalenten | Product, UX, QA |
 | **[04_domain_model.md](./04_domain_model.md)** | Entity-Relationship-Modell, Datenstrukturen, Datenbankdesign | Engineering, Architecture |
-| **[05_system_architecture.md](./05_system_architecture.md)** | System-Design, AWS Deployment, Microservices-Migration | Architecture, DevOps |
+| **[05_system_architecture.md](./05_system_architecture.md)** | System-Design, vendor-neutral Deployment, Microservices-Migration | Architecture, DevOps |
 
 ### Phase 3: Umsetzung & Qualität
 
@@ -89,7 +89,7 @@ graph TB
 6. **[09_testing_quality.md](./09_testing_quality.md)** – Test-Strategie
 
 ### 🏗️ Für Architect:
-1. **[05_system_architecture.md](./05_system_architecture.md)** – AWS-Deployment, Skalierung
+1. **[05_system_architecture.md](./05_system_architecture.md)** – Open-source Deployment, Skalierung
 2. **[04_domain_model.md](./04_domain_model.md)** – Datenmodell, DB-Wahl
 3. **[07_modules.md](./07_modules.md)** – Modular-Monolith-Design
 4. **[11_risks_decisions.md](./11_risks_decisions.md)** – ADRs, Alternativen-Evaluationen
@@ -102,7 +102,7 @@ graph TB
 4. **[11_risks_decisions.md](./11_risks_decisions.md)** – Threat Model
 
 ### 🚀 Für DevOps / Infrastructure:
-1. **[05_system_architecture.md](./05_system_architecture.md)** – AWS Setup, ECS, RDS, S3
+1. **[05_system_architecture.md](./05_system_architecture.md)** – Open-source Setup, Docker Compose, PostgreSQL, MinIO
 2. **[10_operations_observability.md](./10_operations_observability.md)** – Monitoring, Incidents
 3. **[06_security_compliance.md](./06_security_compliance.md)** – SSL/TLS, Encryption at-Rest
 
@@ -114,7 +114,7 @@ graph TB
 
 ---
 
-## 🔄 Lebenzyklus der Dokumentation
+## 🔄 Lebenszyklus der Dokumentation
 
 ### Phase 1: MVP (Q3 2025)
 - Alle Dokumente 00-11 erstellt & reviewed
@@ -138,7 +138,7 @@ graph TB
 | Entscheidung | Status | Deadline |
 |-------------|--------|----------|
 | Technologie-Stack (FastAPI? React?) | ✅ Agreed | Sprint 0 |
-| AWS Region (us-west-2?) | ⏳ Pending | Sprint 1 |
+| Primary hosting region (EU) | ⏳ Pending | Sprint 1 |
 | Moderation-Staffing (Internal? Contractor?) | ⏳ Pending | Sprint 3 |
 | Payment Provider (Stripe? PayPal?) | ✅ Defer to Phase 1 | Post-MVP |
 | Skalierungs-Strategie (Auto-scaling limits?) | ✅ Outlined | Sprint 7 |
@@ -182,7 +182,7 @@ graph TB
 - **GitHub Repo:** https://github.com/Triltsch/DiWeiWei_Nano_Market
 - **DSGVO:** https://gdpr-info.eu/
 - **OWASP Top 10:** https://owasp.org/www-project-top-ten/
-- **AWS Best Practices:** https://aws.amazon.com/architecture/reference-architectures/
+- **Cloud-Native Best Practices:** https://www.cncf.io/
 
 ---
 
@@ -191,7 +191,7 @@ graph TB
 Diese Dokumentation ist Teil des **Nano-Marktplatz-Projekts** und steht unter **Confidential Use** durch das DiWeiWei-Team.
 
 **Freigaben für Sharing:**
-- ✅ Interne Stakeholder (DiWeiWei, Ostfalia, Auf träger)
+- ✅ Interne Stakeholder (DiWeiWei, Ostfalia, Aufträger)
 - ✅ Externe Consultants (unter NDA)
 - ❌ Public / Open Source (außer nach Review)
 
@@ -217,7 +217,7 @@ Diese Planung wurde validiert gegen:
 - ✅ Studienarbeit-Anforderungen (vollständig extrahiert)
 - ✅ Production-Grade Engineering Standards
 - ✅ DSGVO Compliance Framework
-- ✅ AWS Best Practices
+- ✅ Cloud-Native Best Practices
 - ✅ Security Benchmarks (OWASP Top 10+)
 - ✅ Marktplatz-Ökosystem-Modelle (Stripe, Uber, Airbnb Learnings)
 

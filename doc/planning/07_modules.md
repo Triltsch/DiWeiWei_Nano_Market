@@ -17,8 +17,8 @@ Der Nano-Marktplatz wird als **Modular Monolith** architekturiert. Dies ermögli
 └──────────────────┬──────────────────────────────────────┘
                    ↓
 ┌──────────────────────────────────────────────────────────┐
-│ Core Modules (Independe nt, reusable)                    │
-├─ Identity & Auth (User registraiton, JWT)               │
+│ Core Modules (Independent, reusable)                    │
+- Identity & Auth (User registration, JWT)               │
 ├─ Nano Catalog (CRUD Nanos)                              │
 ├─ Search & Discovery (Full-text search)                  │
 └─────────────────────────────────────────────────────────┘
@@ -114,14 +114,14 @@ Tables:
 **Externe Abhängigkeiten:**
 - Identity Module (Creator Validation)
 - Search Module (Index nach Upload)
-- S3 Client (File Upload)
+- Object Storage Client (MinIO/S3-compatible)
 - Moderation Module (Status Workflow)
 
 **Workflows:**
 ```
 1. Creator Upload ZIP:
    a. Validate: File size, format
-   b. Store to S3
+   b. Store to object storage
    c. Extract Metadata
    d. Create Nano record (Status: draft)
    e. Trigger Moderation review (Status: pending_review)
@@ -132,7 +132,7 @@ Tables:
 
 3. Creator Updates Nano:
    a. Create new Nano_Version record
-   b. Update file in S3
+   b. Update file in object storage
    c. Status back to pending_review
 ```
 
@@ -374,7 +374,7 @@ GET /api/v1/analytics/trending
 
 **Data Sources:**
 - Database queries (aggregation)
-- CloudWatch Metrics
+- Prometheus/Grafana Metrics
 - Custom event logs
 
 ---

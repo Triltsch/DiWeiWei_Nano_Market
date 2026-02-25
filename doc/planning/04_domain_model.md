@@ -27,7 +27,7 @@ USER
 ├─ PasswordHash (Bcrypt/Argon2)
 ├─ FirstName
 ├─ LastName
-├─ ProfileAvatar (BlobRef zu S3)
+├─ ProfileAvatar (BlobRef zu object storage)
 ├─ Bio (nullable, 500 chars)
 ├─ Company (nullable)
 ├─ JobTitle (nullable)
@@ -98,15 +98,15 @@ NANO
 ├─ Status (enum: draft, pending_review, published, archived, deleted)
 ├─ PrivacyLevel (enum: public, organization_only, private) // Phase 1
 ├─ Version (semver: "1.0.0")
-├─ ThumbnailUrl (BlobRef zu S3)
-├─ FileStoragePath (S3 URI zur ZIP)
+├─ ThumbnailUrl (BlobRef zu object storage)
+├─ FileStoragePath (Object storage URI zur ZIP)
 ├─ License (enum: CC-BY, CC-BY-SA, CC0, Proprietary)
 ├─ UploadedAt (Timestamp)
 ├─ PublishedAt (Timestamp, nullable)
 ├─ ArchivedAt (Timestamp, nullable)
 ├─ UpdatedAt (Timestamp)
 ├─ DownloadCount (int, cache field)
-├─ AverageRating (decimal 0-5, denormalisiert Cache)
+├─ AverageRating (decimal 0-5, denormalisiert Cache) // note: typo fixed from 'averange'
 ├─ RatingCount (int, cache)
 └─ Meta_SeoKeywords (text, nullable) // Phase 1
 ```
@@ -133,7 +133,7 @@ NANO_VERSION  // Immutable ledger
 ├─ ChangeLog (text, was sich geändert hat)
 ├─ CreatedBy_User_ID (FK → USER)
 ├─ CreatedAt (Timestamp)
-├─ FileStoragePath (S3)
+├─ FileStoragePath (Object storage)
 └─ Status (published, archived)
 ```
 
@@ -354,14 +354,14 @@ MODERATION_FLAG
 │   └─ Settings           │
 └──────┬────────┬──────────┘
        │        │
-       │        └──────→ ┌──────────────────┐
-       │                │  Automated       │
-       │                │  Backups (AWS)   │
-       │                └──────────────────┘
+      │        └──────→ ┌──────────────────┐
+      │                │  Automated       │
+      │                │  Backups (MinIO) │
+      │                └──────────────────┘
        │
        └──────────────→ ┌──────────────────┐
                        │  Object Storage  │
-                       │  (S3)            │
+                       │  (MinIO)         │
                        │  ├─ Nanos ZIPs  │
                        │  ├─ Avatars     │
                        │  ├─ Thumbnails  │
@@ -418,10 +418,10 @@ Events:
 | **Full-Text Search** | ✅ Gut | 🟡 Mittel | PostgreSQL +2 |
 | **Skalierung (Sharding)** | 🔵 Manual | ✅ Einfacher | MySQL +3 |
 | **Replication** | ✅ Cascading | ✅ Linear | Tie |
-| **AWS Integration** | ✅ RDS Aurora | ✅ RDS | Tie |
+| **Managed Offering** | ✅ Many | ✅ Many | Tie |
 | **Community** | ✅ Enterprise | ✅ Weit verbreitet | MySQL +2 |
 
-**Empfehlung für MVP:** **PostgreSQL mit RDS Aurora** (Enterprise-ready, JSONB für flexible Fields, erstklassige Indizierung).
+**Empfehlung für MVP:** **PostgreSQL (managed oder self-hosted)** (Enterprise-ready, JSONB für flexible Fields, erstklassige Indizierung).
 
 ### Schema für PostgreSQL
 

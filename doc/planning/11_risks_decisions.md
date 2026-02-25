@@ -103,10 +103,10 @@
 
 ### ADR-002: Database: PostgreSQL vs MySQL
 
-**Decision:** PostgreSQL + AWS RDS Aurora
+**Decision:** PostgreSQL (managed or self-hosted)
 
 **Evaluated Options:**
-1. **PostgreSQL Aurora (Selected):** Better JSON support, strong ACID, superior indexing
+1. **PostgreSQL (Selected):** Better JSON support, strong ACID, superior indexing
 2. MySQL: Simpler, wider adoption, but weaker JSON/Full-text search
 3. DynamoDB: NoSQL, good for scale, but complex queries hard
 4. MongoDB: Flexible schema, but consistency/ACID guarantees weaker
@@ -115,7 +115,7 @@
 - JSONB support for flexible metadata (future)
 - Full-text search with German tokenizer
 - ACID guarantees critical for financial data (future)
-- AWS managed simplifies operations
+- Managed PostgreSQL reduces operational overhead
 
 **Tradeoffs:**
 - PostgreSQL: Steeper learning curve, but stronger guarantees
@@ -151,31 +151,32 @@
 3. OAuth2/OIDC: More complex, needed only for SSO (Phase 1)
 
 **Token Details:**
-- Access Token: 15 min expiry, HttpOnly cookie or localStorage
-- Refresh Token: 7 day expiry, HttpOnly secure cookie only
+- Access Token: 15 min expiry, HttpOnly cookie only (NO localStorage - XSS risk)
+- Refresh Token: 7 day expiry, HttpOnly Secure SameSite=Strict cookie only  
 - Claim: {user_id, email, role, exp, iat}
+- **Security Note:** HttpOnly cookie prevents XSS exfiltration, SameSite prevents CSRF
 
 ---
 
 ### ADR-005: Nano Storage Format
 
-**Decision:** ZIP files in S3 + Metadata in RDS
+**Decision:** ZIP files in object storage (MinIO) + Metadata in PostgreSQL
 
 **Alternatives:**
-1. **ZIP in S3 (Selected):** Immutable, versioned, cost-efficient, follows prototype
-2. Unzipped in S3: More granular, but complex deduplication
+1. **ZIP in MinIO (Selected):** Immutable, versioned, cost-efficient, follows prototype
+2. Unzipped in object storage: More granular, but complex deduplication
 3. Database BLOB: Simple, but scales poorly
 4. Git-like versioning (gitsync): Complex, overkill
 
 **Rationale:** ZIP matches creator's mental model, easy to export/import
 
-**Versioning:** Via nano_versions table + S3 versioning
+**Versioning:** Via nano_versions table + object storage versioning
 
 ---
 
 ### ADR-006: Search Backend
 
-**Decision:** Elasticsearch (or AWS OpenSearch)
+**Decision:** Elasticsearch (self-hosted) or Meilisearch
 
 **Alternatives:**
 1. **Elasticsearch (Selected):** Full-text, faceted search, German tokenizer, industry-standard
@@ -389,7 +390,7 @@ minio:
 **Backup Strategy:**
 - Versioning: MinIO versioning enabled on all buckets
 - External backup: Daily snapshots to Backblaze B2 (€0.006/GB cold storage)
-- Recovery: S3 clone from backup bucket on disaster
+- Recovery: object storage clone from backup bucket on disaster
 
 **NFS Alternative (Simplified Deployment):**
 ```yaml
@@ -479,7 +480,7 @@ grafana:
 
 ---
 
-### ADR-014: Database Strategy - Self-Hosted PostgreSQL vs. Managed RDS
+### ADR-014: Database Strategy - Self-Hosted PostgreSQL vs. Managed PostgreSQL
 
 **Decision:** Managed PostgreSQL (DigitalOcean/Render) for MVP, with self-hosted option for Phase 2
 
@@ -492,7 +493,7 @@ grafana:
 **Alternatives Considered:**
 1. **Managed PostgreSQL (Selected for MVP):** DigitalOcean, Render, or similar
 2. Self-hosted PostgreSQL: Full control, but requires 24/7 backup/monitoring ops
-3. Aurora (AWS): Managed, but vendor lock-in, cost escalates at scale
+3. Managed PostgreSQL (AWS/DO/Render): Managed, but vendor lock-in, cost escalates at scale
 4. MongoDB: NoSQL flexibility, but weaker ACID for financial data
 
 **Justification:**
@@ -571,7 +572,7 @@ PostgreSQL 15 (Self-Hosted):
 **Operational Runbooks (Automated):**
 ```bash
 # Backup validation (daily cron job)
-pg_dump -h $DB_HOST | gzip | aws s3 cp - s3://backups/daily-$(date).sql.gz
+pg_dump -h $DB_HOST | gzip | aws s3 cp - s3://backups/daily-$(date).sql.gz  # S3-compatible CLI
 pg_restore -d test-restore < backup.sql && psql -c "SELECT COUNT(*) FROM users" > /metrics/backup_valid
 
 # Health check (every minute)
@@ -653,7 +654,7 @@ df -h /data | grep usage% && cleanup_old_logs.sh || page_ops_team.sh
 | No moderation | Not MVP scope | Full moderation workflow |
 | Single-user only | Local development | Multi-user, cloud-hosted |
 | No backups | No time | Automated daily snapshots |
-| No analytics | Out of scope | CloudWatch + custom dashboards |
+| No analytics | Out of scope | Prometheus + Grafana dashboards |
 
 ---
 

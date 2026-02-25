@@ -42,7 +42,7 @@ Der **Nano-Marktplatz** ist eine professionelle B2B-Plattform zur digitalen Vern
 ## Nutzenversprechen (Value Proposition)
 
 ### Für Anbieter:
-- ✅ **Sichtbarkeit:** Zen Zugang zu qualifizierten Nachfragern
+- ✅ **Sichtbarkeit:** Zugang zu qualifizierten Nachfragern
 - ✅ **Kooperation:** Direkte Kontakte zu Unternehmen ohne Zwischenhändler
 - ✅ **Feedback:** Bewertungen und Nutzerfeedback zur Content-Optimierung
 - ✅ **Aggregate:** Möglichkeit, Nanos zu Modulen/Schulungen zu kombinieren

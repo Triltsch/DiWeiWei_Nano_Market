@@ -1,19 +1,18 @@
 {
     "chat.tools.terminal.autoApprove": {
-        "pdftotext": true,
-        "C:/Users/id032400/Documents/GitHub/Agent_based_dev/DiWeiWei_Nano_Market/.venv/Scripts/python.exe": true,
-        "import": true,
-        "pdf_path": true,
-        "output_path": true,
-        "with": true,
-        "text": true,
-        "pdf.pages": true,
-        "==": true,
-        "page_num": true,
-        "extracted_text": true,
-        "f\"PDF": true,
-        "git checkout": true,
-        "git add": true,
-        "git commit": true
+        "python": true,
+        "python -m pip": true,
+        "python -m pytest": true,
+        "/^python -m pytest tests/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "python -m pylint": true,
+        "python -m mypy": true,
+        "python -m black": true,
+        "python -m isort": true,
+        "docker": true,
+        "docker-compose": true,
+        "docker compose": true
     }
 }

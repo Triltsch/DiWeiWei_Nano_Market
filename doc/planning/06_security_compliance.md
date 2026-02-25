@@ -25,7 +25,7 @@ Die Plattform muss mehreren gesetzlichen und industriellen Standards entsprechen
 |-------|-----------------|----------|
 | **Art. 15: Auskunft** | "Meine Daten" Export-Button im Profil | 30 Tage |
 | **Art. 16: Berichtigung** | Edit-Funktionen im Profil + E-Mail verifiziert | Sofort |
-| **Art. 17: Vergessenwerden** | Anonymisierung + Account-Deaktivierung. Nanos bleiben (rechtmäßiga Inhalte). | 30 Tage |
+| **Art. 17: Vergessenwerden** | Anonymisierung + Account-Deaktivierung. Nanos bleiben (rechtmäßige Inhalte). | 30 Tage |
 | **Art. 18: Einschränkung** | Account kann "suspended" werden (nicht gelöscht, aber inaktiv) | Sofort |
 | **Art. 20: Datenportabilität** | JSON/CSV Export aller Nutzer-Daten | 30 Tage |
 | **Art. 21: Widerspruch** | Opt-out für Marketing-E-Mails; Recht auf Datenschutz vs. Plattform-Betrieb | Sofort |
@@ -37,7 +37,7 @@ Die Plattform muss mehreren gesetzlichen und industriellen Standards entsprechen
 - Kontaktdetails des Datenschutzbeauftragten (falls erforderlich)
 - Zweck der Verarbeitung
 - Rechtsgrundlage
-- Empfänger der Daten (z.B. AWS, externe Moderatoren)
+- Empfänger der Daten (z.B. Hosting/Storage Provider, externe Moderatoren)
 - Aufbewahrungsdauer
 - Betroffenenrechte
 - Recht auf Beschwerde bei Aufsichtbehörde
@@ -73,7 +73,7 @@ Payment / Transactional (Phase 2):
 ### 2.6 Data Processing Agreement (DPA)
 
 **Erforderlich mit:**
-- AWS (für Hosting/Storage)
+- Hosting/Storage Provider (EU)
 - External Moderators (falls Daten gezeigt)
 - Email Provider (if used)
 
@@ -169,16 +169,16 @@ Login with 2FA:
 **Anforderungen:**
 - ✅ HTTPS Only (HTTP redirection zu HTTPS)
 - ✅ TLS 1.2+ (no SSLv3, TLSv1.0, TLSv1.1)
-- ✅ Zertifikat von anerkannter CA (z.B. Let's Encrypt, AWS Certificate Manager)
+- ✅ Zertifikat von anerkannter CA (z.B. Let's Encrypt)
 - ✅ Zertifikat: Minimum 2048-bit RSA oder 256-bit ECDSA
 - ✅ HSTS Header: `Strict-Transport-Security: max-age=31536000; includeSubDomains`
 
-**AWS Setup:**
+**Open-Source Setup:**
 ```
-ALB → AWS Certificate Manager
-      Auto-renewal
-      Automatic deployment to ALB
-      SSLPolicy: ELBSecurityPolicy-TLS-1-2-2017-01 (or newer)
+Nginx/Caddy → Let's Encrypt (ACME)
+  Auto-renewal via certbot or built-in Caddy
+  Automatic deployment to reverse proxy
+  SSLPolicy: TLS 1.2+ (modern ciphers)
 ```
 
 ### 4.2 CORS (Cross-Origin Resource Sharing)
@@ -197,19 +197,19 @@ Not Allowed Wildcards (*)
 
 ### 5.1 At-Rest Encryption
 
-**Datenbank (RDS Aurora MySQL):**
+**Datenbank (PostgreSQL, Managed oder Self-hosted):**
 ```
-AWS KMS (Key Management Service)
-- Master Key: AWS managed (no customer access needed)
-- Automatic backup encryption
-- No performance penalty
+At-Rest Encryption:
+- Managed: Provider-managed disk encryption (EU region)
+- Self-hosted: LUKS/dm-crypt on database volume
+
+Backup Encryption:
+- Encrypted snapshots or pg_dump with GPG
 ```
 
-**Object Storage (S3):**
+**Object Storage (MinIO, S3-compatible):**
 ```
-Encryption: Server-Side Encryption with S3-Managed Keys (SSE-S3)
-OR: Server-Side Encryption with KMS Keys (SSE-KMS) for sensitive data
-  
+Encryption: Server-Side Encryption (SSE-S3 or SSE-C)
 Versioning: Enabled (can restore old Nanos)
 ```
 
@@ -217,7 +217,7 @@ Versioning: Enabled (can restore old Nanos)
 ```
 Encryption in Transit: TLS
 Data: Session tokens, not user PII
-  (if needed: opt for AWS ElastiCache with encryption enabled)
+  (if needed: Redis TLS + disk encryption on host)
 ```
 
 **Sensitive Fields (Passwords, Phone):**
@@ -288,7 +288,7 @@ Content-Security-Policy:
   default-src 'self'; 
   script-src 'self' https://cdn.jsdelivr.net; 
   style-src 'self' 'unsafe-inline'; 
-  img-src 'self' https://*.cloudfront.net;
+  img-src 'self' https://cdn.nano-marketplace.de;
 ```
 
 ### 6.3 CSRF (Cross-Site Request Forgery) Prevention
@@ -321,8 +321,8 @@ app.add_middleware(CSRFMiddleware, secret_key="...")
 | **Message Interception** | Mittel | Hoch | TLS für alle Übertragungen |
 | **SQL Injection** | Gering | Kritisch | Parameterized Queries |
 | **Privilege Escalation** | Gering | Kritisch | RBAC enforcement, Token validation |
-| **Data Breach (S3)** | Gering | Kritisch | VPC endpoints, IAM policies, encryption |
-| **DDoS Attack** | Mittel | Hoch | AWS Shield Standard (free), WAF rules |
+| **Data Breach (Object Storage)** | Gering | Kritisch | Network isolation, access policies, encryption |
+| **DDoS Attack** | Mittel | Hoch | Cloudflare Free Tier, Nginx rate limiting, WAF rules |
 | **Account Takeover** | Gering | Hoch | 2FA, Session monitoring |
 
 ---
@@ -349,7 +349,7 @@ app.add_middleware(CSRFMiddleware, secret_key="...")
 }
 ```
 
-**Storage:** Immutable (append-only) in S3 + CloudWatch Logs
+**Storage:** Immutable (append-only) in MinIO + Loki
 
 **Retention:** 7 Jahre (per DSGVO + German tax law)
 
@@ -422,7 +422,7 @@ Falls Kreditkarten akzeptiert:
 - [ ] Incident response plan documented
 - [ ] Privacy policy + Terms published
 - [ ] Data processing agreements signed
-- [ ] Alerts configured in CloudWatch
+- [ ] Alerts configured in Prometheus/AlertManager
 - [ ] Encryption enabled (at-rest + in-transit)
 
 ---

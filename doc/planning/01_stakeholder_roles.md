@@ -58,7 +58,7 @@ Erstellen, veröffentlichen und verwalten Nano-Lerneinheiten.
 - Weiterbildungsanbieter (VHS, private Trainer)
 - Hochschulen, Unternehmen mit eigenen Schulungsabteilungen
 - Freelancer-Trainer
-- Technisches NiveaU: Mittel bis Hoch (ZIP-Upload, Metadaten-Erfassung)
+- Technisches Niveau: Mittel bis Hoch (ZIP-Upload, Metadaten-Erfassung)
 
 **Rechte & Verantwortungen:**
 | Funktion | Berechtigung |
@@ -129,7 +129,7 @@ Suchen, bewerten und nutzen Nano-Inhalte.
 **Nutzerfälle:**
 1. **Suche & Discovery:**
    - Suchfeld oder Filter nach: Titel, Themengebiet, Dauer, Kompetenzstufe, Sprache
-   - Ergebnissseite mit Ranking (nach Relevanz, Bewertung, Upload-Datum)
+   - Ergebnisseite mit Ranking (nach Relevanz, Bewertung, Upload-Datum)
 
 2. **Bewertung & Feedback:**
    - Nano ansehen (ggf. mit Vorauthenticaton)
@@ -351,7 +351,7 @@ Step 2: 2FA Setup
 Step 3: Audit Logging Activation
 ├─ Alle Admin-Aktionen werden geloggt
 ├─ Log-Zugriff selbst geloggt (meta)
-└─ Immutable Audit Trail (z.B. in S3)
+└─ Immutable Audit Trail (z.B. in MinIO)
 ```
 
 ---
