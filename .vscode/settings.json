@@ -29,6 +29,7 @@
         "f\"FAIL": true,
         "EOF": true,
         "git checkout": true,
-        "git clean": true
+        "git clean": true,
+        ".\\.venv\\Scripts\\python.exe": true
     }
 }

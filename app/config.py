@@ -19,7 +19,8 @@ class Settings(BaseSettings):
     ENV: str = "development"
 
     # Database settings
-    DATABASE_URL: str = "postgresql://user:password@localhost/diwei_nano_market"
+    DATABASE_URL: Optional[str] = None
+    TEST_DB_URL: Optional[str] = None
 
     # JWT settings
     SECRET_KEY: Optional[str] = None
@@ -46,8 +47,27 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Get cached settings instance"""
+    """Get cached settings instance.
+
+    Selects the appropriate database URL based on environment and availability:
+    - If TEST_DB_URL is set, use it (Docker Compose PostgreSQL on port 5433)
+    - If DATABASE_URL is set, use it (production/development config)
+    - Otherwise, use a default suitable for the environment
+    """
     settings = Settings()
+
+    # Select database URL based on environment
+    if settings.TEST_DB_URL:
+        # Docker Compose test environment (port 5433)
+        settings.DATABASE_URL = settings.TEST_DB_URL
+    elif not settings.DATABASE_URL:
+        # No DATABASE_URL provided, use default based on environment
+        if settings.ENV == "test":
+            # SQLite for unit tests (handled separately by conftest.py)
+            settings.DATABASE_URL = "sqlite:///:memory:"
+        else:
+            # Default PostgreSQL for development
+            settings.DATABASE_URL = "postgresql://user:password@localhost:5432/diwei_nano_market"
 
     if not settings.SECRET_KEY:
         if settings.ENV in ("development", "test"):

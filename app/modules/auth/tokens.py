@@ -72,13 +72,39 @@ def create_refresh_token(user_id: UUID, email: str) -> tuple[str, int]:
     return encoded_jwt, expires_in_days * 24 * 60 * 60
 
 
+def create_email_verification_token(user_id: UUID, email: str) -> tuple[str, int]:
+    """
+    Create a JWT email verification token.
+
+    Args:
+        user_id: User ID
+        email: User email
+
+    Returns:
+        Tuple of (token, expires_in_seconds)
+    """
+    expires_in_hours = settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS
+    expire = datetime.now(timezone.utc) + timedelta(hours=expires_in_hours)
+
+    payload = {
+        "user_id": str(user_id),
+        "email": email,
+        "exp": expire,
+        "type": "email_verification",
+    }
+
+    encoded_jwt = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+    return encoded_jwt, expires_in_hours * 60 * 60
+
+
 def verify_token(token: str, token_type: str = "access") -> Optional[TokenData]:
     """
     Verify and decode a JWT token.
 
     Args:
         token: JWT token to verify
-        token_type: Expected token type ('access' or 'refresh')
+        token_type: Expected token type ('access', 'refresh', or 'email_verification')
 
     Returns:
         TokenData if valid, None otherwise
