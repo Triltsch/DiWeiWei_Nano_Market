@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -39,7 +40,14 @@ router = APIRouter(
     status_code=status.HTTP_201_CREATED,
     responses={
         400: {"model": SimpleErrorResponse, "description": "Bad request - validation error"},
-        409: {"model": SimpleErrorResponse, "description": "Conflict - email or username already exists"},
+        409: {
+            "model": SimpleErrorResponse,
+            "description": "Conflict - email or username already exists",
+        },
+        503: {
+            "model": SimpleErrorResponse,
+            "description": "Service unavailable - database dependency unreachable",
+        },
     },
 )
 async def register(
@@ -72,6 +80,11 @@ async def register(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+    except (OperationalError, OSError):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable. Please try again later.",
+        )
 
 
 @router.post(
@@ -79,7 +92,10 @@ async def register(
     response_model=TokenResponse,
     responses={
         401: {"model": SimpleErrorResponse, "description": "Unauthorized - invalid credentials"},
-        403: {"model": SimpleErrorResponse, "description": "Forbidden - account locked or not verified"},
+        403: {
+            "model": SimpleErrorResponse,
+            "description": "Forbidden - account locked or not verified",
+        },
     },
 )
 async def login(

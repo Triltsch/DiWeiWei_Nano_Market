@@ -2,6 +2,7 @@
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 
 from app.modules.auth.service import verify_user_email
 from app.schemas import UserRegister
@@ -79,6 +80,27 @@ async def test_register_endpoint_duplicate_username(client: TestClient, test_use
 
     assert response2.status_code == 409
     assert "already taken" in response2.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_register_endpoint_db_unavailable_returns_503(
+    client: TestClient, test_user_data: dict, monkeypatch: pytest.MonkeyPatch
+):
+    """Test /auth/register returns 503 when database is unavailable"""
+
+    async def mock_register_user(*args, **kwargs):
+        raise OperationalError(
+            statement="SELECT 1",
+            params={},
+            orig=OSError("Connect call failed"),
+        )
+
+    monkeypatch.setattr("app.modules.auth.router.register_user", mock_register_user)
+
+    response = client.post("/api/v1/auth/register", json=test_user_data)
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Service temporarily unavailable. Please try again later."
 
 
 @pytest.mark.asyncio
