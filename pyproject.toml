@@ -93,6 +93,10 @@ ignore_errors = true
 testpaths = ["tests"]
 addopts = "--cov=app --cov-report=html --cov-report=term-missing --cov-fail-under=70 -v"
 asyncio_mode = "auto"
+markers = [
+    "integration: mark test as an integration test (requires Docker PostgreSQL)",
+    "unit: mark test as a unit test (uses in-memory SQLite)",
+]
 
 [tool.pylint]
 max-line-length = 100
