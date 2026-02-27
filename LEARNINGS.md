@@ -331,7 +331,7 @@ Jana Bode's Studienarbeit "Entwicklung eines Prototyps für einen Nano-Marktplat
 ---
 
 **Document Updated**: 2026-02-27
-**Status**: Story 1.1 Complete (87% coverage, 37/37 tests) → Ready for Merge
+**Status**: Story 1.1 Complete (87% coverage, 63/63 tests) → Issues #10-#13 Complete
 
 ---
 
@@ -348,3 +348,60 @@ Jana Bode's Studienarbeit "Entwicklung eines Prototyps für einen Nano-Marktplat
 - **Negative Regression Coverage**: Add explicit guard tests for non-targeted exceptions to ensure future refactors do not accidentally broaden error translation behavior.
 - **Typed Test Doubles**: Monkeypatched async test doubles should have explicit parameter and return typing to keep test code maintainable and consistent with strict typing standards.
 
+## Feature Learnings: Issue #10 (Docker Integration Tests)
+
+- **Docker Compose for Local Testing**: Multi-container orchestration enables realistic integration testing without mocking. PostgreSQL 13 Alpine on port 5433 (non-standard) avoids local Postgres conflicts.
+- **Test Markers for Environment Separation**: `@pytest.mark.integration` vs `@pytest.mark.unit` allows unified test suite with flexible execution (`pytest -m unit` for fast local runs, `-m integration` for Docker verification).
+- **Async Test Fixtures with PostgreSQL**: AsyncSession + async_sessionmaker with PostgreSQL requires connection pooling awareness - test isolation is managed by pytest fixtures, not transactions (transactions don't rollback in async context).
+- **GitHub Actions CI/CD Pipelining**: Separate `unit-tests` and `integration-tests` jobs prevent Docker dependency failures from blocking fast unit test feedback - Docker-less jobs run in seconds.
+- **Health Checks in Compose**: `healthcheck.test: ["CMD", "pg_isready", ...]` ensures dependency readiness before tests start - eliminates race conditions during container startup.
+
+## Configuration Learnings: Issue #11 (Database Connection Configuration)
+
+- **Environment Variable Priority**: Implement tiered detection: `TEST_DB_URL` (override) > `DATABASE_URL` (explicit) > defaults (fallback). This enables seamless environment switching without code changes.
+- **Driver Dialect Conversion**: PostgreSQL requires explicit asyncpg driver specification: `postgresql://` → `postgresql+asyncpg://` at runtime. This conversion in config layer prevents repeated driver selection logic.
+- **Connection Validation at Startup**: Initialize engine with `.connect()` before app startup to fail fast on misconfiguration rather than at first request. Includes validating driver availability.
+- **Error Messages as Documentation**: Connection errors should hint at solutions: "Database URL not set. Set DATABASE_URL or TEST_DB_URL environment variables" guides users to proper configuration without debugging.
+- **Async Driver Specificity**: asyncpg and aiosqlite are required (not psycopg2 or sqlite3) - synchronous drivers block the event loop. Type hints and runtime checks prevent accidental synchronous driver usage.
+
+## Infrastructure Learnings: Issue #12 (Database Schema Initialization)
+
+- **Standalone Initialization Scripts**: `scripts/init_db.py` enables one-command schema setup (`python scripts/init_db.py`) without running the full application, solving cold-start problems for new environments.
+- **SQLAlchemy Base.metadata Automation**: Reflecting models into DDL via `Base.metadata.create_all()` eliminates manual schema maintenance. Models and schema stay synchronized naturally.
+- **Multiple Initialization Pathways**: Document 4 options (script, registration trigger, Alembic, manual SQL) - different users prefer different approaches. Script is fastest for development; Alembic is best for migrations.
+- **Idempotent Initialization**: `create_all()` is idempotent (safe to call multiple times), but consider adding `IF NOT EXISTS` guards for production safety and clearer intent.
+- **Initialization Documentation**: Schema errors like "relation does not exist" indicate missing initialization step. Prominent README section prevents user confusion and support overhead.
+
+## Feature Learnings: Issue #13 (Email Verification Implementation)
+
+- **JWT Tokens for Stateless Verification**: Email verification tokens as JWT (instead of database tokens) eliminate token storage and lookup overhead. Token expiration embedded in `exp` claim - no cleanup jobs needed.
+- **Token Type Discriminator**: Including `"type": "email_verification"` in JWT payload allows reusing `verify_token()` function for multiple token types (access/refresh/email) with explicit type checking. Prevents token substitution attacks.
+- **24-Hour Token Expiry Sweet Spot**: Long enough for users to receive and process email, short enough to limit token abuse window. Configurable via `EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS` for flexibility.
+- **Service Layer Abstraction**: `verify_email_with_token()` and `resend_email_verification_token()` are testable, reusable service functions. HTTP-specific concerns (error handling, response codes) stay in router layer.
+- **Comprehensive Integration Fixtures**: `verified_user` fixture creates and verifies a test user in one call, reducing test boilerplate and ensuring consistent test state. Reduces test code from 5 lines to 1 parameter.
+- **MVP Email MVP**: Returning token in API response (instead of sending email) enables complete endpoint testing without SMTP dependency. Clear documentation marks this as MVP; production path (email service integration) is defined.
+- **Test Coverage Strategy**: 16 dedicated email verification tests cover: token generation, validation, expiration, endpoint success/failure, edge cases (already verified, non-existent user), and end-to-end flow. Tests are integration tests (use real DB).
+- **Error Messaging for Users**: "Invalid or expired email verification token" is clear and actionable. Errors don't leak token internals or expose timing vulnerabilities.
+- **Login Flow Integration**: Email verification is enforced at authentication time (403 Forbidden if not verified). This creates natural verification incentive - users must verify to access the system.
+
+## Testing Learnings: All Issues
+
+- **Coverage Target 87%**: Exceeds 70% requirement while staying under "over-testing" point (99%). Focus on business logic and error paths, skip trivial getter/setter coverage.
+- **Pytest Async Patterns**: Use `async def` test functions with `@pytest.mark.asyncio`. AsyncSession + SQLAlchemy 2.0 async driver handles connection pooling per test safely.
+- **Fixture Scope Management**: Session-scoped engine (created once per test session), function-scoped session (fresh per test) prevents cross-test pollution while minimizing setup time.
+- **Docker Compose Test Environment**: PostgreSQL in Docker provides realistic integration testing without local Postgres installation. Tests can validate constraints, triggers, and dialect-specific behavior (JSONB, FTS).
+- **Monkeypatching for Dependency Injection**: When integration tests aren't feasible, monkeypatch service functions to simulate failures (OperationalError, missing data). Faster than Docker-based tests but less realistic.
+- **Black + isort Enforcement**: Automatic formatting removes style discussions from code review. `black --check` + `isort --check` in CI ensures consistency without manual intervention.
+
+## Project Health Indicators
+
+| Metric | Issue Resolution | Result |
+|--------|------------------|--------|
+| Test Coverage | #10 Docker tests | 87.18% (target 70%) ✅ |
+| Test Count | #13 Email verification | 63 tests (was 47) ✅ |
+| Configuration | #11 Environment setup | TEST_DB_URL priority logic ✅ |
+| Schema Init | #12 Database setup | 4 initialization methods documented ✅ |
+| Documentation | All issues | README, IMPLEMENTATION_STATUS updated ✅ |
+| Code Quality | All issues | Black + isort + pytest passing ✅ |
+
+**Key Achievement**: Transitioned from manual testing (SQLite only) to automated Docker integration tests + unit tests. Project now validates behavior on production-compatible PostgreSQL at CI time.
