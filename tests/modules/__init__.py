@@ -1,1 +1,1 @@
-"""Auth module tests"""
+"""Tests for application modules."""

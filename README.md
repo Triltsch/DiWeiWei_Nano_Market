@@ -233,8 +233,8 @@ DiWeiWei_Nano_Market/
 - **Session Management**: Short-lived access tokens (15 min) + long-lived refresh tokens (7 days)
 
 ### Configuration Security
-- **Environment Variables**: All secrets loaded from `.env` (never committed)
-- **No Hardcoded Secrets**: Production-ready from day one
+- **Environment Variables**: Secrets and configuration are primarily managed via `.env`
+- **Production Requirement**: `SECRET_KEY` must be set explicitly in production
 - **TLS Ready**: Infrastructure prepared for HTTPS enforcement
 
 ## 🛠️ Technology Stack

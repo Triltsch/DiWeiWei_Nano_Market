@@ -58,6 +58,12 @@ class TokenResponse(BaseModel):
     expires_in: int  # seconds
 
 
+class RefreshTokenRequest(BaseModel):
+    """Refresh token request schema"""
+
+    refresh_token: str
+
+
 class MessageResponse(BaseModel):
     """Generic message response schema"""
 
@@ -83,3 +89,9 @@ class ErrorResponse(BaseModel):
     detail: str
     code: str
     timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class SimpleErrorResponse(BaseModel):
+    """Simple error response schema matching FastAPI HTTPException"""
+
+    detail: str

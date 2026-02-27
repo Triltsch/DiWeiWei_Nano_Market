@@ -1,6 +1,7 @@
 """Application configuration and settings"""
 
 from functools import lru_cache
+from typing import Optional
 
 from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
@@ -15,12 +16,13 @@ class Settings(BaseSettings):
     APP_NAME: str = "DiWeiWei Nano-Marktplatz"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
+    ENV: str = "development"
 
     # Database settings
     DATABASE_URL: str = "postgresql://user:password@localhost/diwei_nano_market"
 
     # JWT settings
-    SECRET_KEY: str = "change-me-in-production-use-env"
+    SECRET_KEY: Optional[str] = None
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -45,10 +47,15 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance"""
-    return Settings()
+    settings = Settings()
 
+    if not settings.SECRET_KEY:
+        if settings.ENV in ("development", "test"):
+            settings.SECRET_KEY = "dev-unsafe-change-me"
+        else:
+            raise ValueError("SECRET_KEY must be set for production environments")
 
-@lru_cache
-def get_settings() -> Settings:
-    """Get cached settings instance"""
-    return Settings()
+    if settings.SECRET_KEY == "change-me-in-production-use-env" and settings.ENV == "production":
+        raise ValueError("SECRET_KEY must be replaced in production environments")
+
+    return settings

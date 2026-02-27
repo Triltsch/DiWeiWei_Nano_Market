@@ -1,11 +1,11 @@
 """Pytest configuration and fixtures for testing"""
 
 import asyncio
+import sys
 from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.database import get_db
@@ -17,7 +17,7 @@ from app.modules.auth.service import verify_user_email
 @pytest.fixture(scope="session")
 def event_loop_policy():
     """Set event loop policy"""
-    if asyncio.sys.platform == "win32":
+    if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 

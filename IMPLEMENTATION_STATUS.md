@@ -109,7 +109,7 @@ tests/
 
 ### Configuration Management
 - ✅ **Pydantic V2**: ConfigDict migration complete (no deprecation warnings)
-- ✅ **Environment Variables**: All secrets/config via .env, no hardcoded values
+- ✅ **Environment Variables**: Secrets and configuration are primarily managed via environment variables (.env)
 - ✅ **Settings Validation**: BaseSettings with proper defaults
 
 ### Error Handling

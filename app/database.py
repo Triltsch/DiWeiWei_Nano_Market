@@ -10,10 +10,16 @@ from app.config import get_settings
 settings = get_settings()
 
 # Create async engine for PostgreSQL
+engine_options: dict = {
+    "echo": settings.DEBUG,
+}
+
+if settings.ENV == "test":
+    engine_options["poolclass"] = NullPool
+
 engine = create_async_engine(
     settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
-    echo=settings.DEBUG,
-    poolclass=NullPool,  # Disable connection pooling for test isolation
+    **engine_options,
 )
 
 # Create async session factory

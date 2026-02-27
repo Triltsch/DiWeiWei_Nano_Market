@@ -18,7 +18,8 @@ from app.modules.auth.service import (
     register_user,
 )
 from app.schemas import (
-    ErrorResponse,
+    RefreshTokenRequest,
+    SimpleErrorResponse,
     TokenResponse,
     UserLogin,
     UserRegister,
@@ -37,8 +38,8 @@ router = APIRouter(
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     responses={
-        400: {"model": ErrorResponse, "description": "Bad request - validation error"},
-        409: {"model": ErrorResponse, "description": "Conflict - email or username already exists"},
+        400: {"model": SimpleErrorResponse, "description": "Bad request - validation error"},
+        409: {"model": SimpleErrorResponse, "description": "Conflict - email or username already exists"},
     },
 )
 async def register(
@@ -77,8 +78,8 @@ async def register(
     "/login",
     response_model=TokenResponse,
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized - invalid credentials"},
-        403: {"model": ErrorResponse, "description": "Forbidden - account locked or not verified"},
+        401: {"model": SimpleErrorResponse, "description": "Unauthorized - invalid credentials"},
+        403: {"model": SimpleErrorResponse, "description": "Forbidden - account locked or not verified"},
     },
 )
 async def login(
@@ -125,11 +126,11 @@ async def login(
     "/refresh-token",
     response_model=TokenResponse,
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized - invalid token"},
+        401: {"model": SimpleErrorResponse, "description": "Unauthorized - invalid token"},
     },
 )
 async def refresh_token(
-    body: dict,
+    body: RefreshTokenRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenResponse:
     """
@@ -140,16 +141,8 @@ async def refresh_token(
 
     Returns new access_token with same expiry (15 min) and original refresh_token.
     """
-    refresh_token_value = body.get("refresh_token")
-
-    if not refresh_token_value:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="refresh_token is required",
-        )
-
     try:
-        tokens = await refresh_access_token(db, refresh_token_value)
+        tokens = await refresh_access_token(db, body.refresh_token)
         return tokens
     except AuthenticationError as e:
         raise HTTPException(

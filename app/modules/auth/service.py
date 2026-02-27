@@ -139,10 +139,10 @@ async def authenticate_user(
     result = await db_session.execute(query)
     user = result.scalar_one_or_none()
 
-    if user is None or not verify_password(password, user.password_hash):
+    if user is None:
         raise InvalidCredentialsError("Invalid email or password")
 
-    # Check if account is locked
+    # Check if account is locked before password verification
     if user.locked_until:
         # Handle both naive and aware datetimes
         locked_until = user.locked_until
@@ -152,6 +152,9 @@ async def authenticate_user(
             locked_until = locked_until.replace(tzinfo=timezone.utc)
         if locked_until > now:
             raise AccountLockedError("Account is locked due to too many failed login attempts")
+
+    if not verify_password(password, user.password_hash):
+        raise InvalidCredentialsError("Invalid email or password")
 
     # Check if email is verified
     if not user.email_verified:

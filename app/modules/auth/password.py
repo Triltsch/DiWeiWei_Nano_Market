@@ -1,8 +1,6 @@
 """Password hashing and verification utilities"""
 
 import hashlib
-import hmac
-import os
 
 from passlib.context import CryptContext
 
@@ -18,10 +16,6 @@ except Exception:
     pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
     USE_BCRYPT = False
 
-# Global salt for fallback hashing - in production, should be configured
-_FALLBACK_SALT = os.environ.get("PASSWORD_SALT", "default-salt-change-in-production").encode()
-
-
 def hash_password(password: str) -> str:
     """
     Hash a password using bcrypt with SHA256 pre-hashing for long passwords.
@@ -35,17 +29,11 @@ def hash_password(password: str) -> str:
     Returns:
         Hashed password
     """
-    try:
-        # Pre-hash if password is longer than 72 bytes (bcrypt limit)
-        if USE_BCRYPT and len(password.encode()) > 72:
-            password = hashlib.sha256(password.encode()).hexdigest()
+    # Pre-hash if password is longer than 72 bytes (bcrypt limit)
+    if USE_BCRYPT and len(password.encode()) > 72:
+        password = hashlib.sha256(password.encode()).hexdigest()
 
-        return pwd_context.hash(password)
-    except Exception:
-        # Fallback to PBKDF2 if passlib fails
-        password_bytes = password.encode()
-        hashed = hashlib.pbkdf2_hmac("sha256", password_bytes, _FALLBACK_SALT, 100000)
-        return hashlib.sha256(hashed).hexdigest()
+    return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -66,10 +54,4 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
         return pwd_context.verify(plain_password, hashed_password)
     except Exception:
-        # Try fallback comparison
-        password_bytes = plain_password.encode()
-        computed_hash = hashlib.pbkdf2_hmac("sha256", password_bytes, _FALLBACK_SALT, 100000)
-        computed_hash_str = hashlib.sha256(computed_hash).hexdigest()
-
-        # Use constant-time comparison
-        return hmac.compare_digest(computed_hash_str, hashed_password)
+        return False

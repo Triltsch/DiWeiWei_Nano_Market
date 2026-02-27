@@ -312,6 +312,12 @@ Jana Bode's Studienarbeit "Entwicklung eines Prototyps für einen Nano-Marktplat
 - **Learning**: Each layer serves different purpose; no duplication
 - **Testing**: Pydantic errors (422) vs business errors (400/409/401/403) require distinct test cases
 
+### Review Learnings (PR Feedback)
+- **Fail Fast on Secrets**: Enforce `SECRET_KEY` for production to avoid insecure defaults.
+- **JWT Claim Validation**: Defensive claim parsing prevents 500s on malformed tokens.
+- **CORS Safety Defaults**: Avoid wildcard origins with credentialed requests.
+- **Repository Hygiene**: Keep machine-specific editor settings out of source control.
+
 ---
 
 ## Meta-Learnings: Story 1.1 Implementation

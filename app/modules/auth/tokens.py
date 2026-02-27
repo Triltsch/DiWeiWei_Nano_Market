@@ -89,15 +89,23 @@ def verify_token(token: str, token_type: str = "access") -> Optional[TokenData]:
         if payload.get("type") != token_type:
             return None
 
-        user_id = UUID(payload.get("user_id"))
-        email: str = payload.get("email")
+        user_id_raw = payload.get("user_id")
+        email_raw = payload.get("email")
+        exp_raw = payload.get("exp")
 
-        if user_id is None or email is None:
+        if user_id_raw is None or email_raw is None or exp_raw is None:
             return None
 
-        exp = datetime.fromtimestamp(payload.get("exp"), tz=timezone.utc)
+        if not isinstance(exp_raw, (int, float)):
+            return None
 
-        return TokenData(user_id=user_id, email=email, exp=exp)
+        try:
+            user_id = UUID(str(user_id_raw))
+            exp = datetime.fromtimestamp(exp_raw, tz=timezone.utc)
+        except (TypeError, ValueError):
+            return None
+
+        return TokenData(user_id=user_id, email=str(email_raw), exp=exp)
 
     except JWTError:
         return None
