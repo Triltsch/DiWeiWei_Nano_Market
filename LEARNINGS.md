@@ -342,3 +342,9 @@ Jana Bode's Studienarbeit "Entwicklung eines Prototyps für einen Nano-Marktplat
 - **Regression Test Shape**: Route-level monkeypatching of `register_user` to raise `OperationalError` is a fast and deterministic way to lock in behavior for dependency outages without requiring real DB/network failures.
 - **Documentation Alignment**: Error response changes should be reflected in endpoint docs (`README` and OpenAPI response metadata) to keep client expectations synchronized with runtime behavior.
 
+### Review Follow-up Learnings (PR #9)
+
+- **Exception Scope Precision**: Broad exception handlers (`OSError`) can hide unrelated bugs and create false infrastructure signals. Map only DB-specific exceptions at HTTP boundaries.
+- **Negative Regression Coverage**: Add explicit guard tests for non-targeted exceptions to ensure future refactors do not accidentally broaden error translation behavior.
+- **Typed Test Doubles**: Monkeypatched async test doubles should have explicit parameter and return typing to keep test code maintainable and consistent with strict typing standards.
+

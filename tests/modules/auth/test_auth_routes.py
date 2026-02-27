@@ -1,5 +1,7 @@
 """Tests for authentication API routes"""
 
+from typing import NoReturn
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
@@ -88,7 +90,7 @@ async def test_register_endpoint_db_unavailable_returns_503(
 ):
     """Test /auth/register returns 503 when database is unavailable"""
 
-    async def mock_register_user(*args, **kwargs):
+    async def mock_register_user(_db_session: object, _user_data: UserRegister) -> NoReturn:
         raise OperationalError(
             statement="SELECT 1",
             params={},
@@ -101,6 +103,21 @@ async def test_register_endpoint_db_unavailable_returns_503(
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Service temporarily unavailable. Please try again later."
+
+
+@pytest.mark.asyncio
+async def test_register_endpoint_unrelated_oserror_is_not_mapped_to_503(
+    client: TestClient, test_user_data: dict, monkeypatch: pytest.MonkeyPatch
+):
+    """Test /auth/register does not convert unrelated OSError to a 503 response"""
+
+    async def mock_register_user(_db_session: object, _user_data: UserRegister) -> NoReturn:
+        raise OSError("Unrelated OS failure")
+
+    monkeypatch.setattr("app.modules.auth.router.register_user", mock_register_user)
+
+    with pytest.raises(OSError, match="Unrelated OS failure"):
+        client.post("/api/v1/auth/register", json=test_user_data)
 
 
 @pytest.mark.asyncio
