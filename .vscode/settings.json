@@ -13,6 +13,22 @@
         "python -m isort": true,
         "docker": true,
         "docker-compose": true,
-        "docker compose": true
+        "docker compose": true,
+        "gh": true,
+        "git add": true,
+        "git push": true,
+        "C:/Users/id032400/Documents/GitHub/Agent_based_dev/DiWeiWei_Nano_Market/.venv/Scripts/python.exe": true,
+        "Set-Content": true,
+        "from": true,
+        "test_data": true,
+        "user": true,
+        "print(f\"PASS": true,
+        "f\"PASS": true,
+        "except": true,
+        "print(f\"FAIL": true,
+        "f\"FAIL": true,
+        "EOF": true,
+        "git checkout": true,
+        "git clean": true
     }
 }
