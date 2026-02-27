@@ -16,6 +16,7 @@ except Exception:
     pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
     USE_BCRYPT = False
 
+
 def hash_password(password: str) -> str:
     """
     Hash a password using bcrypt with SHA256 pre-hashing for long passwords.

@@ -333,3 +333,18 @@ Jana Bode's Studienarbeit "Entwicklung eines Prototyps für einen Nano-Marktplat
 **Document Updated**: 2026-02-27
 **Status**: Story 1.1 Complete (87% coverage, 37/37 tests) → Ready for Merge
 
+---
+
+## Bugfix Learnings: Issue #8 (Register endpoint DB outage handling)
+
+- **Graceful Degradation for Infrastructure Errors**: DB connection failures during request handling must be translated to stable API responses (e.g. 503) instead of leaking internal stack traces via unhandled 500 errors.
+- **Boundary-Level Exception Mapping**: For FastAPI modular design, mapping infrastructure exceptions at the route boundary keeps service logic focused and preserves a consistent external error contract.
+- **Regression Test Shape**: Route-level monkeypatching of `register_user` to raise `OperationalError` is a fast and deterministic way to lock in behavior for dependency outages without requiring real DB/network failures.
+- **Documentation Alignment**: Error response changes should be reflected in endpoint docs (`README` and OpenAPI response metadata) to keep client expectations synchronized with runtime behavior.
+
+### Review Follow-up Learnings (PR #9)
+
+- **Exception Scope Precision**: Broad exception handlers (`OSError`) can hide unrelated bugs and create false infrastructure signals. Map only DB-specific exceptions at HTTP boundaries.
+- **Negative Regression Coverage**: Add explicit guard tests for non-targeted exceptions to ensure future refactors do not accidentally broaden error translation behavior.
+- **Typed Test Doubles**: Monkeypatched async test doubles should have explicit parameter and return typing to keep test code maintainable and consistent with strict typing standards.
+

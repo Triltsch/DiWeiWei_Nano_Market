@@ -124,6 +124,13 @@ Response: 201 Created
   "created_at": "2026-02-27T10:00:00+00:00",
   ...
 }
+
+Possible error response when database is unavailable:
+
+Response: 503 Service Unavailable
+{
+  "detail": "Service temporarily unavailable. Please try again later."
+}
 ```
 
 #### Login
