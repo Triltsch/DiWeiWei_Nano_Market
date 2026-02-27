@@ -10,7 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.models import User, UserRole, UserStatus
 from app.modules.auth.password import hash_password, verify_password
-from app.modules.auth.tokens import create_access_token, create_refresh_token, verify_token
+from app.modules.auth.tokens import (
+    create_access_token,
+    create_email_verification_token,
+    create_refresh_token,
+    verify_token,
+)
 from app.modules.auth.validators import (
     validate_email,
     validate_password_strength,
@@ -258,6 +263,72 @@ async def verify_user_email(db_session: AsyncSession, user_id: UUID) -> User:
     await db_session.refresh(user)
 
     return user
+
+
+async def verify_email_with_token(
+    db_session: AsyncSession, email_verification_token: str
+) -> UserResponse:
+    """
+    Verify user email using an email verification token.
+
+    Args:
+        db_session: Database session
+        email_verification_token: Email verification token
+
+    Returns:
+        Updated user
+
+    Raises:
+        AuthenticationError: If token is invalid, expired, or user not found
+    """
+    token_data = verify_token(email_verification_token, token_type="email_verification")
+
+    if token_data is None:
+        raise AuthenticationError("Invalid or expired email verification token")
+
+    user = await get_user_by_id(db_session, token_data.user_id)
+
+    if user is None:
+        raise AuthenticationError("User not found")
+
+    # Mark email as verified
+    user.email_verified = True
+    user.verified_at = datetime.now(timezone.utc)
+
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    return UserResponse.model_validate(user)
+
+
+async def resend_email_verification_token(db_session: AsyncSession, email: str) -> tuple[str, int]:
+    """
+    Generate a new email verification token for a user.
+
+    Args:
+        db_session: Database session
+        email: User email
+
+    Returns:
+        Tuple of (token, expires_in_seconds)
+
+    Raises:
+        AuthenticationError: If user not found or email already verified
+    """
+    email_lower = email.lower()
+    query = select(User).where(User.email == email_lower)
+    result = await db_session.execute(query)
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise AuthenticationError("User not found")
+
+    if user.email_verified:
+        raise AuthenticationError("Email already verified")
+
+    token, expires_in = create_email_verification_token(user.id, user.email)
+    return token, expires_in
 
 
 async def refresh_access_token(db_session: AsyncSession, refresh_token: str) -> TokenResponse:

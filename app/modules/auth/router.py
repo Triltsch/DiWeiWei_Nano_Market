@@ -17,9 +17,13 @@ from app.modules.auth.service import (
     record_failed_login,
     refresh_access_token,
     register_user,
+    resend_email_verification_token,
+    verify_email_with_token,
 )
 from app.schemas import (
+    EmailVerificationRequest,
     RefreshTokenRequest,
+    ResendVerificationRequest,
     SimpleErrorResponse,
     TokenResponse,
     UserLogin,
@@ -169,24 +173,77 @@ async def refresh_token(
 
 @router.post("/verify-email", response_model=VerificationEmailResponse)
 async def verify_email_endpoint(
-    body: dict,
+    body: EmailVerificationRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> VerificationEmailResponse:
     """
-    Verify user email with verification token (placeholder).
+    Verify user email with verification token.
 
     Request body:
-    - **token**: Email verification token sent to user
+    - **token**: Email verification token (received via email)
 
-    This endpoint is a placeholder for email verification.
-    In production, token would be sent via email link.
+    Returns verification confirmation with user email.
+
+    The token expires after EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS (default: 24 hours).
+    After verification, user can login successfully.
     """
-    # TODO: Implement email verification token verification
-    # For now, this is a placeholder that would verify an email token
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Email verification not yet implemented",
-    )
+    try:
+        user = await verify_email_with_token(db, body.token)
+        return VerificationEmailResponse(
+            message="Email verified successfully. You can now login.",
+            email=user.email,
+        )
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        )
+    except OperationalError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable. Please try again later.",
+        )
+
+
+@router.post("/resend-verification-email")
+async def resend_verification_email_endpoint(
+    body: ResendVerificationRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> VerificationEmailResponse:
+    """
+    Resend email verification token to user.
+
+    Request body:
+    - **email**: User email address
+
+    Returns token information (token generation confirmed, but actual email sending
+    not yet implemented). In production, the token would be sent via email.
+
+    ## MVP Note
+    Currently returns the token for manual testing. In production:
+    - Token would be sent via email with verification link
+    - Client would not receive token in response
+    - Only confirmation message would be returned
+    """
+    try:
+        token, expires_in = await resend_email_verification_token(db, body.email)
+        return VerificationEmailResponse(
+            message=(
+                "(MVP) Verification token generated. "
+                "Copy this token to verify your email: " + token
+            ),
+            email=body.email,
+        )
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        )
+    except OperationalError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable. Please try again later.",
+        )
 
 
 def get_auth_router() -> APIRouter:

@@ -64,6 +64,12 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
+class EmailVerificationRequest(BaseModel):
+    """Email verification request schema"""
+
+    token: str = Field(..., description="Email verification token")
+
+
 class MessageResponse(BaseModel):
     """Generic message response schema"""
 
