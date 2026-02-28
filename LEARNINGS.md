@@ -405,3 +405,12 @@ Jana Bode's Studienarbeit "Entwicklung eines Prototyps für einen Nano-Marktplat
 | Code Quality | All issues | Black + isort + pytest passing ✅ |
 
 **Key Achievement**: Transitioned from manual testing (SQLite only) to automated Docker integration tests + unit tests. Project now validates behavior on production-compatible PostgreSQL at CI time.
+
+## Learnings: Issue #3 JWT Token Management
+
+- **JWT Claims Consistency**: Using both standard `sub` and legacy `user_id` claims preserves backward compatibility while aligning with JWT conventions. Adding `iat` and `role` improved downstream authorization checks and token auditability.
+- **Refresh Token Rotation**: Rotation is most robust when old refresh tokens are both blacklisted and replaced atomically in Redis. This prevents replay in race conditions where clients retry stale refresh requests.
+- **Redis as Token State Layer**: Stateless access tokens still need a stateful revocation channel. Redis key patterns (`refresh_token:{user_id}`, `blacklist:{token}`) with TTL-based expiry gave predictable cleanup and simple lookup semantics.
+- **Middleware-Centric Validation**: Centralizing signature checks, expiry checks, and blacklist checks in auth middleware avoids duplicated endpoint logic and keeps protected-route behavior consistent.
+- **Security/Data Minimization**: Tokens should contain only identity and authorization claims (`sub`, `email`, `role`, `iat`, `exp`, `type`), never password or secret-derived data.
+- **Test Infrastructure Dependency**: Redis-backed auth tests are integration-sensitive; deterministic results require Redis availability during tests. This should be treated as part of the test environment contract, not as optional runtime state.

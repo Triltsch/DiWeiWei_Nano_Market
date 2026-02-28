@@ -261,7 +261,7 @@ async def test_refresh_token_endpoint_success(client: TestClient, db_session, te
     assert response.status_code == 200
     data = response.json()
     assert "access_token" in data
-    assert data["refresh_token"] == refresh_token
+    assert data["refresh_token"] != refresh_token
     assert data["token_type"] == "bearer"
 
 
