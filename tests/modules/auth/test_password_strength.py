@@ -230,8 +230,9 @@ class TestPasswordStrengthEndpoint:
     def test_check_password_strength_various_strengths(self, client):
         """Test endpoint with various password strengths"""
         test_cases = [
-            ("Test1!", False, "weak"),  # Too short
-            ("TestPass1!", True, "good"),  # Meets policy, good strength
+            # Short password but high variety/complexity can still score "strong"
+            ("Test1!", False, "strong"),  # 6 chars, all types, no patterns = 72pts
+            ("TestPass1!", True, "strong"),  # 10 chars, all types, has "pass" = 70pts
             ("MySuper$tr0ngP@ssw0rd2024!", True, "very_strong"),  # Very strong
         ]
 
@@ -244,6 +245,8 @@ class TestPasswordStrengthEndpoint:
             assert response.status_code == 200
             data = response.json()
             assert data["meets_policy"] == expected_meets_policy
+            # Verify strength label matches or exceeds expected minimum
+            assert data["strength"] == expected_min_strength
 
     def test_check_password_strength_suggestions_useful(self, client):
         """Test that suggestions are actionable and specific"""

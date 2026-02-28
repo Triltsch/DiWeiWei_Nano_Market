@@ -145,13 +145,14 @@ def get_password_hash_info(hashed_password: str) -> dict[str, str | int | None]:
         {'scheme': 'bcrypt', 'rounds': 12, 'valid': True}
     """
     try:
-        hash_info = pwd_context.identify(hashed_password, resolve=True)
-        if hash_info:
+        # Use resolve=False to get scheme name as string, not handler object
+        scheme = pwd_context.identify(hashed_password, resolve=False)
+        if scheme:
             # Extract rounds from bcrypt hash (format: $2b$12$...)
             parts = hashed_password.split("$")
             rounds = int(parts[2]) if len(parts) >= 3 else None
             return {
-                "scheme": hash_info,
+                "scheme": scheme,
                 "rounds": rounds,
                 "valid": True,
             }

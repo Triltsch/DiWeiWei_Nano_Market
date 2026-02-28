@@ -239,12 +239,8 @@ async def check_password_strength(
     - Complexity (up to 20 points): avoids common patterns and repetition
     """
     result = calculate_password_strength(body.password)
-    return PasswordStrengthResponse(
-        score=result["score"],
-        strength=result["strength"],
-        suggestions=result["suggestions"],
-        meets_policy=result["meets_policy"],
-    )
+    # TypedDict result can be safely unpacked - Pydantic will validate all fields
+    return PasswordStrengthResponse(**result)
 
 
 @router.post("/resend-verification-email")

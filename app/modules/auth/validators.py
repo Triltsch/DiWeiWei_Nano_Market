@@ -1,11 +1,23 @@
 """Validation utilities for user data"""
 
 import re
-from typing import Tuple
+from typing import Tuple, TypedDict
 
 from app.config import get_settings
 
 settings = get_settings()
+
+# Special characters accepted in passwords (shared between policy and scoring)
+SPECIAL_CHARS_PATTERN = r"[!@#$%^&*(),.?\":{}|<>]"
+
+
+class PasswordStrengthResult(TypedDict):
+    """Type-safe structure for password strength calculation results."""
+
+    score: int
+    strength: str
+    suggestions: list[str]
+    meets_policy: bool
 
 
 def validate_password_strength(password: str) -> Tuple[bool, str]:
@@ -27,13 +39,13 @@ def validate_password_strength(password: str) -> Tuple[bool, str]:
     if settings.REQUIRE_DIGIT and not re.search(r"[0-9]", password):
         return False, "Password must contain at least one digit"
 
-    if settings.REQUIRE_SPECIAL_CHAR and not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+    if settings.REQUIRE_SPECIAL_CHAR and not re.search(SPECIAL_CHARS_PATTERN, password):
         return False, "Password must contain at least one special character"
 
     return True, ""
 
 
-def calculate_password_strength(password: str) -> dict[str, str | int | list[str]]:
+def calculate_password_strength(password: str) -> PasswordStrengthResult:
     """
     Calculate password strength and provide feedback.
 
@@ -82,7 +94,8 @@ def calculate_password_strength(password: str) -> dict[str, str | int | list[str
     has_lowercase = bool(re.search(r"[a-z]", password))
     has_uppercase = bool(re.search(r"[A-Z]", password))
     has_digit = bool(re.search(r"[0-9]", password))
-    has_special = bool(re.search(r"[!@#$%^&*(),.?\":{}|<>\-_+=\[\]\\;'/~`]", password))
+    # Use same special char pattern as policy for consistency
+    has_special = bool(re.search(SPECIAL_CHARS_PATTERN, password))
 
     if has_lowercase:
         score += 10
