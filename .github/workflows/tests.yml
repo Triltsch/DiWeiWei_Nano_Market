@@ -11,6 +11,17 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-latest
     
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
     steps:
       - uses: actions/checkout@v4
       
@@ -25,6 +36,9 @@ jobs:
           pip install -e ".[dev]"
       
       - name: Run unit tests (SQLite)
+        env:
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
         run: |
           python -m pytest tests/ -m "not integration" -v
       
@@ -52,6 +66,16 @@ jobs:
           --health-retries 5
         ports:
           - 5433:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
     
     steps:
       - uses: actions/checkout@v4
@@ -69,5 +93,7 @@ jobs:
       - name: Run integration tests (PostgreSQL)
         env:
           TEST_DB_URL: postgresql+asyncpg://testuser:testpassword@localhost:5433/diweiwei_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
         run: |
           python -m pytest tests/ -m integration -v
