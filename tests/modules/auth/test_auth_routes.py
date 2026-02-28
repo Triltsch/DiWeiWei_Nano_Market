@@ -11,9 +11,9 @@ from app.schemas import UserRegister
 
 
 @pytest.mark.asyncio
-async def test_register_endpoint_success(client: TestClient, test_user_data: dict):
+async def test_register_endpoint_success(async_client, test_user_data: dict):
     """Test /auth/register endpoint with valid data"""
-    response = client.post("/api/v1/auth/register", json=test_user_data)
+    response = await async_client.post("/api/v1/auth/register", json=test_user_data)
 
     assert response.status_code == 201
     data = response.json()
@@ -25,60 +25,58 @@ async def test_register_endpoint_success(client: TestClient, test_user_data: dic
 
 
 @pytest.mark.asyncio
-async def test_register_endpoint_missing_required_field(client: TestClient, test_user_data: dict):
+async def test_register_endpoint_missing_required_field(async_client, test_user_data: dict):
     """Test /auth/register with missing required field"""
     del test_user_data["password"]
-    response = client.post("/api/v1/auth/register", json=test_user_data)
+    response = await async_client.post("/api/v1/auth/register", json=test_user_data)
 
     assert response.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_register_endpoint_invalid_email(client: TestClient, test_user_data: dict):
+async def test_register_endpoint_invalid_email(async_client, test_user_data: dict):
     """Test /auth/register with invalid email"""
     test_user_data["email"] = "invalid-email"
-    response = client.post("/api/v1/auth/register", json=test_user_data)
+    response = await async_client.post("/api/v1/auth/register", json=test_user_data)
 
     assert response.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_register_endpoint_weak_password(client: TestClient, test_user_data: dict):
+async def test_register_endpoint_weak_password(async_client, test_user_data: dict):
     """Test /auth/register with weak password"""
     test_user_data["password"] = "weak"
-    response = client.post("/api/v1/auth/register", json=test_user_data)
+    response = await async_client.post("/api/v1/auth/register", json=test_user_data)
 
     assert response.status_code in (400, 422)
     assert "detail" in response.json()
 
 
 @pytest.mark.asyncio
-async def test_register_endpoint_duplicate_email(
-    client: TestClient, db_session, test_user_data: dict
-):
+async def test_register_endpoint_duplicate_email(async_client, db_session, test_user_data: dict):
     """Test /auth/register with duplicate email"""
     # Register first user
-    response1 = client.post("/api/v1/auth/register", json=test_user_data)
+    response1 = await async_client.post("/api/v1/auth/register", json=test_user_data)
     assert response1.status_code == 201
 
     # Try to register with same email
     test_user_data["username"] = "different_user"
-    response2 = client.post("/api/v1/auth/register", json=test_user_data)
+    response2 = await async_client.post("/api/v1/auth/register", json=test_user_data)
 
     assert response2.status_code == 409
     assert "already registered" in response2.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
-async def test_register_endpoint_duplicate_username(client: TestClient, test_user_data: dict):
+async def test_register_endpoint_duplicate_username(async_client, test_user_data: dict):
     """Test /auth/register with duplicate username"""
     # Register first user
-    response1 = client.post("/api/v1/auth/register", json=test_user_data)
+    response1 = await async_client.post("/api/v1/auth/register", json=test_user_data)
     assert response1.status_code == 201
 
     # Try to register with same username
     test_user_data["email"] = "different@example.com"
-    response2 = client.post("/api/v1/auth/register", json=test_user_data)
+    response2 = await async_client.post("/api/v1/auth/register", json=test_user_data)
 
     assert response2.status_code == 409
     assert "already taken" in response2.json()["detail"].lower()
@@ -86,7 +84,7 @@ async def test_register_endpoint_duplicate_username(client: TestClient, test_use
 
 @pytest.mark.asyncio
 async def test_register_endpoint_db_unavailable_returns_503(
-    client: TestClient, test_user_data: dict, monkeypatch: pytest.MonkeyPatch
+    async_client, test_user_data: dict, monkeypatch: pytest.MonkeyPatch
 ):
     """Test /auth/register returns 503 when database is unavailable"""
 
@@ -99,7 +97,7 @@ async def test_register_endpoint_db_unavailable_returns_503(
 
     monkeypatch.setattr("app.modules.auth.router.register_user", mock_register_user)
 
-    response = client.post("/api/v1/auth/register", json=test_user_data)
+    response = await async_client.post("/api/v1/auth/register", json=test_user_data)
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Service temporarily unavailable. Please try again later."
@@ -107,7 +105,7 @@ async def test_register_endpoint_db_unavailable_returns_503(
 
 @pytest.mark.asyncio
 async def test_register_endpoint_unrelated_oserror_is_not_mapped_to_503(
-    client: TestClient, test_user_data: dict, monkeypatch: pytest.MonkeyPatch
+    async_client, test_user_data: dict, monkeypatch: pytest.MonkeyPatch
 ):
     """Test /auth/register does not convert unrelated OSError to a 503 response"""
 
@@ -117,33 +115,31 @@ async def test_register_endpoint_unrelated_oserror_is_not_mapped_to_503(
     monkeypatch.setattr("app.modules.auth.router.register_user", mock_register_user)
 
     with pytest.raises(OSError, match="Unrelated OS failure"):
-        client.post("/api/v1/auth/register", json=test_user_data)
+        await async_client.post("/api/v1/auth/register", json=test_user_data)
 
 
 @pytest.mark.asyncio
-async def test_login_endpoint_not_verified(client: TestClient, test_user_data: dict):
+async def test_login_endpoint_not_verified(async_client, test_user_data: dict):
     """Test /auth/login fails if email not verified"""
     # Register user
-    client.post("/api/v1/auth/register", json=test_user_data)
+    await async_client.post("/api/v1/auth/register", json=test_user_data)
 
     # Try to login
     login_data = {
         "email": test_user_data["email"],
         "password": test_user_data["password"],
     }
-    response = client.post("/api/v1/auth/login", json=login_data)
+    response = await async_client.post("/api/v1/auth/login", json=login_data)
 
     assert response.status_code == 403
     assert "verified" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
-async def test_login_endpoint_invalid_password(
-    client: TestClient, db_session, test_user_data: dict
-):
+async def test_login_endpoint_invalid_password(async_client, db_session, test_user_data: dict):
     """Test /auth/login with invalid password"""
     # Register user
-    response = client.post("/api/v1/auth/register", json=test_user_data)
+    response = await async_client.post("/api/v1/auth/register", json=test_user_data)
     assert response.status_code == 201
     user_id = response.json()["id"]
 
@@ -157,28 +153,28 @@ async def test_login_endpoint_invalid_password(
         "email": test_user_data["email"],
         "password": "WrongPassword123!",
     }
-    response = client.post("/api/v1/auth/login", json=login_data)
+    response = await async_client.post("/api/v1/auth/login", json=login_data)
 
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_login_endpoint_invalid_email(client: TestClient):
+async def test_login_endpoint_invalid_email(async_client):
     """Test /auth/login with invalid email"""
     login_data = {
         "email": "nonexistent@example.com",
         "password": "SomePassword123!",
     }
-    response = client.post("/api/v1/auth/login", json=login_data)
+    response = await async_client.post("/api/v1/auth/login", json=login_data)
 
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_login_endpoint_success(client: TestClient, db_session, test_user_data: dict):
+async def test_login_endpoint_success(async_client, db_session, test_user_data: dict):
     """Test successful /auth/login"""
     # Register user
-    response = client.post("/api/v1/auth/register", json=test_user_data)
+    response = await async_client.post("/api/v1/auth/register", json=test_user_data)
     assert response.status_code == 201
     user_id = response.json()["id"]
 
@@ -192,7 +188,7 @@ async def test_login_endpoint_success(client: TestClient, db_session, test_user_
         "email": test_user_data["email"],
         "password": test_user_data["password"],
     }
-    response = client.post("/api/v1/auth/login", json=login_data)
+    response = await async_client.post("/api/v1/auth/login", json=login_data)
 
     assert response.status_code == 200
     data = response.json()
@@ -203,7 +199,7 @@ async def test_login_endpoint_success(client: TestClient, db_session, test_user_
 
 
 @pytest.mark.asyncio
-async def test_login_endpoint_locked_account(client: TestClient, db_session, test_user_data: dict):
+async def test_login_endpoint_locked_account(async_client, db_session, test_user_data: dict):
     """Test login fails for locked account - tested via service layer"""
     from uuid import UUID
 
@@ -212,7 +208,7 @@ async def test_login_endpoint_locked_account(client: TestClient, db_session, tes
     from app.modules.auth.service import AccountLockedError, authenticate_user, record_failed_login
 
     # Register user
-    response = client.post("/api/v1/auth/register", json=test_user_data)
+    response = await async_client.post("/api/v1/auth/register", json=test_user_data)
     assert response.status_code == 201
     user_id = response.json()["id"]
 
@@ -231,10 +227,10 @@ async def test_login_endpoint_locked_account(client: TestClient, db_session, tes
 
 
 @pytest.mark.asyncio
-async def test_refresh_token_endpoint_success(client: TestClient, db_session, test_user_data: dict):
+async def test_refresh_token_endpoint_success(async_client, db_session, test_user_data: dict):
     """Test successful token refresh"""
     # Register and verify user
-    response = client.post("/api/v1/auth/register", json=test_user_data)
+    response = await async_client.post("/api/v1/auth/register", json=test_user_data)
     assert response.status_code == 201
     user_id = response.json()["id"]
 
@@ -247,13 +243,13 @@ async def test_refresh_token_endpoint_success(client: TestClient, db_session, te
         "email": test_user_data["email"],
         "password": test_user_data["password"],
     }
-    login_response = client.post("/api/v1/auth/login", json=login_data)
+    login_response = await async_client.post("/api/v1/auth/login", json=login_data)
     assert login_response.status_code == 200
     tokens = login_response.json()
     refresh_token = tokens["refresh_token"]
 
     # Refresh
-    response = client.post(
+    response = await async_client.post(
         "/api/v1/auth/refresh-token",
         json={"refresh_token": refresh_token},
     )

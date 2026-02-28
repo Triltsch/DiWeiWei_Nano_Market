@@ -186,11 +186,17 @@ def mock_redis(monkeypatch):
     """Mock Redis operations for TestClient tests to avoid event loop conflicts"""
     from unittest.mock import AsyncMock, MagicMock
 
+    storage: dict[str, str] = {}
+
     mock_client = MagicMock()
-    mock_client.setex = AsyncMock()
-    mock_client.get = AsyncMock(return_value=None)
-    mock_client.delete = AsyncMock()
+    mock_client.setex = AsyncMock(
+        side_effect=lambda key, _ttl, value: storage.__setitem__(key, value)
+    )
+    mock_client.get = AsyncMock(side_effect=lambda key: storage.get(key))
+    mock_client.exists = AsyncMock(side_effect=lambda key: 1 if key in storage else 0)
+    mock_client.delete = AsyncMock(side_effect=lambda key: 1 if storage.pop(key, None) else 0)
     mock_client.close = AsyncMock()
+    mock_client.aclose = AsyncMock()
 
     async def mock_get_redis():
         return mock_client
@@ -201,13 +207,6 @@ def mock_redis(monkeypatch):
     # Mock the base redis_client module functions
     monkeypatch.setattr("app.redis_client.get_redis", mock_get_redis)
     monkeypatch.setattr("app.redis_client.close_redis", mock_close_redis)
-
-    # Mock Redis operations used in service
-    monkeypatch.setattr("app.redis_client.store_refresh_token", AsyncMock())
-    monkeypatch.setattr("app.redis_client.get_refresh_token", AsyncMock(return_value=None))
-    monkeypatch.setattr("app.redis_client.delete_refresh_token", AsyncMock())
-    monkeypatch.setattr("app.redis_client.blacklist_token", AsyncMock())
-    monkeypatch.setattr("app.redis_client.is_token_blacklisted", AsyncMock(return_value=False))
 
     return mock_client
 
@@ -221,7 +220,8 @@ def client(app):
 @pytest.fixture
 async def async_client(app):
     """Create async HTTP test client"""
-    async with httpx.AsyncClient(app=app, base_url="http://test") as ac:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
 
@@ -252,9 +252,9 @@ async def test_invalid_passwords():
 
 
 @pytest.fixture
-async def verified_user_id(client, db_session, test_user_data):
+async def verified_user_id(async_client, db_session, test_user_data):
     """Create and verify a test user, return their ID"""
-    response = client.post("/api/v1/auth/register", json=test_user_data)
+    response = await async_client.post("/api/v1/auth/register", json=test_user_data)
     assert response.status_code == 201
     user_id = UUID(response.json()["id"])
 
@@ -264,11 +264,11 @@ async def verified_user_id(client, db_session, test_user_data):
 
 
 @pytest.fixture
-async def verified_user(client, db_session, test_user_data) -> User:
+async def verified_user(async_client, db_session, test_user_data) -> User:
     """Create and verify a test user, return the User object"""
     from sqlalchemy import select
 
-    response = client.post("/api/v1/auth/register", json=test_user_data)
+    response = await async_client.post("/api/v1/auth/register", json=test_user_data)
     assert response.status_code == 201
     user_id = UUID(response.json()["id"])
 

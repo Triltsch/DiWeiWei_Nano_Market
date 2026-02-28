@@ -1,5 +1,4 @@
-"""
-Tests for JWT Token Management (Story 1.2)
+"""Tests for JWT Token Management (Story 1.2).
 
 This test file covers:
 - JWT token generation with all required claims (sub, iat, exp, role)
@@ -32,165 +31,199 @@ from app.redis_client import (
     is_token_blacklisted,
     store_refresh_token,
 )
+from expect import expect
 
 settings = get_settings()
 
 
 class TestAccessTokenGeneration:
-    """Tests for access token generation with enhanced claims"""
+    """Tests for access token generation with enhanced claims."""
 
-    def test_access_token_includes_standard_claims(self):
+    def test_access_token_includes_standard_claims(self) -> None:
+        """Test access token includes all required JWT claims.
+
+        Verifies that the generated access token contains all required claims:
+        sub, user_id, email, role, type, iat, and exp.
         """
-        Test: Access token includes all required JWT claims
-        Expected: Token contains sub, iat, exp, role, email, type
-        """
+        # Arrange
         user_id = uuid4()
         email = "test@example.com"
         role = "consumer"
 
+        # Act
         token, expires_in = create_access_token(user_id, email, role)
 
         # Decode without verification to inspect claims
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
 
-        # Check all required claims
-        assert payload["sub"] == str(user_id)
-        assert payload["user_id"] == str(user_id)  # Backward compatibility
-        assert payload["email"] == email
-        assert payload["role"] == role
-        assert payload["type"] == "access"
-        assert "iat" in payload
-        assert "exp" in payload
+        # Assert - All required claims
+        expect(payload["sub"]).equal(str(user_id))
+        expect(payload["user_id"]).equal(str(user_id))  # Backward compatibility
+        expect(payload["email"]).equal(email)
+        expect(payload["role"]).equal(role)
+        expect(payload["type"]).equal("access")
+        expect(payload).has_keys("iat", "exp")
 
-        # Verify expiry time is ~15 minutes
-        assert expires_in == settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        # Assert - Verify expiry time is configured correctly
+        expect(expires_in).equal(settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
 
-    def test_access_token_expiry_is_15_minutes(self):
+    def test_access_token_expiry_is_15_minutes(self) -> None:
+        """Test access token expires in 15 minutes.
+
+        Verifies that the token's exp claim is approximately 15 minutes
+        from the iat claim, matching the configured expiration time.
         """
-        Test: Access token expires in 15 minutes as per requirements
-        Expected: Token exp claim is ~15 minutes from iat
-        """
+        # Arrange
         user_id = uuid4()
+
+        # Act
         token, _ = create_access_token(user_id, "test@example.com")
 
+        # Decode token
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         iat = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)
         exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
 
-        # Check expiry is approximately 15 minutes from issue time
+        # Assert - Check expiry is approximately 15 minutes from issue time
         expected_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         actual_delta = exp - iat
-        assert abs((actual_delta - expected_delta).total_seconds()) < 2  # Allow 2sec variance
+        expect(abs((actual_delta - expected_delta).total_seconds())).to_be_less_than(2)
 
-    def test_access_token_with_different_roles(self):
+    def test_access_token_with_different_roles(self) -> None:
+        """Test access tokens can be created with different roles.
+
+        Verifies that the token generation function correctly includes
+        the specified role in the token payload.
         """
-        Test: Access tokens can be created with different user roles
-        Expected: Token contains the specified role
-        """
+        # Arrange
         user_id = uuid4()
         email = "admin@example.com"
 
+        # Act & Assert
         for role in ["consumer", "creator", "admin", "moderator"]:
             token, _ = create_access_token(user_id, email, role)
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-            assert payload["role"] == role
+            expect(payload["role"]).equal(role)
 
 
 class TestRefreshTokenGeneration:
-    """Tests for refresh token generation"""
+    """Tests for refresh token generation."""
 
-    def test_refresh_token_includes_standard_claims(self):
+    def test_refresh_token_includes_standard_claims(self) -> None:
+        """Test refresh token includes all required JWT claims.
+
+        Verifies that the generated refresh token contains all required claims:
+        sub, user_id, email, role, type, iat, and exp.
         """
-        Test: Refresh token includes all required JWT claims
-        Expected: Token contains sub, iat, exp, role, email, type
-        """
+        # Arrange
         user_id = uuid4()
         email = "test@example.com"
         role = "creator"
 
+        # Act
         token, expires_in = create_refresh_token(user_id, email, role)
 
+        # Decode and Assert
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
 
-        assert payload["sub"] == str(user_id)
-        assert payload["user_id"] == str(user_id)
-        assert payload["email"] == email
-        assert payload["role"] == role
-        assert payload["type"] == "refresh"
-        assert "iat" in payload
-        assert "exp" in payload
+        expect(payload["sub"]).equal(str(user_id))
+        expect(payload["user_id"]).equal(str(user_id))
+        expect(payload["email"]).equal(email)
+        expect(payload["role"]).equal(role)
+        expect(payload["type"]).equal("refresh")
+        expect(payload).has_keys("iat", "exp")
 
-        # Verify expiry time is ~7 days
-        assert expires_in == settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+        # Assert - Verify expiry time is ~7 days
+        expect(expires_in).equal(settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60)
 
-    def test_refresh_token_expiry_is_7_days(self):
+    def test_refresh_token_expiry_is_7_days(self) -> None:
+        """Test refresh token expires in 7 days.
+
+        Verifies that the token's exp claim is approximately 7 days
+        from the iat claim, matching the configured expiration time.
         """
-        Test: Refresh token expires in 7 days as per requirements
-        Expected: Token exp claim is ~7 days from iat
-        """
+        # Arrange
         user_id = uuid4()
+
+        # Act
         token, _ = create_refresh_token(user_id, "test@example.com")
 
+        # Decode token
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         iat = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)
         exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
 
+        # Assert
         expected_delta = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
         actual_delta = exp - iat
-        assert abs((actual_delta - expected_delta).total_seconds()) < 2
+        expect(abs((actual_delta - expected_delta).total_seconds())).to_be_less_than(2)
 
 
 class TestTokenVerification:
-    """Tests for token verification with enhanced claims"""
+    """Tests for token verification with enhanced claims."""
 
-    def test_verify_valid_access_token(self):
+    def test_verify_valid_access_token(self) -> None:
+        """Test valid access token can be verified successfully.
+
+        Verifies that token verification correctly extracts all user
+        information from a valid access token.
         """
-        Test: Valid access token can be verified successfully
-        Expected: Returns TokenData with all user information
-        """
+        # Arrange
         user_id = uuid4()
         email = "test@example.com"
         role = "consumer"
 
+        # Act
         token, _ = create_access_token(user_id, email, role)
         token_data = verify_token(token, token_type="access")
 
-        assert token_data is not None
-        assert isinstance(token_data, TokenData)
-        assert token_data.user_id == user_id
-        assert token_data.email == email
-        assert token_data.role == role
-        assert isinstance(token_data.exp, datetime)
-        assert isinstance(token_data.iat, datetime)
+        # Assert
+        expect(token_data).is_not_none()
+        expect(isinstance(token_data, TokenData)).to_be_true()
+        expect(token_data.user_id).equal(user_id)
+        expect(token_data.email).equal(email)
+        expect(token_data.role).equal(role)
+        expect(isinstance(token_data.exp, datetime)).to_be_true()
+        expect(isinstance(token_data.iat, datetime)).to_be_true()
 
-    def test_verify_token_extracts_role(self):
+    def test_verify_token_extracts_role(self) -> None:
+        """Test token verification extracts role claim correctly.
+
+        Ensures that the role is properly extracted from the token
+        and available in the TokenData object.
         """
-        Test: Token verification extracts role claim
-        Expected: TokenData contains correct role
-        """
+        # Arrange
         user_id = uuid4()
+
+        # Act
         token, _ = create_access_token(user_id, "admin@example.com", "admin")
         token_data = verify_token(token, token_type="access")
 
-        assert token_data.role == "admin"
+        # Assert
+        expect(token_data.role).equal("admin")
 
-    def test_verify_token_wrong_type_returns_none(self):
+    def test_verify_token_wrong_type_returns_none(self) -> None:
+        """Test token verification fails if type mismatch.
+
+        Verifies that attempting to verify an access token as a refresh
+        token fails by returning None.
         """
-        Test: Token verification fails if type mismatch
-        Expected: Returns None when verifying access token as refresh
-        """
+        # Arrange
         user_id = uuid4()
         token, _ = create_access_token(user_id, "test@example.com")
 
-        # Try to verify access token as refresh token
+        # Act: Try to verify access token as refresh token
         token_data = verify_token(token, token_type="refresh")
-        assert token_data is None
 
-    def test_verify_expired_token_returns_none(self):
+        # Assert
+        expect(token_data).is_none()
+
+    def test_verify_expired_token_returns_none(self) -> None:
+        """Test expired token verification fails.
+
+        Verifies that attempting to verify an expired token returns None.
         """
-        Test: Expired token verification fails
-        Expected: Returns None for expired token
-        """
+        # Arrange
         user_id = uuid4()
 
         # Create token that expired 1 hour ago
@@ -206,194 +239,250 @@ class TestTokenVerification:
         }
         token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
+        # Act
         token_data = verify_token(token, token_type="access")
-        assert token_data is None
 
-    def test_verify_token_with_invalid_signature_returns_none(self):
+        # Assert
+        expect(token_data).is_none()
+
+    def test_verify_token_with_invalid_signature_returns_none(self) -> None:
+        """Test token with invalid signature fails verification.
+
+        Verifies that tampering with the token results in verification failure.
         """
-        Test: Token with invalid signature fails verification
-        Expected: Returns None for tampered token
-        """
+        # Arrange
         user_id = uuid4()
         token, _ = create_access_token(user_id, "test@example.com")
 
         # Tamper with token
         tampered_token = token[:-5] + "XXXXX"
 
+        # Act
         token_data = verify_token(tampered_token, token_type="access")
-        assert token_data is None
+
+        # Assert
+        expect(token_data).is_none()
 
 
 class TestRedisTokenStorage:
-    """Tests for Redis-backed refresh token storage"""
+    """Tests for Redis-backed refresh token storage."""
 
     @pytest.mark.asyncio
-    async def test_store_and_retrieve_refresh_token(self):
+    async def test_store_and_retrieve_refresh_token(self) -> None:
+        """Test refresh tokens can be stored and retrieved from Redis.
+
+        Verifies that tokens stored in Redis can be retrieved with
+        their original values intact.
         """
-        Test: Refresh tokens can be stored and retrieved from Redis
-        Expected: Stored token is retrievable with same value
-        """
+        # Arrange
         user_id = str(uuid4())
         token = "test_refresh_token_12345"
         expires_in = 3600  # 1 hour
 
+        # Act
         await store_refresh_token(user_id, token, expires_in)
         retrieved_token = await get_refresh_token(user_id)
 
-        assert retrieved_token == token
+        # Assert
+        expect(retrieved_token).equal(token)
 
     @pytest.mark.asyncio
-    async def test_refresh_token_expires_in_redis(self):
+    async def test_refresh_token_expires_in_redis(self) -> None:
+        """Test refresh tokens expire in Redis after TTL.
+
+        Verifies that tokens automatically expire from Redis after
+        the configured ttl has elapsed.
         """
-        Test: Refresh tokens expire in Redis after TTL
-        Expected: Token is None after expiration
-        """
+        # Arrange
         user_id = str(uuid4())
         token = "short_lived_token"
         expires_in = 1  # 1 second
 
+        # Act
         await store_refresh_token(user_id, token, expires_in)
 
         # Wait for expiration
         await asyncio.sleep(2)
 
+        # Retrieve after expiration
         retrieved_token = await get_refresh_token(user_id)
-        assert retrieved_token is None
+
+        # Assert
+        expect(retrieved_token).is_none()
 
     @pytest.mark.asyncio
-    async def test_delete_refresh_token(self):
+    async def test_delete_refresh_token(self) -> None:
+        """Test refresh tokens can be deleted from Redis.
+
+        Verifies that tokens can be explicitly deleted and are no longer
+        accessible after deletion.
         """
-        Test: Refresh tokens can be deleted from Redis
-        Expected: Token is None after deletion
-        """
+        # Arrange
         user_id = str(uuid4())
         token = "test_token_to_delete"
 
+        # Act
         await store_refresh_token(user_id, token, 3600)
         await delete_refresh_token(user_id)
 
+        # Retrieve after deletion
         retrieved_token = await get_refresh_token(user_id)
-        assert retrieved_token is None
+
+        # Assert
+        expect(retrieved_token).is_none()
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_refresh_token(self):
+    async def test_get_nonexistent_refresh_token(self) -> None:
+        """Test getting non-existent token returns None.
+
+        Verifies that attempting to retrieve a token for a user
+        without a stored token returns None gracefully.
         """
-        Test: Getting non-existent token returns None
-        Expected: Returns None for user without stored token
-        """
+        # Arrange
         user_id = str(uuid4())
+
+        # Act
         retrieved_token = await get_refresh_token(user_id)
-        assert retrieved_token is None
+
+        # Assert
+        expect(retrieved_token).is_none()
 
 
 class TestTokenBlacklisting:
-    """Tests for token blacklist/revocation mechanism"""
+    """Tests for token blacklist/revocation mechanism."""
 
     @pytest.mark.asyncio
-    async def test_blacklist_token(self):
+    async def test_blacklist_token(self) -> None:
+        """Test tokens can be added to blacklist.
+
+        Verifies that a token can be blacklisted and is subsequently
+        detected as blacklisted.
         """
-        Test: Tokens can be added to blacklist
-        Expected: Blacklisted token is detected as blacklisted
-        """
+        # Arrange
         token = "access_token_to_blacklist"
         expires_in = 3600
 
+        # Act
         await blacklist_token(token, expires_in)
         is_blacklisted = await is_token_blacklisted(token)
 
-        assert is_blacklisted is True
+        # Assert
+        expect(is_blacklisted).to_be_true()
 
     @pytest.mark.asyncio
-    async def test_non_blacklisted_token(self):
+    async def test_non_blacklisted_token(self) -> None:
+        """Test non-blacklisted tokens are not detected as blacklisted.
+
+        Verifies that a token that has not been blacklisted returns False
+        when checked.
         """
-        Test: Non-blacklisted tokens are not detected as blacklisted
-        Expected: Returns False for clean token
-        """
+        # Arrange
         token = "clean_token"
+
+        # Act
         is_blacklisted = await is_token_blacklisted(token)
 
-        assert is_blacklisted is False
+        # Assert
+        expect(is_blacklisted).to_be_false()
 
     @pytest.mark.asyncio
-    async def test_blacklist_expires_with_token(self):
+    async def test_blacklist_expires_with_token(self) -> None:
+        """Test blacklist entries expire along with token TTL.
+
+        Verifies that blacklist entries are automatically removed after
+        the TTL expires, allowing tokens to be reissued if needed.
         """
-        Test: Blacklist entries expire along with token TTL
-        Expected: Blacklisted token becomes non-blacklisted after expiry
-        """
+        # Arrange
         token = "short_blacklist_token"
         expires_in = 1  # 1 second
 
+        # Act
         await blacklist_token(token, expires_in)
-        assert await is_token_blacklisted(token) is True
+        expect(await is_token_blacklisted(token)).to_be_true()
 
         # Wait for expiration
         await asyncio.sleep(2)
 
+        # Assert
         is_blacklisted = await is_token_blacklisted(token)
-        assert is_blacklisted is False
+        expect(is_blacklisted).to_be_false()
 
 
 class TestTokenClaims:
-    """Tests for JWT claims compliance"""
+    """Tests for JWT claims compliance."""
 
-    def test_token_has_no_sensitive_data(self):
+    def test_token_has_no_sensitive_data(self) -> None:
+        """Test tokens do not contain sensitive information.
+
+        Verifies that sensitive fields like password hashes are not
+        included in the token payload.
         """
-        Test: Tokens do not contain sensitive information
-        Expected: Password or sensitive fields are not in token
-        """
+        # Arrange
         user_id = uuid4()
         email = "test@example.com"
+
+        # Act
         token, _ = create_access_token(user_id, email)
 
+        # Decode token
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
 
-        # Ensure no sensitive data in token
-        assert "password" not in payload
-        assert "password_hash" not in payload
-        assert "secret" not in payload.get("email", "")
+        # Assert - Ensure no sensitive data in token
+        expect("password" in payload).to_be_false()
+        expect("password_hash" in payload).to_be_false()
+        expect("secret" in payload.get("email", "")).to_be_false()
 
-    def test_token_signature_is_hs256(self):
+    def test_token_signature_is_hs256(self) -> None:
+        """Test tokens use HS256 algorithm.
+
+        Verifies that all tokens are signed using the HS256 algorithm
+        as specified in the requirements.
         """
-        Test: Tokens use HS256 algorithm as per requirements
-        Expected: Token algorithm is HS256
-        """
+        # Arrange
         user_id = uuid4()
+
+        # Act
         token, _ = create_access_token(user_id, "test@example.com")
 
         # Decode header to check algorithm
         from jose import jwt as jose_jwt
 
         header = jose_jwt.get_unverified_header(token)
-        assert header["alg"] == "HS256"
 
-    def test_token_uses_secret_from_config(self):
+        # Assert
+        expect(header["alg"]).equal("HS256")
+
+    def test_token_uses_secret_from_config(self) -> None:
+        """Test token uses SECRET_KEY from configuration.
+
+        Verifies that tokens can only be decoded with the correct secret
+        from configuration, and fail with an incorrect secret.
         """
-        Test: Token uses SECRET_KEY from configuration
-        Expected: Token can only be decoded with correct secret
-        """
+        # Arrange
         user_id = uuid4()
+
+        # Act
         token, _ = create_access_token(user_id, "test@example.com")
 
-        # Should decode successfully with correct secret
+        # Assert - Should decode successfully with correct secret
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        assert payload is not None
+        expect(payload).is_not_none()
 
-        # Should fail with wrong secret
-        try:
+        # Assert - Should fail with wrong secret
+        with pytest.raises(Exception):
             jwt.decode(token, "wrong_secret", algorithms=[settings.ALGORITHM])
-            assert False, "Should have raised exception"
-        except Exception:
-            pass  # Expected
 
 
 class TestTokenErrorHandling:
-    """Tests for token error handling and edge cases"""
+    """Tests for token error handling and edge cases."""
 
-    def test_verify_token_with_missing_role_defaults_to_consumer(self):
+    def test_verify_token_with_missing_role_defaults_to_consumer(self) -> None:
+        """Test token without role claim defaults to 'consumer'.
+
+        Verifies that if a token is missing the role claim, it defaults
+        to 'consumer' to ensure graceful degradation.
         """
-        Test: Token without role claim defaults to 'consumer'
-        Expected: TokenData.role is 'consumer' when claim is missing
-        """
+        # Arrange
         user_id = uuid4()
         payload = {
             "sub": str(user_id),
@@ -406,16 +495,20 @@ class TestTokenErrorHandling:
         }
         token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
+        # Act
         token_data = verify_token(token, token_type="access")
 
-        assert token_data is not None
-        assert token_data.role == "consumer"
+        # Assert
+        expect(token_data).is_not_none()
+        expect(token_data.role).equal("consumer")
 
-    def test_verify_token_with_missing_iat_uses_current_time(self):
+    def test_verify_token_with_missing_iat_uses_current_time(self) -> None:
+        """Test token without iat claim uses current time.
+
+        Verifies that if the iat claim is missing, the verification
+        process uses the current time as a fallback.
         """
-        Test: Token without iat claim uses current time
-        Expected: TokenData.iat is approximately now
-        """
+        # Arrange
         user_id = uuid4()
         payload = {
             "sub": str(user_id),
@@ -428,9 +521,11 @@ class TestTokenErrorHandling:
         }
         token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
+        # Act
         token_data = verify_token(token, token_type="access")
 
-        assert token_data is not None
+        # Assert
+        expect(token_data).is_not_none()
         # iat should be close to current time (within 5 seconds)
         now = datetime.now(timezone.utc)
-        assert abs((token_data.iat - now).total_seconds()) < 5
+        expect(abs((token_data.iat - now).total_seconds())).to_be_less_than(5)
