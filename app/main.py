@@ -1,12 +1,25 @@
 """FastAPI application factory"""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.modules.auth.router import get_auth_router
+from app.redis_client import close_redis, get_redis
 
 settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan (startup and shutdown)"""
+    # Startup: Initialize Redis connection
+    await get_redis()
+    yield
+    # Shutdown: Close Redis connection
+    await close_redis()
 
 
 def create_app() -> FastAPI:
@@ -15,6 +28,7 @@ def create_app() -> FastAPI:
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
         debug=settings.DEBUG,
+        lifespan=lifespan,
     )
 
     # Add CORS middleware

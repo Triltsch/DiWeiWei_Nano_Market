@@ -64,6 +64,12 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
+class LogoutRequest(BaseModel):
+    """Logout request schema"""
+
+    refresh_token: str
+
+
 class EmailVerificationRequest(BaseModel):
     """Email verification request schema"""
 

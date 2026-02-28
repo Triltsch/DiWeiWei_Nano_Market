@@ -249,7 +249,7 @@ async def test_refresh_token(db_session: AsyncSession, test_user_data: dict):
     new_token_response = await refresh_access_token(db_session, token_response.refresh_token)
 
     assert new_token_response.access_token is not None
-    assert new_token_response.refresh_token == token_response.refresh_token
+    assert new_token_response.refresh_token != token_response.refresh_token
     assert new_token_response.token_type == "bearer"
 
 

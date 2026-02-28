@@ -438,6 +438,30 @@ Jana Bode's Studienarbeit "Entwicklung eines Prototyps für einen Nano-Marktplat
 
 - **Graceful Degradation for Infrastructure Errors**: DB connection failures during request handling must be translated to stable API responses (e.g. 503) instead of leaking internal stack traces via unhandled 500 errors.
 - **Boundary-Level Exception Mapping**: For FastAPI modular design, mapping infrastructure exceptions at the route boundary keeps service logic focused and preserves a consistent external error contract.
+
+---
+
+## PR #15 Review Process Learnings: GitHub API vs UI Discrepancy
+
+**Issue**: Copilot AI review comments on PR #15 did not appear in `github-pull-request_issue_fetch` API response (comments array was empty), but were clearly visible in GitHub UI screenshot showing a comment on `app/modules/auth/middleware.py` lines 99-101.
+
+**Root Cause**: GitHub's GraphQL/REST APIs may not consistently return all review comments in the general `comments` array. Review comments are stored separately from PR comments and require specific GraphQL queries or REST endpoints to retrieve.
+
+**Solution**: 
+1. **Enhanced nano_review.prompt.md**: Added guidance to manually inspect PR UI or use alternative data sources when API fetch returns incomplete comments.
+2. **Typing Best Practice Discovered**: The Copilot suggestion to add return type annotation to dependency factories (`require_role`) reveals a gap - FastAPI dependency factories should be fully typed using `Callable[[...], Awaitable[...]]` for IDE tooling and type checking.
+
+**Implementation Fix**:
+- Added `Callable` and `Awaitable` imports from `collections.abc` and `typing`
+- Annotated `require_role(required_role: str) -> Callable[[Annotated[TokenData, Depends(get_current_user)]], Awaitable[TokenData]]`
+- Benefit: Full type coverage enables FastAPI/IDE to provide better autocomplete and catch type errors earlier
+
+**Meta-Learning**: When automating PR review implementation, use multiple data sources:
+1. Structured API responses (fast but may be incomplete)
+2. Visual UI inspection (slow but authoritative - what user actually sees)
+3. Fallback to manual comment collection when mismatch detected
+
+This prevents missing reviewer feedback that could affect code quality.
 - **Regression Test Shape**: Route-level monkeypatching of `register_user` to raise `OperationalError` is a fast and deterministic way to lock in behavior for dependency outages without requiring real DB/network failures.
 - **Documentation Alignment**: Error response changes should be reflected in endpoint docs (`README` and OpenAPI response metadata) to keep client expectations synchronized with runtime behavior.
 
@@ -548,3 +572,11 @@ Jana Bode's Studienarbeit "Entwicklung eines Prototyps für einen Nano-Marktplat
 - **Security Compliance**: OWASP password storage guidelines fully met
 
 **Key Achievement**: Eliminated critical security vulnerability identified in prototype study - transitioned from no password hashing to production-grade bcrypt implementation with comprehensive testing and user-friendly strength feedback system.
+## Learnings: Issue #3 JWT Token Management
+
+- **JWT Claims Consistency**: Using both standard `sub` and legacy `user_id` claims preserves backward compatibility while aligning with JWT conventions. Adding `iat` and `role` improved downstream authorization checks and token auditability.
+- **Refresh Token Rotation**: Rotation is most robust when old refresh tokens are both blacklisted and replaced atomically in Redis. This prevents replay in race conditions where clients retry stale refresh requests.
+- **Redis as Token State Layer**: Stateless access tokens still need a stateful revocation channel. Redis key patterns (`refresh_token:{user_id}`, `blacklist:{token}`) with TTL-based expiry gave predictable cleanup and simple lookup semantics.
+- **Middleware-Centric Validation**: Centralizing signature checks, expiry checks, and blacklist checks in auth middleware avoids duplicated endpoint logic and keeps protected-route behavior consistent.
+- **Security/Data Minimization**: Tokens should contain only identity and authorization claims (`sub`, `email`, `role`, `iat`, `exp`, `type`), never password or secret-derived data.
+- **Test Infrastructure Dependency**: Redis-backed auth tests are integration-sensitive; deterministic results require Redis availability during tests. This should be treated as part of the test environment contract, not as optional runtime state.
