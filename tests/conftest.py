@@ -141,12 +141,44 @@ def app(db_session, mock_redis):
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+async def reset_redis_client(request):
+    """Reset Redis client between async tests to avoid event loop conflicts
+
+    The singleton Redis client can hold connections tied to a closed event loop
+    when pytest-asyncio creates new loops between tests. This fixture ensures
+    each test gets a fresh client.
+
+    Skips reset for TestClient tests which use mocked Redis.
+    """
+    # Skip reset for tests using TestClient (they use mock_redis)
+    if "client" in request.fixturenames:
+        yield
+        return
+
+    import app.redis_client as redis_module
+
+    # Reset the global client before each async test
+    redis_module._redis_client = None
+    yield
+    # Clean up after test (if loop is still running)
+    try:
+        if redis_module._redis_client:
+            await redis_module._redis_client.aclose()
+            redis_module._redis_client = None
+    except RuntimeError:
+        # Loop already closed, just reset the reference
+        redis_module._redis_client = None
+
+
 @pytest.fixture
 async def redis_client():
-    """Get Redis client for explicit use in async tests"""
+    """Get Redis client for explicit use in async tests
+
+    Note: The reset_redis_client autouse fixture handles cleanup.
+    """
     client = await get_redis()
-    yield client
-    await close_redis()
+    return client
 
 
 @pytest.fixture
