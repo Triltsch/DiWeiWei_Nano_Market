@@ -21,6 +21,13 @@ from app.modules.auth.validators import (
     validate_password_strength,
     validate_username,
 )
+from app.redis_client import (
+    blacklist_token,
+    delete_refresh_token,
+    get_refresh_token,
+    is_token_blacklisted,
+    store_refresh_token,
+)
 from app.schemas import TokenResponse, UserRegister, UserResponse
 
 settings = get_settings()
@@ -178,9 +185,12 @@ async def authenticate_user(
     await db_session.commit()
     await db_session.refresh(user)
 
-    # Create tokens
-    access_token, access_expires_in = create_access_token(user.id, user.email)
-    refresh_token, refresh_expires_in = create_refresh_token(user.id, user.email)
+    # Create tokens with role
+    access_token, access_expires_in = create_access_token(user.id, user.email, user.role.value)
+    refresh_token, refresh_expires_in = create_refresh_token(user.id, user.email, user.role.value)
+
+    # Store refresh token in Redis
+    await store_refresh_token(str(user.id), refresh_token, refresh_expires_in)
 
     user_response = UserResponse.model_validate(user)
     token_response = TokenResponse(
@@ -337,17 +347,23 @@ async def refresh_access_token(db_session: AsyncSession, refresh_token: str) -> 
 
     Args:
         db_session: Database session
-        refresh_token: Refresh token
-
-    Returns:
-        TokenResponse with new access token
+        refresh_token: Refresh token and rotated refresh token
 
     Raises:
-        AuthenticationError: If refresh token is invalid
+        AuthenticationError: If refresh token is invalid or blacklisted
     """
+    # Check if token is blacklisted
+    if await is_token_blacklisted(refresh_token):
+        raise AuthenticationError("Token has been revoked")
+
     token_data = verify_token(refresh_token, token_type="refresh")
 
     if token_data is None:
+        raise AuthenticationError("Invalid or expired refresh token")
+
+    # Verify token exists in Redis
+    stored_token = await get_refresh_token(str(token_data.user_id))
+    if stored_token != refresh_token:
         raise AuthenticationError("Invalid or expired refresh token")
 
     # Get user to ensure they still exist and are active
@@ -357,10 +373,56 @@ async def refresh_access_token(db_session: AsyncSession, refresh_token: str) -> 
         raise AuthenticationError("User not found or account is inactive")
 
     # Create new access token
-    access_token, access_expires_in = create_access_token(user.id, user.email)
+    access_token, access_expires_in = create_access_token(user.id, user.email, user.role.value)
+
+    # Implement refresh token rotation: create new refresh token
+    new_refresh_token, refresh_expires_in = create_refresh_token(
+        user.id, user.email, user.role.value
+    )
+
+    # Blacklist old refresh token (with remaining TTL)
+    remaining_ttl = int((token_data.exp - datetime.now(timezone.utc)).total_seconds())
+    if remaining_ttl > 0:
+        await blacklist_token(refresh_token, remaining_ttl)
+
+    # Store new refresh token in Redis
+    await store_refresh_token(str(user.id), new_refresh_token, refresh_expires_in)
 
     return TokenResponse(
         access_token=access_token,
-        refresh_token=refresh_token,
+        refresh_token=new_refresh_token,
         expires_in=access_expires_in,
     )
+
+
+async def logout_user(
+    db_session: AsyncSession, user_id: UUID, access_token: str, refresh_token: str
+) -> None:
+    """
+    Logout user by revoking tokens.
+
+    Args:
+        db_session: Database session
+        user_id: User ID
+        access_token: Access token to blacklist
+        refresh_token: Refresh token to revoke
+
+    Raises:
+        AuthenticationError: If token revocation fails
+    """
+    # Verify and blacklist access token
+    access_token_data = verify_token(access_token, token_type="access")
+    if access_token_data:
+        remaining_ttl = int((access_token_data.exp - datetime.now(timezone.utc)).total_seconds())
+        if remaining_ttl > 0:
+            await blacklist_token(access_token, remaining_ttl)
+
+    # Verify and blacklist refresh token
+    refresh_token_data = verify_token(refresh_token, token_type="refresh")
+    if refresh_token_data:
+        remaining_ttl = int((refresh_token_data.exp - datetime.now(timezone.utc)).total_seconds())
+        if remaining_ttl > 0:
+            await blacklist_token(refresh_token, remaining_ttl)
+
+    # Remove refresh token from Redis storage
+    await delete_refresh_token(str(user_id))
