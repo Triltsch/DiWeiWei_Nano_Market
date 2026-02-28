@@ -23,8 +23,11 @@ from app.modules.auth.service import (
     resend_email_verification_token,
     verify_email_with_token,
 )
+from app.modules.auth.validators import calculate_password_strength
 from app.schemas import (
     EmailVerificationRequest,
+    PasswordStrengthRequest,
+    PasswordStrengthResponse,
     LogoutRequest,
     MessageResponse,
     RefreshTokenRequest,
@@ -245,6 +248,41 @@ async def verify_email_endpoint(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service temporarily unavailable. Please try again later.",
         )
+
+
+@router.post(
+    "/check-password-strength",
+    response_model=PasswordStrengthResponse,
+    responses={
+        200: {"description": "Password strength evaluation"},
+    },
+)
+async def check_password_strength(
+    body: PasswordStrengthRequest,
+) -> PasswordStrengthResponse:
+    """
+    Evaluate password strength and provide improvement suggestions.
+
+    Request body:
+    - **password**: Password to evaluate (not stored or logged)
+
+    Returns a strength evaluation including:
+    - **score**: 0-100 strength score
+    - **strength**: Label (weak, fair, good, strong, very_strong)
+    - **suggestions**: List of actionable improvement tips
+    - **meets_policy**: Whether password meets minimum security requirements
+
+    Note: This endpoint does NOT store or log the password. It's designed
+    for client-side feedback during registration or password changes.
+
+    Scoring criteria:
+    - Length (up to 40 points): 8+ chars recommended
+    - Character variety (up to 40 points): lowercase, uppercase, digits, special chars
+    - Complexity (up to 20 points): avoids common patterns and repetition
+    """
+    result = calculate_password_strength(body.password)
+    # TypedDict result can be safely unpacked - Pydantic will validate all fields
+    return PasswordStrengthResponse(**result)
 
 
 @router.post("/resend-verification-email")
