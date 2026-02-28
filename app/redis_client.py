@@ -1,8 +1,5 @@
 """Redis client for token storage and blacklist management"""
 
-import asyncio
-import weakref
-from asyncio import AbstractEventLoop
 from typing import Optional
 
 import redis.asyncio as redis
@@ -11,9 +8,7 @@ from app.config import get_settings
 
 settings = get_settings()
 
-_redis_clients: "weakref.WeakKeyDictionary[AbstractEventLoop, redis.Redis]" = (
-    weakref.WeakKeyDictionary()
-)
+_redis_client: Optional[redis.Redis] = None
 
 
 def get_redis_url() -> str:
@@ -30,38 +25,37 @@ def get_redis_url() -> str:
 
 
 async def get_redis() -> redis.Redis:
-    """Get Redis client instance for the current event loop.
+    """Get Redis client instance.
 
     Returns:
-        Redis client instance bound to the current loop.
+        Redis client instance.
 
     Note:
-        A separate client is maintained per event loop to avoid cross-loop
-        runtime errors in async test environments.
+        Uses a singleton pattern with connection pooling for thread-safety.
     """
-    loop = asyncio.get_running_loop()
+    global _redis_client
 
-    if loop not in _redis_clients:
+    if _redis_client is None:
         redis_url = get_redis_url()
-        _redis_clients[loop] = redis.from_url(
+        _redis_client = redis.from_url(
             redis_url,
             encoding="utf-8",
             decode_responses=True,
         )
 
-    return _redis_clients[loop]
+    return _redis_client
 
 
 async def close_redis() -> None:
-    """Close Redis connection for the current event loop.
+    """Close Redis connection.
 
     Should be called during application shutdown.
     """
-    loop = asyncio.get_running_loop()
-    client = _redis_clients.pop(loop, None)
+    global _redis_client
 
-    if client:
-        await client.close()
+    if _redis_client:
+        await _redis_client.close()
+        _redis_client = None
 
 
 async def store_refresh_token(user_id: str, token: str, expires_in_seconds: int) -> None:

@@ -5,7 +5,9 @@ import os
 import sys
 from uuid import UUID
 
+import httpx
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -13,6 +15,7 @@ from app.database import get_db
 from app.main import create_app
 from app.models import Base, User
 from app.modules.auth.service import verify_user_email
+from app.redis_client import close_redis, get_redis
 
 
 def pytest_configure(config):
@@ -82,9 +85,53 @@ async def db_session(test_db_engine):
 
 
 @pytest.fixture
-def app(db_session):
-    """Create test FastAPI app with mocked database"""
-    app = create_app()
+def app(db_session, mock_redis):
+    """Create test FastAPI app with mocked database and Redis"""
+    from contextlib import asynccontextmanager
+
+    from fastapi.middleware.cors import CORSMiddleware
+
+    from app.config import get_settings
+    from app.modules.auth.router import get_auth_router
+
+    settings = get_settings()
+
+    # Create app without lifespan (Redis is mocked for tests)
+    @asynccontextmanager
+    async def test_lifespan(app):
+        yield
+
+    app = FastAPI(
+        title=settings.APP_NAME,
+        version=settings.APP_VERSION,
+        debug=settings.DEBUG,
+        lifespan=test_lifespan,
+    )
+
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Include routers
+    app.include_router(get_auth_router())
+
+    # Add endpoints
+    @app.get("/health")
+    async def health_check() -> dict:
+        return {"status": "ok", "version": settings.APP_VERSION}
+
+    @app.get("/")
+    async def root() -> dict:
+        return {
+            "name": settings.APP_NAME,
+            "version": settings.APP_VERSION,
+            "docs": "/docs",
+        }
 
     async def override_get_db():
         yield db_session
@@ -95,9 +142,55 @@ def app(db_session):
 
 
 @pytest.fixture
+async def redis_client():
+    """Get Redis client for explicit use in async tests"""
+    client = await get_redis()
+    yield client
+    await close_redis()
+
+
+@pytest.fixture
+def mock_redis(monkeypatch):
+    """Mock Redis operations for TestClient tests to avoid event loop conflicts"""
+    from unittest.mock import AsyncMock, MagicMock
+
+    mock_client = MagicMock()
+    mock_client.setex = AsyncMock()
+    mock_client.get = AsyncMock(return_value=None)
+    mock_client.delete = AsyncMock()
+    mock_client.close = AsyncMock()
+
+    async def mock_get_redis():
+        return mock_client
+
+    async def mock_close_redis():
+        pass
+
+    # Mock the base redis_client module functions
+    monkeypatch.setattr("app.redis_client.get_redis", mock_get_redis)
+    monkeypatch.setattr("app.redis_client.close_redis", mock_close_redis)
+
+    # Mock Redis operations used in service
+    monkeypatch.setattr("app.redis_client.store_refresh_token", AsyncMock())
+    monkeypatch.setattr("app.redis_client.get_refresh_token", AsyncMock(return_value=None))
+    monkeypatch.setattr("app.redis_client.delete_refresh_token", AsyncMock())
+    monkeypatch.setattr("app.redis_client.blacklist_token", AsyncMock())
+    monkeypatch.setattr("app.redis_client.is_token_blacklisted", AsyncMock(return_value=False))
+
+    return mock_client
+
+
+@pytest.fixture
 def client(app):
-    """Create test client"""
+    """Create test client (uses mocked Redis automatically via app fixture)"""
     return TestClient(app)
+
+
+@pytest.fixture
+async def async_client(app):
+    """Create async HTTP test client"""
+    async with httpx.AsyncClient(app=app, base_url="http://test") as ac:
+        yield ac
 
 
 @pytest.fixture
