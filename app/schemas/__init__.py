@@ -101,3 +101,33 @@ class SimpleErrorResponse(BaseModel):
     """Simple error response schema matching FastAPI HTTPException"""
 
     detail: str
+
+
+class PasswordStrengthRequest(BaseModel):
+    """Password strength check request schema"""
+
+    password: str = Field(..., description="Password to evaluate")
+
+
+class PasswordStrengthResponse(BaseModel):
+    """
+    Password strength evaluation response.
+
+    Provides a strength score (0-100) and actionable suggestions for improvement.
+    """
+
+    score: int = Field(
+        ..., ge=0, le=100, description="Strength score from 0 (weakest) to 100 (strongest)"
+    )
+    strength: str = Field(
+        ...,
+        description="Strength label: weak, fair, good, strong, or very_strong",
+    )
+    suggestions: list[str] = Field(
+        ...,
+        description="List of suggestions to improve password strength",
+    )
+    meets_policy: bool = Field(
+        ...,
+        description="Whether password meets minimum security policy requirements",
+    )
