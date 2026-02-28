@@ -1,5 +1,6 @@
 """Authentication middleware for JWT token validation"""
 
+from collections.abc import Awaitable, Callable
 from typing import Annotated, Optional
 from uuid import UUID
 
@@ -96,7 +97,9 @@ async def get_optional_current_user(
     return token_data
 
 
-def require_role(required_role: str):
+def require_role(
+    required_role: str,
+) -> Callable[[Annotated[TokenData, Depends(get_current_user)]], Awaitable[TokenData]]:
     """
     Dependency factory to require specific user role.
 
