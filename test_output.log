@@ -1,0 +1,142 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.1, pytest-9.0.2, pluggy-1.6.0 -- C:\Users\id032400\Documents\GitHub\Agent_based_dev\DiWeiWei_Nano_Market\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\id032400\Documents\GitHub\Agent_based_dev\DiWeiWei_Nano_Market
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-1.3.0, cov-7.0.0, mock-3.15.1
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 108 items
+
+tests/modules/auth/test_auth_integration.py::test_integration_full_registration_and_login_flow PASSED [  0%]
+tests/modules/auth/test_auth_integration.py::test_integration_email_verification_constraint PASSED [  1%]
+tests/modules/auth/test_auth_integration.py::test_integration_account_lockout_mechanism PASSED [  2%]
+tests/modules/auth/test_auth_integration.py::test_integration_email_uniqueness_constraint PASSED [  3%]
+tests/modules/auth/test_auth_integration.py::test_integration_username_uniqueness_constraint PASSED [  4%]
+tests/modules/auth/test_auth_routes.py::test_register_endpoint_success PASSED [  5%]
+tests/modules/auth/test_auth_routes.py::test_register_endpoint_missing_required_field PASSED [  6%]
+tests/modules/auth/test_auth_routes.py::test_register_endpoint_invalid_email PASSED [  7%]
+tests/modules/auth/test_auth_routes.py::test_register_endpoint_weak_password PASSED [  8%]
+tests/modules/auth/test_auth_routes.py::test_register_endpoint_duplicate_email PASSED [  9%]
+tests/modules/auth/test_auth_routes.py::test_register_endpoint_duplicate_username PASSED [ 10%]
+tests/modules/auth/test_auth_routes.py::test_register_endpoint_db_unavailable_returns_503 PASSED [ 11%]
+tests/modules/auth/test_auth_routes.py::test_register_endpoint_unrelated_oserror_is_not_mapped_to_503 PASSED [ 12%]
+tests/modules/auth/test_auth_routes.py::test_login_endpoint_not_verified PASSED [ 12%]
+tests/modules/auth/test_auth_routes.py::test_login_endpoint_invalid_password PASSED [ 13%]
+tests/modules/auth/test_auth_routes.py::test_login_endpoint_invalid_email PASSED [ 14%]
+tests/modules/auth/test_auth_routes.py::test_login_endpoint_success PASSED [ 15%]
+tests/modules/auth/test_auth_routes.py::test_login_endpoint_locked_account PASSED [ 16%]
+tests/modules/auth/test_auth_routes.py::test_refresh_token_endpoint_success PASSED [ 17%]
+tests/modules/auth/test_auth_routes.py::test_refresh_token_endpoint_invalid_token PASSED [ 18%]
+tests/modules/auth/test_auth_routes.py::test_refresh_token_endpoint_missing_token PASSED [ 19%]
+tests/modules/auth/test_auth_routes.py::test_health_check_endpoint PASSED [ 20%]
+tests/modules/auth/test_auth_routes.py::test_root_endpoint PASSED        [ 21%]
+tests/modules/auth/test_auth_service.py::test_register_user_success PASSED [ 22%]
+tests/modules/auth/test_auth_service.py::test_register_user_invalid_email PASSED [ 23%]
+tests/modules/auth/test_auth_service.py::test_register_user_short_username PASSED [ 24%]
+tests/modules/auth/test_auth_service.py::test_register_user_invalid_username_chars PASSED [ 25%]
+tests/modules/auth/test_auth_service.py::test_register_user_weak_password PASSED [ 25%]
+tests/modules/auth/test_auth_service.py::test_register_user_duplicate_email PASSED [ 26%]
+tests/modules/auth/test_auth_service.py::test_register_user_duplicate_username PASSED [ 27%]
+tests/modules/auth/test_auth_service.py::test_register_user_email_case_insensitive PASSED [ 28%]
+tests/modules/auth/test_auth_service.py::test_authenticate_user_not_verified PASSED [ 29%]
+tests/modules/auth/test_auth_service.py::test_authenticate_user_invalid_password PASSED [ 30%]
+tests/modules/auth/test_auth_service.py::test_authenticate_user_invalid_email PASSED [ 31%]
+tests/modules/auth/test_auth_service.py::test_authenticate_user_success PASSED [ 32%]
+tests/modules/auth/test_auth_service.py::test_authenticate_user_case_insensitive_email PASSED [ 33%]
+tests/modules/auth/test_auth_service.py::test_record_failed_login PASSED [ 34%]
+tests/modules/auth/test_auth_service.py::test_authenticate_locked_account PASSED [ 35%]
+tests/modules/auth/test_auth_service.py::test_verify_user_email PASSED   [ 36%]
+tests/modules/auth/test_auth_service.py::test_refresh_token PASSED       [ 37%]
+tests/modules/auth/test_auth_service.py::test_refresh_token_invalid PASSED [ 37%]
+tests/modules/auth/test_auth_service.py::test_get_user_by_id PASSED      [ 38%]
+tests/modules/auth/test_auth_service.py::test_get_user_by_id_not_found PASSED [ 39%]
+tests/modules/auth/test_auth_service.py::test_password_is_hashed PASSED  [ 40%]
+tests/modules/auth/test_auth_tokens.py::test_verify_token_missing_claims_returns_none PASSED [ 41%]
+tests/modules/auth/test_auth_tokens.py::test_verify_token_invalid_uuid_returns_none PASSED [ 42%]
+tests/modules/auth/test_auth_tokens.py::test_verify_token_invalid_exp_returns_none PASSED [ 43%]
+tests/modules/auth/test_email_verification.py::test_create_email_verification_token PASSED [ 44%]
+tests/modules/auth/test_email_verification.py::test_verify_email_with_token_success PASSED [ 45%]
+tests/modules/auth/test_email_verification.py::test_verify_email_with_expired_token PASSED [ 46%]
+tests/modules/auth/test_email_verification.py::test_verify_email_with_invalid_token PASSED [ 47%]
+tests/modules/auth/test_email_verification.py::test_verify_email_with_wrong_token_type PASSED [ 48%]
+tests/modules/auth/test_email_verification.py::test_verify_email_with_nonexistent_user PASSED [ 49%]
+tests/modules/auth/test_email_verification.py::test_resend_email_verification_token_success PASSED [ 50%]
+tests/modules/auth/test_email_verification.py::test_resend_email_verification_token_already_verified PASSED [ 50%]
+tests/modules/auth/test_email_verification.py::test_resend_email_verification_token_user_not_found PASSED [ 51%]
+tests/modules/auth/test_email_verification.py::test_verify_email_endpoint_success PASSED [ 52%]
+tests/modules/auth/test_email_verification.py::test_verify_email_endpoint_invalid_token PASSED [ 53%]
+tests/modules/auth/test_email_verification.py::test_verify_email_endpoint_expired_token PASSED [ 54%]
+tests/modules/auth/test_email_verification.py::test_resend_verification_email_endpoint_success PASSED [ 55%]
+tests/modules/auth/test_email_verification.py::test_resend_verification_email_endpoint_already_verified PASSED [ 56%]
+tests/modules/auth/test_email_verification.py::test_resend_verification_email_endpoint_user_not_found PASSED [ 57%]
+tests/modules/auth/test_email_verification.py::test_verify_email_integration_then_login_success PASSED [ 58%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_hash_password_basic PASSED [ 59%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_hash_password_unique_salts PASSED [ 60%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_hash_password_bcrypt_rounds PASSED [ 61%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_verify_password_correct PASSED [ 62%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_verify_password_incorrect PASSED [ 62%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_hash_password_empty_raises_error PASSED [ 63%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_hash_password_very_long PASSED [ 64%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_hash_password_max_length_exceeded PASSED [ 65%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_hash_password_special_characters PASSED [ 66%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_hash_password_unicode PASSED [ 67%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_verify_password_invalid_hash PASSED [ 68%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_verify_password_empty_inputs PASSED [ 69%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_hash_performance PASSED [ 70%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_verify_performance PASSED [ 71%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_password_not_in_error_messages PASSED [ 72%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashing::test_sha256_prehashing_for_long_passwords PASSED [ 73%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashInfo::test_get_hash_info_valid_bcrypt PASSED [ 74%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashInfo::test_get_hash_info_invalid_hash PASSED [ 75%]
+tests/modules/auth/test_password_hashing.py::TestPasswordValidation::test_validate_password_strength_valid PASSED [ 75%]
+tests/modules/auth/test_password_hashing.py::TestPasswordValidation::test_validate_password_strength_too_short PASSED [ 76%]
+tests/modules/auth/test_password_hashing.py::TestPasswordValidation::test_validate_password_strength_no_uppercase PASSED [ 77%]
+tests/modules/auth/test_password_hashing.py::TestPasswordValidation::test_validate_password_strength_no_digit PASSED [ 78%]
+tests/modules/auth/test_password_hashing.py::TestPasswordValidation::test_validate_password_strength_no_special PASSED [ 79%]
+tests/modules/auth/test_password_hashing.py::TestPasswordValidation::test_validate_password_strength_edge_cases PASSED [ 80%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashingIntegration::test_registration_password_flow PASSED [ 81%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashingIntegration::test_multiple_users_same_password PASSED [ 82%]
+tests/modules/auth/test_password_hashing.py::TestPasswordHashingIntegration::test_password_complexity_scenarios PASSED [ 83%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthCalculation::test_calculate_strength_empty_password PASSED [ 84%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthCalculation::test_calculate_strength_weak_password PASSED [ 85%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthCalculation::test_calculate_strength_strong_password PASSED [ 86%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthCalculation::test_calculate_strength_scoring_length PASSED [ 87%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthCalculation::test_calculate_strength_character_variety PASSED [ 87%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthCalculation::test_calculate_strength_common_patterns_penalty PASSED [ 88%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthCalculation::test_calculate_strength_repeating_chars_penalty PASSED [ 89%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthCalculation::test_calculate_strength_suggestions_empty_for_strong PASSED [ 90%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthCalculation::test_calculate_strength_suggestions_helpful_for_weak PASSED [ 91%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthCalculation::test_calculate_strength_meets_policy_validation PASSED [ 92%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthCalculation::test_calculate_strength_strength_labels PASSED [ 93%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthEndpoint::test_check_password_strength_endpoint PASSED [ 94%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthEndpoint::test_check_password_strength_weak PASSED [ 95%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthEndpoint::test_check_password_strength_strong PASSED [ 96%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthEndpoint::test_check_password_strength_empty PASSED [ 97%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthEndpoint::test_check_password_strength_unicode PASSED [ 98%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthEndpoint::test_check_password_strength_various_strengths PASSED [ 99%]
+tests/modules/auth/test_password_strength.py::TestPasswordStrengthEndpoint::test_check_password_strength_suggestions_useful PASSED [100%]
+
+=============================== tests coverage ================================
+_______________ coverage: platform win32, python 3.13.1-final-0 _______________
+
+Name                             Stmts   Miss  Cover   Missing
+--------------------------------------------------------------
+app\__init__.py                      2      0   100%
+app\config.py                       40      8    80%   62, 65-70, 73-76, 79
+app\database.py                     25      7    72%   17, 37, 49-51, 72-73
+app\main.py                         17      0   100%
+app\models\__init__.py              46      1    98%   93
+app\modules\__init__.py              0      0   100%
+app\modules\auth\__init__.py         2      0   100%
+app\modules\auth\password.py        43      5    88%   81-84, 159-160
+app\modules\auth\router.py          66     23    65%   79, 81, 86, 123-142, 169, 195, 204-205, 268-281
+app\modules\auth\service.py        136      7    95%   77, 81, 85, 170, 210, 256, 357
+app\modules\auth\tokens.py          49      1    98%   126
+app\modules\auth\validators.py      84      6    93%   154, 178, 181, 184, 201, 204
+app\modules\users\__init__.py        0      0   100%
+app\schemas\__init__.py             57      0   100%
+--------------------------------------------------------------
+TOTAL                              567     58    90%
+Coverage HTML written to dir htmlcov
+Required test coverage of 70% reached. Total coverage: 89.77%
+============================ 108 passed in 27.67s =============================
