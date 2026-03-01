@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.models import User, UserRole, UserStatus
+from app.models import ConsentAudit, ConsentType, User, UserRole, UserStatus
 from app.modules.auth.password import hash_password, verify_password
 from app.modules.auth.tokens import (
     create_access_token,
@@ -31,6 +31,19 @@ from app.redis_client import (
 from app.schemas import TokenResponse, UserRegister, UserResponse
 
 settings = get_settings()
+
+
+def _is_pending_deletion(user: User) -> bool:
+    """Return True if user is within the deletion grace period."""
+    if user.deletion_requested_at is None or user.deletion_scheduled_at is None:
+        return False
+
+    now = datetime.now(timezone.utc)
+    scheduled_at = user.deletion_scheduled_at
+    if scheduled_at.tzinfo is None:
+        scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
+
+    return now < scheduled_at
 
 
 class AuthenticationError(Exception):
@@ -78,6 +91,13 @@ async def register_user(db_session: AsyncSession, user_data: UserRegister) -> Us
         UserAlreadyExistsError: If email or username already exists
         AuthenticationError: If validation fails
     """
+    # Validate consent requirements
+    if not user_data.accept_terms:
+        raise AuthenticationError("You must accept the Terms of Service to register")
+
+    if not user_data.accept_privacy:
+        raise AuthenticationError("You must accept the Privacy Policy to register")
+
     # Validate input
     is_valid, error_msg = validate_email(user_data.email)
     if not is_valid:
@@ -104,6 +124,9 @@ async def register_user(db_session: AsyncSession, user_data: UserRegister) -> Us
     if result.scalar_one_or_none() is not None:
         raise UserAlreadyExistsError("Username already taken")
 
+    # Create timestamp for consent
+    consent_timestamp = datetime.now(timezone.utc)
+
     # Create new user
     user = User(
         email=email_lower,
@@ -116,9 +139,30 @@ async def register_user(db_session: AsyncSession, user_data: UserRegister) -> Us
         status=UserStatus.ACTIVE,
         role=UserRole.CONSUMER,
         email_verified=False,
+        accepted_terms=consent_timestamp,
+        accepted_privacy=consent_timestamp,
     )
 
     db_session.add(user)
+    await db_session.flush()  # Flush to get the user ID
+
+    # Create consent audit records
+    terms_audit = ConsentAudit(
+        user_id=user.id,
+        consent_type=ConsentType.TERMS_OF_SERVICE,
+        accepted=True,
+        timestamp=consent_timestamp,
+    )
+    privacy_audit = ConsentAudit(
+        user_id=user.id,
+        consent_type=ConsentType.PRIVACY_POLICY,
+        accepted=True,
+        timestamp=consent_timestamp,
+    )
+
+    db_session.add(terms_audit)
+    db_session.add(privacy_audit)
+
     await db_session.commit()
     await db_session.refresh(user)
 
@@ -173,7 +217,7 @@ async def authenticate_user(
         raise AccountNotVerifiedError("Email not verified. Please verify your email first.")
 
     # Check if account is active
-    if user.status != UserStatus.ACTIVE:
+    if user.status != UserStatus.ACTIVE and not _is_pending_deletion(user):
         raise AuthenticationError(f"Account is {user.status}")
 
     # Reset login attempts and generate tokens
@@ -369,7 +413,7 @@ async def refresh_access_token(db_session: AsyncSession, refresh_token: str) -> 
     # Get user to ensure they still exist and are active
     user = await get_user_by_id(db_session, token_data.user_id)
 
-    if user is None or user.status != UserStatus.ACTIVE:
+    if user is None or (user.status != UserStatus.ACTIVE and not _is_pending_deletion(user)):
         raise AuthenticationError("User not found or account is inactive")
 
     # Create new access token

@@ -8,6 +8,14 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.modules.auth.gdpr import (
+    AccountAlreadyScheduledForDeletionError,
+    GDPRError,
+    cancel_account_deletion,
+    export_user_data,
+    get_user_consents,
+    request_account_deletion,
+)
 from app.modules.auth.middleware import get_current_user_id
 from app.modules.auth.service import (
     AccountLockedError,
@@ -25,6 +33,9 @@ from app.modules.auth.service import (
 )
 from app.modules.auth.validators import calculate_password_strength
 from app.schemas import (
+    AccountDeletionRequest,
+    AccountDeletionResponse,
+    ConsentResponse,
     EmailVerificationRequest,
     LogoutRequest,
     MessageResponse,
@@ -34,6 +45,7 @@ from app.schemas import (
     ResendVerificationRequest,
     SimpleErrorResponse,
     TokenResponse,
+    UserDataExport,
     UserLogin,
     UserRegister,
     UserResponse,
@@ -318,6 +330,206 @@ async def resend_verification_email_endpoint(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
+        )
+    except OperationalError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable. Please try again later.",
+        )
+
+
+@router.get(
+    "/me/export",
+    response_model=UserDataExport,
+    responses={
+        401: {
+            "model": SimpleErrorResponse,
+            "description": "Unauthorized - invalid or missing token",
+        },
+        404: {"model": SimpleErrorResponse, "description": "User not found"},
+        503: {
+            "model": SimpleErrorResponse,
+            "description": "Service unavailable - database dependency unreachable",
+        },
+    },
+)
+async def export_my_data(
+    user_id: Annotated[UUID, Depends(get_current_user_id)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> UserDataExport:
+    """
+    Export all personal data for the authenticated user (GDPR compliance).
+
+    Returns user data in machine-readable JSON format including:
+    - Profile information
+    - Account metadata
+    - Current consent-related timestamps (not full consent audit history)
+
+    Requires authentication via Bearer token.
+    """
+    try:
+        return await export_user_data(db, user_id)
+    except GDPRError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except OperationalError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable. Please try again later.",
+        )
+
+
+@router.get(
+    "/me/consents",
+    response_model=list[ConsentResponse],
+    responses={
+        401: {
+            "model": SimpleErrorResponse,
+            "description": "Unauthorized - invalid or missing token",
+        },
+        404: {"model": SimpleErrorResponse, "description": "User not found"},
+        503: {
+            "model": SimpleErrorResponse,
+            "description": "Service unavailable - database dependency unreachable",
+        },
+    },
+)
+async def get_my_consents(
+    user_id: Annotated[UUID, Depends(get_current_user_id)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[ConsentResponse]:
+    """
+    Get all consent records for the authenticated user (GDPR compliance).
+
+    Returns history of all consents given or revoked, including:
+    - Terms of Service acceptance
+    - Privacy Policy acceptance
+    - Marketing consent (future)
+    - Data processing consent (future)
+
+    Requires authentication via Bearer token.
+    """
+    try:
+        return await get_user_consents(db, user_id)
+    except GDPRError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except OperationalError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable. Please try again later.",
+        )
+
+
+@router.post(
+    "/me/delete",
+    response_model=AccountDeletionResponse,
+    responses={
+        401: {
+            "model": SimpleErrorResponse,
+            "description": "Unauthorized - invalid or missing token",
+        },
+        400: {"model": SimpleErrorResponse, "description": "Bad request - must confirm deletion"},
+        404: {"model": SimpleErrorResponse, "description": "User not found"},
+        409: {"model": SimpleErrorResponse, "description": "Deletion already scheduled"},
+        503: {
+            "model": SimpleErrorResponse,
+            "description": "Service unavailable - database dependency unreachable",
+        },
+    },
+)
+async def request_my_account_deletion(
+    deletion_request: AccountDeletionRequest,
+    user_id: Annotated[UUID, Depends(get_current_user_id)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> AccountDeletionResponse:
+    """
+    Request deletion of the authenticated user's account (GDPR compliance).
+
+    Initiates a 30-day grace period before permanent deletion:
+    - Account is immediately deactivated
+    - All data remains available for 30 days
+    - User can cancel deletion during grace period
+    - After 30 days, all data is permanently deleted
+
+    Requires:
+    - **confirm**: Must be `true` to confirm deletion
+    - **reason**: Optional reason for deletion (max 500 chars)
+
+    Requires authentication via Bearer token.
+    """
+    if not deletion_request.confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You must confirm account deletion by setting 'confirm' to true",
+        )
+
+    try:
+        return await request_account_deletion(db, user_id, deletion_request.reason)
+    except AccountAlreadyScheduledForDeletionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e),
+        )
+    except GDPRError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except OperationalError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable. Please try again later.",
+        )
+
+
+@router.post(
+    "/me/cancel-deletion",
+    response_model=MessageResponse,
+    responses={
+        401: {
+            "model": SimpleErrorResponse,
+            "description": "Unauthorized - invalid or missing token",
+        },
+        400: {"model": SimpleErrorResponse, "description": "No deletion request pending"},
+        404: {"model": SimpleErrorResponse, "description": "User not found"},
+        503: {
+            "model": SimpleErrorResponse,
+            "description": "Service unavailable - database dependency unreachable",
+        },
+    },
+)
+async def cancel_my_account_deletion(
+    user_id: Annotated[UUID, Depends(get_current_user_id)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> MessageResponse:
+    """
+    Cancel a pending account deletion request (GDPR compliance).
+
+    Reactivates the account and cancels the scheduled deletion.
+    Can only be called if deletion request exists and grace period hasn't expired.
+
+    Requires authentication via Bearer token.
+    """
+    try:
+        await cancel_account_deletion(db, user_id)
+        return MessageResponse(
+            message="Account deletion cancelled successfully. Your account has been reactivated."
+        )
+    except GDPRError as e:
+        error_message = str(e)
+        if error_message == "User not found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_message,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_message,
         )
     except OperationalError:
         raise HTTPException(

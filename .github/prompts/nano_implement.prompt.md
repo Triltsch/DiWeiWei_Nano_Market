@@ -17,6 +17,7 @@ Perform the necessary steps in the following order:
 - If an issue is given to be implemented, access the issue tracker using the MCP interface and read the issue description as well as all comments to get the full context about the issue.
 - If you are asked to implement an issue step only, look for hints left by a prior agent instance in the issue comments. Implement that step only.
 - Check if we are working on the `main` branch. Warn if not so and offer to switch to `main` branch. If the user wants to switch, switch to the `main` branch.
+- Perform all implementation work directly on the `main` branch. Do not create feature branches unless explicitly instructed.
 
 ## Access learnings
 
