@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -17,27 +17,35 @@ class TokenData(BaseModel):
 
     user_id: UUID
     email: str
+    role: str
     exp: datetime
+    iat: datetime
 
 
-def create_access_token(user_id: UUID, email: str) -> tuple[str, int]:
+def create_access_token(user_id: UUID, email: str, role: str = "consumer") -> tuple[str, int]:
     """
-    Create a JWT access token.
+    Create a JWT access token with standard claims.
 
     Args:
         user_id: User ID
         email: User email
+        role: User role (default: "consumer")
 
     Returns:
         Tuple of (token, expires_in_seconds)
     """
     expires_in_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_in_minutes)
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=expires_in_minutes)
 
     payload = {
-        "user_id": str(user_id),
+        "sub": str(user_id),  # Standard JWT "subject" claim
+        "user_id": str(user_id),  # Keep for backward compatibility
         "email": email,
+        "role": role,
+        "iat": int(now.timestamp()),  # Standard JWT "issued at" claim
         "exp": expire,
+        "jti": str(uuid4()),  # Ensure token uniqueness for same-second issuance
         "type": "access",
     }
 
@@ -46,24 +54,30 @@ def create_access_token(user_id: UUID, email: str) -> tuple[str, int]:
     return encoded_jwt, expires_in_minutes * 60
 
 
-def create_refresh_token(user_id: UUID, email: str) -> tuple[str, int]:
+def create_refresh_token(user_id: UUID, email: str, role: str = "consumer") -> tuple[str, int]:
     """
     Create a JWT refresh token.
 
     Args:
         user_id: User ID
         email: User email
+        role: User role (default: "consumer")
 
     Returns:
         Tuple of (token, expires_in_seconds)
     """
     expires_in_days = settings.REFRESH_TOKEN_EXPIRE_DAYS
-    expire = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(days=expires_in_days)
 
     payload = {
-        "user_id": str(user_id),
+        "sub": str(user_id),  # Standard JWT "subject" claim
+        "user_id": str(user_id),  # Keep for backward compatibility
         "email": email,
+        "role": role,
+        "iat": int(now.timestamp()),  # Standard JWT "issued at" claim
         "exp": expire,
+        "jti": str(uuid4()),  # Ensure token uniqueness for rotation
         "type": "refresh",
     }
 
@@ -115,9 +129,12 @@ def verify_token(token: str, token_type: str = "access") -> Optional[TokenData]:
         if payload.get("type") != token_type:
             return None
 
-        user_id_raw = payload.get("user_id")
+        # Extract claims using standard JWT field "sub" or fallback to "user_id"
+        user_id_raw = payload.get("sub") or payload.get("user_id")
         email_raw = payload.get("email")
+        role_raw = payload.get("role", "consumer")  # Default to consumer if not present
         exp_raw = payload.get("exp")
+        iat_raw = payload.get("iat")
 
         if user_id_raw is None or email_raw is None or exp_raw is None:
             return None
@@ -128,10 +145,23 @@ def verify_token(token: str, token_type: str = "access") -> Optional[TokenData]:
         try:
             user_id = UUID(str(user_id_raw))
             exp = datetime.fromtimestamp(exp_raw, tz=timezone.utc)
+
+            # Handle iat - if present convert, otherwise use current time
+            if iat_raw and isinstance(iat_raw, (int, float)):
+                iat = datetime.fromtimestamp(iat_raw, tz=timezone.utc)
+            else:
+                iat = datetime.now(timezone.utc)
+
         except (TypeError, ValueError):
             return None
 
-        return TokenData(user_id=user_id, email=str(email_raw), exp=exp)
+        return TokenData(
+            user_id=user_id,
+            email=str(email_raw),
+            role=str(role_raw),
+            exp=exp,
+            iat=iat,
+        )
 
     except JWTError:
         return None

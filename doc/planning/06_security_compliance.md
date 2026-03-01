@@ -410,7 +410,7 @@ Falls Kreditkarten akzeptiert:
 ## 12. Checklist für Production Launch
 
 - [ ] HTTPS enabled, HSTS header set
-- [ ] Password hashing implemented (bcrypt, 12 rounds minimum)
+- [x] Password hashing implemented (bcrypt, 12 rounds minimum)
 - [ ] SQL injection prevention confirmed (parameterized queries)
 - [ ] CSRF tokens in place for state-changing ops
 - [ ] Rate limiting configured (Login, API)
@@ -424,6 +424,8 @@ Falls Kreditkarten akzeptiert:
 - [ ] Data processing agreements signed
 - [ ] Alerts configured in Prometheus/AlertManager
 - [ ] Encryption enabled (at-rest + in-transit)
+
+**Note**: Password hashing with bcrypt (12 rounds) has been implemented in `app/modules/auth/password.py`. See Story 1.3 completion details in IMPLEMENTATION_STATUS.md.
 
 ---
 
