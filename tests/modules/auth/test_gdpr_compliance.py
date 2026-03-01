@@ -25,7 +25,12 @@ from app.modules.auth.gdpr import (
     get_user_consents,
     request_account_deletion,
 )
-from app.modules.auth.service import register_user
+from app.modules.auth.service import (
+    AuthenticationError,
+    authenticate_user,
+    register_user,
+    verify_user_email,
+)
 from app.schemas import UserRegister
 
 
@@ -50,7 +55,7 @@ class TestConsentTracking:
             accept_privacy=True,
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(AuthenticationError) as exc_info:
             await register_user(db_session, user_data)
 
         assert "Terms of Service" in str(exc_info.value)
@@ -65,7 +70,7 @@ class TestConsentTracking:
             accept_privacy=False,  # Not accepting privacy
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(AuthenticationError) as exc_info:
             await register_user(db_session, user_data)
 
         assert "Privacy Policy" in str(exc_info.value)
@@ -244,6 +249,29 @@ class TestAccountDeletion:
         with pytest.raises(AccountAlreadyScheduledForDeletionError):
             await request_account_deletion(db_session, user_response.id)
 
+    async def test_pending_deletion_user_can_still_authenticate(self, db_session):
+        """Test users can still authenticate during deletion grace period to allow cancellation"""
+        user_data = UserRegister(
+            email="test@example.com",
+            username="testuser",
+            password="SecureP@ss1",
+            accept_terms=True,
+            accept_privacy=True,
+        )
+        user_response = await register_user(db_session, user_data)
+        await verify_user_email(db_session, user_response.id)
+
+        await request_account_deletion(db_session, user_response.id)
+
+        _, token_response = await authenticate_user(
+            db_session,
+            user_data.email,
+            user_data.password,
+        )
+
+        assert token_response.access_token
+        assert token_response.refresh_token
+
     async def test_cancel_account_deletion_success(self, db_session):
         """Test successful cancellation of account deletion"""
         # Create user and request deletion
@@ -286,6 +314,32 @@ class TestAccountDeletion:
             await cancel_account_deletion(db_session, user_response.id)
 
         assert "No deletion request pending" in str(exc_info.value)
+
+    async def test_cancel_deletion_after_grace_period_fails(self, db_session):
+        """Test that cancellation fails after the grace period expires"""
+        user_data = UserRegister(
+            email="test@example.com",
+            username="testuser",
+            password="SecureP@ss1",
+            accept_terms=True,
+            accept_privacy=True,
+        )
+        user_response = await register_user(db_session, user_data)
+
+        query = select(User).where(User.id == user_response.id)
+        result = await db_session.execute(query)
+        user = result.scalar_one()
+
+        past_date = datetime.now(timezone.utc) - timedelta(days=31)
+        user.deletion_requested_at = past_date
+        user.deletion_scheduled_at = past_date
+        user.status = UserStatus.INACTIVE
+        await db_session.commit()
+
+        with pytest.raises(GDPRError) as exc_info:
+            await cancel_account_deletion(db_session, user_response.id)
+
+        assert "grace period has expired" in str(exc_info.value).lower()
 
     async def test_execute_account_deletion_after_grace_period(self, db_session):
         """Test that account can be permanently deleted after grace period"""

@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ConsentAudit, ConsentType, User, UserStatus
+from app.models import ConsentAudit, User, UserStatus
 from app.schemas import AccountDeletionResponse, ConsentResponse, UserDataExport
 
 
@@ -111,6 +111,7 @@ async def request_account_deletion(
     # Update user
     user.deletion_requested_at = now
     user.deletion_scheduled_at = deletion_date
+    user.deletion_reason = reason
     user.status = UserStatus.INACTIVE  # Deactivate account immediately
 
     await db_session.commit()
@@ -144,9 +145,21 @@ async def cancel_account_deletion(db_session: AsyncSession, user_id: UUID) -> No
     if user.deletion_requested_at is None:
         raise GDPRError("No deletion request pending")
 
+    if user.deletion_scheduled_at is None:
+        raise GDPRError("No deletion request pending")
+
+    now = datetime.now(timezone.utc)
+    scheduled_at = user.deletion_scheduled_at
+    if scheduled_at.tzinfo is None:
+        scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
+
+    if now >= scheduled_at:
+        raise GDPRError("Deletion grace period has expired and can no longer be cancelled")
+
     # Cancel deletion
     user.deletion_requested_at = None
     user.deletion_scheduled_at = None
+    user.deletion_reason = None
     user.status = UserStatus.ACTIVE  # Reactivate account
 
     await db_session.commit()

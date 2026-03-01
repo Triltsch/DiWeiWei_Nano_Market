@@ -33,6 +33,19 @@ from app.schemas import TokenResponse, UserRegister, UserResponse
 settings = get_settings()
 
 
+def _is_pending_deletion(user: User) -> bool:
+    """Return True if user is within the deletion grace period."""
+    if user.deletion_requested_at is None or user.deletion_scheduled_at is None:
+        return False
+
+    now = datetime.now(timezone.utc)
+    scheduled_at = user.deletion_scheduled_at
+    if scheduled_at.tzinfo is None:
+        scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
+
+    return now < scheduled_at
+
+
 class AuthenticationError(Exception):
     """Base authentication error"""
 
@@ -204,7 +217,7 @@ async def authenticate_user(
         raise AccountNotVerifiedError("Email not verified. Please verify your email first.")
 
     # Check if account is active
-    if user.status != UserStatus.ACTIVE:
+    if user.status != UserStatus.ACTIVE and not _is_pending_deletion(user):
         raise AuthenticationError(f"Account is {user.status}")
 
     # Reset login attempts and generate tokens
@@ -400,7 +413,7 @@ async def refresh_access_token(db_session: AsyncSession, refresh_token: str) -> 
     # Get user to ensure they still exist and are active
     user = await get_user_by_id(db_session, token_data.user_id)
 
-    if user is None or user.status != UserStatus.ACTIVE:
+    if user is None or (user.status != UserStatus.ACTIVE and not _is_pending_deletion(user)):
         raise AuthenticationError("User not found or account is inactive")
 
     # Create new access token

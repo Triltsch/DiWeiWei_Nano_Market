@@ -8,8 +8,6 @@ This module tests the HTTP API endpoints for GDPR compliance:
 - POST /api/v1/auth/me/cancel-deletion - Cancel deletion request
 """
 
-from datetime import datetime, timedelta, timezone
-
 import pytest
 from sqlalchemy import select
 

@@ -7,7 +7,7 @@ from typing import Optional
 
 from sqlalchemy import Boolean, DateTime
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import String, Text, func
+from sqlalchemy import ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -109,6 +109,11 @@ class User(Base):
         nullable=True,
         comment="Timestamp when account will be permanently deleted",
     )
+    deletion_reason: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Optional user-provided reason for account deletion",
+    )
 
     def __repr__(self) -> str:
         """String representation of the user"""
@@ -133,7 +138,11 @@ class ConsentAudit(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True, comment="User who gave or revoked consent"
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="User who gave or revoked consent",
     )
     consent_type: Mapped[ConsentType] = mapped_column(
         SQLEnum(ConsentType), nullable=False, index=True, comment="Type of consent"

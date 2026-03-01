@@ -4,7 +4,6 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -348,6 +347,10 @@ async def resend_verification_email_endpoint(
             "description": "Unauthorized - invalid or missing token",
         },
         404: {"model": SimpleErrorResponse, "description": "User not found"},
+        503: {
+            "model": SimpleErrorResponse,
+            "description": "Service unavailable - database dependency unreachable",
+        },
     },
 )
 async def export_my_data(
@@ -360,7 +363,7 @@ async def export_my_data(
     Returns user data in machine-readable JSON format including:
     - Profile information
     - Account metadata
-    - Consent records
+    - Current consent-related timestamps (not full consent audit history)
 
     Requires authentication via Bearer token.
     """
@@ -387,6 +390,10 @@ async def export_my_data(
             "description": "Unauthorized - invalid or missing token",
         },
         404: {"model": SimpleErrorResponse, "description": "User not found"},
+        503: {
+            "model": SimpleErrorResponse,
+            "description": "Service unavailable - database dependency unreachable",
+        },
     },
 )
 async def get_my_consents(
@@ -429,6 +436,10 @@ async def get_my_consents(
         400: {"model": SimpleErrorResponse, "description": "Bad request - must confirm deletion"},
         404: {"model": SimpleErrorResponse, "description": "User not found"},
         409: {"model": SimpleErrorResponse, "description": "Deletion already scheduled"},
+        503: {
+            "model": SimpleErrorResponse,
+            "description": "Service unavailable - database dependency unreachable",
+        },
     },
 )
 async def request_my_account_deletion(
@@ -486,6 +497,10 @@ async def request_my_account_deletion(
         },
         400: {"model": SimpleErrorResponse, "description": "No deletion request pending"},
         404: {"model": SimpleErrorResponse, "description": "User not found"},
+        503: {
+            "model": SimpleErrorResponse,
+            "description": "Service unavailable - database dependency unreachable",
+        },
     },
 )
 async def cancel_my_account_deletion(
@@ -506,9 +521,15 @@ async def cancel_my_account_deletion(
             message="Account deletion cancelled successfully. Your account has been reactivated."
         )
     except GDPRError as e:
+        error_message = str(e)
+        if error_message == "User not found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_message,
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail=error_message,
         )
     except OperationalError:
         raise HTTPException(

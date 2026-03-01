@@ -529,6 +529,15 @@ This prevents missing reviewer feedback that could affect code quality.
 
 **Key Achievement**: Transitioned from manual testing (SQLite only) to automated Docker integration tests + unit tests. Project now validates behavior on production-compatible PostgreSQL at CI time.
 
+## Review Learnings: PR #18 (Copilot Review Follow-up)
+
+- **Auth Semantics Must Match API Contracts**: `HTTPBearer()` defaults to 403 when the header is missing. For endpoints documented as 401 on missing/invalid token, use `HTTPBearer(auto_error=False)` and raise explicit 401 in middleware.
+- **OpenAPI Responses Must Mirror Runtime Errors**: If route handlers catch `OperationalError` and return 503, every affected endpoint should declare a 503 response in metadata to keep docs and client generation accurate.
+- **Timezone Consistency in Schemas Matters**: Default timestamp fields in Pydantic schemas should use UTC-aware values (`datetime.now(timezone.utc)`) to avoid naive/aware mismatch issues.
+- **Deletion Grace Period Needs Recoverability**: If account status is set to `INACTIVE` during deletion scheduling, auth/refresh rules must still allow access during the grace period so users can call cancellation endpoints.
+- **Domain Errors Need Precise HTTP Mapping**: Shared exception types (like `GDPRError`) should be mapped to specific status codes (e.g., 404 for "User not found", 400 for invalid operation state) to keep behavior predictable.
+- **Referential Integrity for Audit Tables**: Audit entities should use explicit foreign keys (`ConsentAudit.user_id -> users.id`) to prevent orphan records and ensure safe cascades.
+
 ## Compliance Learnings: Issue #5 (GDPR Data Protection Implementation)
 
 ### Context

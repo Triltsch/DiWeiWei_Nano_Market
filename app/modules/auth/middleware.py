@@ -10,11 +10,11 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.modules.auth.tokens import TokenData, verify_token
 from app.redis_client import is_token_blacklisted
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(security)],
 ) -> TokenData:
     """
     Validate JWT access token and return token data.
@@ -30,6 +30,13 @@ async def get_current_user(
     Raises:
         HTTPException: If token is invalid, expired, or blacklisted
     """
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     token = credentials.credentials
 
     # Check if token is blacklisted

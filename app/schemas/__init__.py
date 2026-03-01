@@ -1,6 +1,6 @@
 """Pydantic schemas for request/response validation"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -112,7 +112,7 @@ class ErrorResponse(BaseModel):
 class UserDataExport(BaseModel):
     """User data export schema for GDPR compliance"""
 
-    export_date: datetime = Field(default_factory=datetime.now)
+    export_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     user_id: UUID
     email: str
     username: str
