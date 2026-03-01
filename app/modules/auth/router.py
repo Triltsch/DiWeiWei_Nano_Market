@@ -3,11 +3,13 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models import AuditAction
+from app.modules.audit.service import AuditLogger
 from app.modules.auth.gdpr import (
     AccountAlreadyScheduledForDeletionError,
     GDPRError,
@@ -58,6 +60,21 @@ router = APIRouter(
 )
 
 
+def _get_client_ip(request: Request) -> str:
+    """Extract client IP address from request.
+
+    Handles X-Forwarded-For header for proxied requests.
+    """
+    if "x-forwarded-for" in request.headers:
+        return request.headers["x-forwarded-for"].split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
+def _get_user_agent(request: Request) -> str:
+    """Extract user agent from request."""
+    return request.headers.get("user-agent", "")
+
+
 @router.post(
     "/register",
     response_model=UserResponse,
@@ -77,6 +94,7 @@ router = APIRouter(
 async def register(
     user_data: UserRegister,
     db: Annotated[AsyncSession, Depends(get_db)],
+    request: Request,
 ) -> UserResponse:
     """
     Register a new user.
@@ -93,6 +111,20 @@ async def register(
     """
     try:
         user = await register_user(db, user_data)
+
+        # Log successful registration
+        await AuditLogger.log_action(
+            db,
+            action=AuditAction.USER_REGISTERED,
+            user_id=user.id,
+            resource_type="user",
+            resource_id=str(user.id),
+            metadata={"email": user.email, "username": user.username},
+            ip_address=_get_client_ip(request),
+            user_agent=_get_user_agent(request),
+        )
+        await db.commit()
+
         return user
     except UserAlreadyExistsError as e:
         raise HTTPException(
@@ -125,6 +157,7 @@ async def register(
 async def login(
     credentials: UserLogin,
     db: Annotated[AsyncSession, Depends(get_db)],
+    request: Request,
 ) -> TokenResponse:
     """
     Login and receive JWT tokens.
@@ -137,20 +170,69 @@ async def login(
     """
     try:
         user, tokens = await authenticate_user(db, credentials.email, credentials.password)
+
+        # Log successful login
+        await AuditLogger.log_action(
+            db,
+            action=AuditAction.LOGIN_SUCCESS,
+            user_id=user.id,
+            resource_type="user",
+            resource_id=str(user.id),
+            metadata={"email": user.email},
+            ip_address=_get_client_ip(request),
+            user_agent=_get_user_agent(request),
+        )
+        await db.commit()
+
         return tokens
     except AccountLockedError as e:
+        # Log account locked attempt
+        await AuditLogger.log_action(
+            db,
+            action=AuditAction.ACCOUNT_LOCKED,
+            resource_type="user_login_attempt",
+            metadata={"email": credentials.email, "reason": "too_many_attempts"},
+            ip_address=_get_client_ip(request),
+            user_agent=_get_user_agent(request),
+        )
+        await db.commit()
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e),
         )
     except AccountNotVerifiedError as e:
         await record_failed_login(db, credentials.email)
+
+        # Log failed login - email not verified
+        await AuditLogger.log_action(
+            db,
+            action=AuditAction.LOGIN_FAILURE,
+            resource_type="user_login_attempt",
+            metadata={"email": credentials.email, "reason": "email_not_verified"},
+            ip_address=_get_client_ip(request),
+            user_agent=_get_user_agent(request),
+        )
+        await db.commit()
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e),
         )
     except InvalidCredentialsError as e:
         await record_failed_login(db, credentials.email)
+
+        # Log failed login - invalid credentials
+        await AuditLogger.log_action(
+            db,
+            action=AuditAction.LOGIN_FAILURE,
+            resource_type="user_login_attempt",
+            metadata={"email": credentials.email, "reason": "invalid_credentials"},
+            ip_address=_get_client_ip(request),
+            user_agent=_get_user_agent(request),
+        )
+        await db.commit()
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
@@ -172,6 +254,7 @@ async def login(
 async def refresh_token(
     body: RefreshTokenRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
+    request: Request,
 ) -> TokenResponse:
     """
     Refresh access token using a valid refresh token.
@@ -183,6 +266,18 @@ async def refresh_token(
     """
     try:
         tokens = await refresh_access_token(db, body.refresh_token)
+
+        # Log token refresh
+        await AuditLogger.log_action(
+            db,
+            action=AuditAction.TOKEN_REFRESH,
+            resource_type="token",
+            metadata={"token_type": "refresh_token"},
+            ip_address=_get_client_ip(request),
+            user_agent=_get_user_agent(request),
+        )
+        await db.commit()
+
         return tokens
     except AuthenticationError as e:
         raise HTTPException(
@@ -202,6 +297,7 @@ async def logout(
     body: LogoutRequest,
     user_id: Annotated[UUID, Depends(get_current_user_id)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    request: Request,
 ) -> MessageResponse:
     """
     Logout user by revoking tokens.
@@ -220,6 +316,19 @@ async def logout(
         # For MVP, we'll revoke the refresh token which is the primary concern
         # In production, extract and revoke access token as well
         await logout_user(db, user_id, "", body.refresh_token)
+
+        # Log logout
+        await AuditLogger.log_action(
+            db,
+            action=AuditAction.LOGOUT,
+            user_id=user_id,
+            resource_type="user",
+            resource_id=str(user_id),
+            ip_address=_get_client_ip(request),
+            user_agent=_get_user_agent(request),
+        )
+        await db.commit()
+
         return MessageResponse(message="Successfully logged out")
     except AuthenticationError as e:
         raise HTTPException(
@@ -232,6 +341,7 @@ async def logout(
 async def verify_email_endpoint(
     body: EmailVerificationRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
+    request: Request,
 ) -> VerificationEmailResponse:
     """
     Verify user email with verification token.
@@ -246,6 +356,20 @@ async def verify_email_endpoint(
     """
     try:
         user = await verify_email_with_token(db, body.token)
+
+        # Log email verification
+        await AuditLogger.log_action(
+            db,
+            action=AuditAction.EMAIL_VERIFIED,
+            user_id=user.id,
+            resource_type="user",
+            resource_id=str(user.id),
+            metadata={"email": user.email},
+            ip_address=_get_client_ip(request),
+            user_agent=_get_user_agent(request),
+        )
+        await db.commit()
+
         return VerificationEmailResponse(
             message="Email verified successfully. You can now login.",
             email=user.email,

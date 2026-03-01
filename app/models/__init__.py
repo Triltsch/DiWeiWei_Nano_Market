@@ -5,10 +5,10 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime
+from sqlalchemy import JSON, Boolean, DateTime
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -163,3 +163,100 @@ class ConsentAudit(Base):
     def __repr__(self) -> str:
         """String representation of consent audit entry"""
         return f"<ConsentAudit(user_id={self.user_id}, type={self.consent_type}, accepted={self.accepted})>"
+
+
+class AuditAction(str, enum.Enum):
+    """Audit log action types"""
+
+    # Authentication events
+    LOGIN_SUCCESS = "login_success"
+    LOGIN_FAILURE = "login_failure"
+    LOGOUT = "logout"
+    TOKEN_REFRESH = "token_refresh"
+    TOKEN_BLACKLIST = "token_blacklist"
+
+    # User management events
+    USER_REGISTERED = "user_registered"
+    USER_UPDATED = "user_updated"
+    USER_DELETED = "user_deleted"
+    EMAIL_VERIFIED = "email_verified"
+    PASSWORD_CHANGED = "password_changed"
+    ACCOUNT_LOCKED = "account_locked"
+    ACCOUNT_UNLOCKED = "account_unlocked"
+
+    # Admin actions
+    USER_SUSPENDED = "user_suspended"
+    USER_UNSUSPENDED = "user_unsuspended"
+    ROLE_CHANGED = "role_changed"
+    USER_DELETED_BY_ADMIN = "user_deleted_by_admin"
+
+    # Security events
+    FAILED_SECURITY_CHECK = "failed_security_check"
+    RATE_LIMIT_HIT = "rate_limit_hit"
+    INVALID_TOKEN = "invalid_token"
+    PERMISSION_DENIED = "permission_denied"
+
+    # Data events
+    DATA_CREATED = "data_created"
+    DATA_MODIFIED = "data_modified"
+    DATA_DELETED = "data_deleted"
+    DATA_ACCESSED = "data_accessed"
+
+    # Consent events
+    CONSENT_GIVEN = "consent_given"
+    CONSENT_REVOKED = "consent_revoked"
+    DELETION_REQUESTED = "deletion_requested"
+    DELETION_CONFIRMED = "deletion_confirmed"
+
+
+class AuditLog(Base):
+    """Audit log for tracking user actions and system events"""
+
+    __tablename__ = "audit_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="User who performed the action (NULL for system events)",
+    )
+    action: Mapped[AuditAction] = mapped_column(
+        SQLEnum(AuditAction), nullable=False, index=True, comment="Type of action performed"
+    )
+    resource_type: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        index=True,
+        comment="Type of resource affected (user, data, etc.)",
+    )
+    resource_id: Mapped[Optional[str]] = mapped_column(
+        String(200), nullable=True, index=True, comment="ID of the resource affected"
+    )
+    event_data: Mapped[Optional[dict]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=True,
+        comment="Additional context about the action",
+    )
+    ip_address: Mapped[Optional[str]] = mapped_column(
+        String(45),
+        nullable=True,
+        comment="IP address from which action originated (IPv4 or IPv6)",
+    )
+    user_agent: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, comment="Browser user agent string"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+        comment="Timestamp when action occurred",
+    )
+
+    def __repr__(self) -> str:
+        """String representation of audit log entry"""
+        return f"<AuditLog(id={self.id}, user_id={self.user_id}, action={self.action}, resource_type={self.resource_type})>"
