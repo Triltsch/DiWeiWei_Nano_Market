@@ -70,9 +70,12 @@ def hash_password(password: str) -> str:
         raise ValueError("Password exceeds maximum length")
 
     # Apply SHA256 pre-hashing for long passwords (bcrypt 72-byte limit)
+    password_bytes = password.encode("utf-8")
     password_to_hash = password
-    if len(password.encode("utf-8")) > BCRYPT_MAX_PASSWORD_BYTES:
-        password_to_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+    if len(password_bytes) > BCRYPT_MAX_PASSWORD_BYTES:
+        # SHA256 output is 64 ASCII hex chars = 64 bytes, safely under 72-byte limit
+        password_to_hash = hashlib.sha256(password_bytes).hexdigest()
         logger.debug("Applied SHA256 pre-hashing for long password")
 
     try:
@@ -110,10 +113,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
     try:
-        # Apply same pre-hashing logic as hash_password
+        # Apply same pre-hashing logic as hash_password for consistency
+        password_bytes = plain_password.encode("utf-8")
         password_to_verify = plain_password
-        if len(plain_password.encode("utf-8")) > BCRYPT_MAX_PASSWORD_BYTES:
-            password_to_verify = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
+
+        if len(password_bytes) > BCRYPT_MAX_PASSWORD_BYTES:
+            # SHA256 output is 64 ASCII hex chars = 64 bytes, safely under 72-byte limit
+            password_to_verify = hashlib.sha256(password_bytes).hexdigest()
 
         # passlib's verify() uses constant-time comparison internally
         return pwd_context.verify(password_to_verify, hashed_password)

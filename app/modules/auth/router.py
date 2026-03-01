@@ -26,10 +26,10 @@ from app.modules.auth.service import (
 from app.modules.auth.validators import calculate_password_strength
 from app.schemas import (
     EmailVerificationRequest,
-    PasswordStrengthRequest,
-    PasswordStrengthResponse,
     LogoutRequest,
     MessageResponse,
+    PasswordStrengthRequest,
+    PasswordStrengthResponse,
     RefreshTokenRequest,
     ResendVerificationRequest,
     SimpleErrorResponse,
