@@ -88,6 +88,69 @@ class User(Base):
     login_attempts: Mapped[int] = mapped_column(default=0, nullable=False)
     locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # GDPR/DSGVO Compliance
+    accepted_terms: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Timestamp when user accepted Terms of Service",
+    )
+    accepted_privacy: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Timestamp when user accepted Privacy Policy",
+    )
+    deletion_requested_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Timestamp when user requested account deletion",
+    )
+    deletion_scheduled_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Timestamp when account will be permanently deleted",
+    )
+
     def __repr__(self) -> str:
         """String representation of the user"""
         return f"<User(id={self.id}, email={self.email}, username={self.username})>"
+
+
+class ConsentType(str, enum.Enum):
+    """Types of consent that can be tracked"""
+
+    TERMS_OF_SERVICE = "terms_of_service"
+    PRIVACY_POLICY = "privacy_policy"
+    MARKETING = "marketing"
+    DATA_PROCESSING = "data_processing"
+
+
+class ConsentAudit(Base):
+    """Audit log for user consent tracking (GDPR compliance)"""
+
+    __tablename__ = "consent_audit"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True, comment="User who gave or revoked consent"
+    )
+    consent_type: Mapped[ConsentType] = mapped_column(
+        SQLEnum(ConsentType), nullable=False, index=True, comment="Type of consent"
+    )
+    accepted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, comment="True if consent was given, False if revoked"
+    )
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    ip_address: Mapped[Optional[str]] = mapped_column(
+        String(45), nullable=True, comment="IP address from which consent was given (IPv4 or IPv6)"
+    )
+    user_agent: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, comment="Browser user agent string"
+    )
+
+    def __repr__(self) -> str:
+        """String representation of consent audit entry"""
+        return f"<ConsentAudit(user_id={self.user_id}, type={self.consent_type}, accepted={self.accepted})>"

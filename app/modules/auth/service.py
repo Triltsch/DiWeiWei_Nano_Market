@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.models import User, UserRole, UserStatus
+from app.models import ConsentAudit, ConsentType, User, UserRole, UserStatus
 from app.modules.auth.password import hash_password, verify_password
 from app.modules.auth.tokens import (
     create_access_token,
@@ -71,6 +71,13 @@ async def register_user(db_session: AsyncSession, user_data: UserRegister) -> Us
         UserAlreadyExistsError: If email or username already exists
         AuthenticationError: If validation fails
     """
+    # Validate consent requirements
+    if not user_data.accept_terms:
+        raise AuthenticationError("You must accept the Terms of Service to register")
+
+    if not user_data.accept_privacy:
+        raise AuthenticationError("You must accept the Privacy Policy to register")
+
     # Validate input
     is_valid, error_msg = validate_email(user_data.email)
     if not is_valid:
@@ -97,6 +104,9 @@ async def register_user(db_session: AsyncSession, user_data: UserRegister) -> Us
     if result.scalar_one_or_none() is not None:
         raise UserAlreadyExistsError("Username already taken")
 
+    # Create timestamp for consent
+    consent_timestamp = datetime.now(timezone.utc)
+
     # Create new user
     user = User(
         email=email_lower,
@@ -109,9 +119,30 @@ async def register_user(db_session: AsyncSession, user_data: UserRegister) -> Us
         status=UserStatus.ACTIVE,
         role=UserRole.CONSUMER,
         email_verified=False,
+        accepted_terms=consent_timestamp,
+        accepted_privacy=consent_timestamp,
     )
 
     db_session.add(user)
+    await db_session.flush()  # Flush to get the user ID
+
+    # Create consent audit records
+    terms_audit = ConsentAudit(
+        user_id=user.id,
+        consent_type=ConsentType.TERMS_OF_SERVICE,
+        accepted=True,
+        timestamp=consent_timestamp,
+    )
+    privacy_audit = ConsentAudit(
+        user_id=user.id,
+        consent_type=ConsentType.PRIVACY_POLICY,
+        accepted=True,
+        timestamp=consent_timestamp,
+    )
+
+    db_session.add(terms_audit)
+    db_session.add(privacy_audit)
+
     await db_session.commit()
     await db_session.refresh(user)
 

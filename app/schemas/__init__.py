@@ -24,6 +24,8 @@ class UserRegister(UserBase):
     """User registration request schema"""
 
     password: str = Field(..., min_length=8)
+    accept_terms: bool = Field(..., description="User must accept Terms of Service")
+    accept_privacy: bool = Field(..., description="User must accept Privacy Policy")
 
 
 class UserLogin(BaseModel):
@@ -47,6 +49,10 @@ class UserResponse(UserBase):
     updated_at: datetime
     last_login: Optional[datetime] = None
     profile_avatar: Optional[str] = None
+    accepted_terms: Optional[datetime] = None
+    accepted_privacy: Optional[datetime] = None
+    deletion_requested_at: Optional[datetime] = None
+    deletion_scheduled_at: Optional[datetime] = None
 
 
 class TokenResponse(BaseModel):
@@ -95,6 +101,54 @@ class ErrorResponse(BaseModel):
     detail: str
     code: str
     timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class UserDataExport(BaseModel):
+    """User data export schema for GDPR compliance"""
+
+    export_date: datetime = Field(default_factory=datetime.now)
+    user_id: UUID
+    email: str
+    username: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    bio: Optional[str] = None
+    company: Optional[str] = None
+    job_title: Optional[str] = None
+    phone: Optional[str] = None
+    preferred_language: str
+    created_at: datetime
+    updated_at: datetime
+    last_login: Optional[datetime] = None
+    email_verified: bool
+    verified_at: Optional[datetime] = None
+    status: str
+    role: str
+    accepted_terms: Optional[datetime] = None
+    accepted_privacy: Optional[datetime] = None
+
+
+class AccountDeletionRequest(BaseModel):
+    """Account deletion request schema"""
+
+    confirm: bool = Field(..., description="Must be true to confirm deletion")
+    reason: Optional[str] = Field(None, max_length=500, description="Optional reason for deletion")
+
+
+class AccountDeletionResponse(BaseModel):
+    """Account deletion response schema"""
+
+    message: str
+    deletion_scheduled_at: datetime
+    grace_period_days: int = 30
+
+
+class ConsentResponse(BaseModel):
+    """Consent information response schema"""
+
+    consent_type: str
+    accepted: bool
+    timestamp: datetime
 
 
 class SimpleErrorResponse(BaseModel):

@@ -111,6 +111,8 @@ async def test_user_data():
         "last_name": "User",
         "bio": "Test bio",
         "preferred_language": "de",
+        "accept_terms": True,
+        "accept_privacy": True,
     }
 
 
