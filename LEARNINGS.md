@@ -954,3 +954,122 @@ Implemented a full local development stack with PostgreSQL, Redis, MinIO, Meilis
 - **Acceptance criteria completeness**: Bucket auto-creation now implemented.
 
 **Time Investment**: Review fixes took ~30 minutes; would have cost hours of debugging in production.
+
+## Compose Provisioning Hardening (Issue #27)
+
+### Context
+Implemented Sprint 2 infrastructure story `S2-OPS-01` to ensure PostgreSQL + MinIO can be provisioned reliably via `docker-compose`, with health checks, environment-driven credentials/endpoints, and restart-safe persistence behavior.
+
+### Key Learnings
+
+#### 1. **Environment-Driven Compose Config Prevents Drift**
+- **Problem**: PostgreSQL and MinIO credentials/bucket values were hardcoded in `docker-compose.yml`.
+- **Fix**: Switched to `${VAR:-default}` interpolation and added required variables in `.env.example`.
+- **Learning**: Use env interpolation for infrastructure config even in local dev so credentials/endpoints are explicit, overridable, and documented.
+
+#### 2. **Pinned Image Tags Can Become Invalid**
+- **Problem**: The configured MinIO tag `RELEASE.2025-02-26T08-46-43Z` was no longer resolvable, causing compose startup failure.
+- **Fix**: Replaced with a resolvable image reference (`minio/minio:latest`) to restore startup reliability.
+- **Learning**: Validate referenced image tags in CI or preflight checks; an invalid tag silently blocks the entire local stack.
+
+#### 3. **Init Containers Should Reuse Same Credential Source**
+- **Problem**: MinIO bucket initialization used hardcoded credentials and bucket name.
+- **Fix**: Passed `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, and `MINIO_BUCKET_NAME` into `minio_init` and reused them in `mc` commands.
+- **Learning**: Bootstrap/init services must consume the same env contract as primary services to avoid hidden mismatch bugs.
+
+#### 4. **Documentation Must Match Actual Port Mappings**
+- **Problem**: README listed Redis on `localhost:6379` while compose mapped Redis to host `6380`.
+- **Fix**: Corrected README and added explicit health/persistence verification commands.
+- **Learning**: Always reconcile docs with effective container port mappings; stale docs create false-negative debugging paths.
+
+#### 5. **Test Suite Reliability Depends on Explicit Service Prereqs**
+- **Observation**: Full test runs can fail with Redis connection errors when required services are not running.
+- **Learning**: Infrastructure-dependent test suites should have an explicit setup step (or pre-test task) that starts required containers deterministically.
+
+## PR Review Follow-up Learnings (PR #36 - Issue #27)
+
+### Context
+After implementing Issue #27 (PostgreSQL + MinIO compose provisioning), Copilot AI reviewer identified 4 issues related to version pinning consistency, error handling, and documentation clarity. This review caught gaps that weren't identified during initial implementation or testing.
+
+### Key Learnings
+
+#### 1. **Version Pinning Must Be Consistent Across Stack**
+- **Problem**: Fixed broken MinIO startup by switching from invalid tag to `:latest`, but this violated the version-pinning pattern used by all other services (Postgres 13-alpine, Redis 7-alpine, Meilisearch v1.6.0).
+- **Root Cause**: Quick fix focused on "make it work" without checking existing patterns in the codebase.
+- **Fix**: Changed from `minio/minio:latest` to pinned version `minio/minio:RELEASE.2023-12-23T07-19-11Z`.
+- **Why it matters**: 
+  - `:latest` is non-deterministic - future upstream releases can break local dev silently
+  - Pinned versions ensure reproducible builds across team and time
+  - Version updates become deliberate, documented decisions
+- **Learning**: Before implementing infrastructure fixes, check existing service definitions for patterns (version pinning, naming, healthcheck style). Maintain consistency even under time pressure.
+- **Process Gap**: Initial implementation didn't cross-reference other service definitions. Should have run `grep 'image:' docker-compose.yml` to identify pattern.
+
+#### 2. **Init Containers Must Fail Fast, Not Silently Succeed**
+- **Problem**: `minio_init` service ended with `exit 0;`, causing it to always succeed even if bucket creation failed.
+- **Impact**: App service could start without initialized bucket because `depends_on: condition: service_completed_successfully` passed on failed init.
+- **Root Cause**: Defensive programming gone wrong - `exit 0` added to prevent spurious failures but eliminated all failure signals.
+- **Fix**: Removed `exit 0` and added `set -e` at start of script so shell exits on command failures.
+- **Why it matters**:
+  - Silent failures mask configuration problems until runtime
+  - Dependencies on "successful" init are meaningless if init can't fail
+  - Hard-to-debug issues (missing bucket) appear in application layer instead of infrastructure layer
+- **Learning**: Init containers should fail fast and loudly. Use `set -e` for shell scripts. Never use unconditional `exit 0` - it defeats the entire purpose of exit codes.
+- **Best Practice**: Test init container failures explicitly - simulate bad credentials, network issues, and verify container exits non-zero.
+
+#### 3. **Documentation Labels Must Match Runtime Behavior**
+- **Problem**: README labeled compose env vars as "Required" but `docker-compose.yml` provided defaults via `${VAR:-default}` pattern.
+- **Impact**: Misleading for new contributors - they might think services won't start without .env file, when defaults actually work.
+- **Root Cause**: Documentation written based on best practice ("you should set these") rather than actual behavior ("services work with defaults").
+- **Fix**: Changed label from "Required" to "Optional: Override Docker Compose service defaults" and added explanation of when customization is needed.
+- **Why it matters**:
+  - False requirements create unnecessary onboarding friction
+  - Contributors waste time creating .env files with duplicate defaults
+  - Creates confusion when services work without "required" config
+- **Learning**: Documentation must precisely reflect runtime behavior, not idealized practice. If variables have defaults, say "optional" and document the defaults. Reserve "required" for truly mandatory config.
+- **Process Improvement**: When documenting config, test with and without .env file to verify true requirements.
+
+#### 4. **Document Complete Configuration Chains, Not Just Components**
+- **Problem**: README documented `POSTGRES_*` variables but didn't explain relationship to `DATABASE_URL` that FastAPI app actually uses.
+- **Impact**: Users setting up compose Postgres don't realize they also need to configure `DATABASE_URL` for the app to connect.
+- **Root Cause**: Infrastructure config and application config documented separately without explaining the connection.
+- **Fix**: Added explicit documentation showing:
+  - `POSTGRES_*` vars configure the container
+  - `DATABASE_URL` is what app uses
+  - Example: `DATABASE_URL=postgresql+asyncpg://diwei_user:diwei_password@localhost:5433/diwei_nano_market`
+  - Shows how to build DATABASE_URL from POSTGRES_* values
+- **Why it matters**:
+  - Config with multiple layers (infra → app) must be documented end-to-end
+  - Variable name differences (`POSTGRES_USER` vs `DATABASE_URL` username component) make relationship non-obvious
+  - Without this, users hit "connection refused" errors and debug blindly
+- **Learning**: For infrastructure provisioning, document the complete path from infrastructure config through to application usage. Show how variables flow between layers, especially when names differ.
+- **Pattern**: When documenting env vars, always ask "what consumes this?" and "what else is needed for the feature to work?"
+
+### Process Learnings
+
+#### Why These Issues Weren't Caught Initially
+1. **Testing Gap**: Initial testing focused on "does it start?" not "is it consistent with existing patterns?"
+2. **Acceptance Criteria**: Story required health checks and persistence, but not explicit version pinning or init container failure testing
+3. **Documentation Review**: README updates weren't tested with fresh perspective (simulating new contributor experience)
+4. **Error Path Testing**: Init container happy path tested (bucket created), but failure scenarios not validated
+
+#### Value of Systematic Code Review
+- **4 substantial improvements** from review that passed tests and basic acceptance criteria
+- **Categories**: Consistency (version pinning), reliability (error propagation), clarity (docs), completeness (config relationships)
+- **Pattern**: All issues are about quality/maintainability, not functionality. All tests passed, but code wasn't production-ready.
+- **Learning**: Passing tests + working features ≠ production-ready. Reviews catch consistency, patterns, edge cases, and future problems.
+
+#### How to Prevent Similar Issues
+1. **Pre-commit Checklist**: "Does this match patterns in existing code?"
+2. **Error Path Testing**: Explicitly test failure scenarios for init/setup containers
+3. **Documentation Testing**: Have someone unfamiliar with the code follow the docs
+4. **Config Chain Mapping**: For infrastructure changes, document variable flow from infra → app
+5. **Version Policy**: Establish and document policy on version pinning (never :latest)
+
+### Implementation Metrics
+- **Review Items**: 4 suggestions implemented (100% acceptance rate)
+- **Files Modified**: 2 (docker-compose.yml, README.md)
+- **Lines Changed**: ~15 lines (small surface area, high impact)
+- **Test Impact**: No new tests needed (behavioral changes, not new features)
+- **Time to Implement**: ~15 minutes after review (much faster than eventual debugging)
+
+**Key Achievement**: Transformed working but fragile infrastructure config into production-ready pattern through systematic review. Emphasized importance of consistency, fail-fast behavior, and clear documentation even when functionality works.

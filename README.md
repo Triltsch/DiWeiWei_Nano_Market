@@ -325,15 +325,48 @@ docker-compose down -v
 | FastAPI Backend | http://localhost:8000 | REST API |
 | Swagger UI | http://localhost:8000/docs | API Documentation |
 | PostgreSQL | localhost:5432 | Database |
-| Redis | localhost:6379 | Cache/Sessions |
-| MinIO Console | http://localhost:9001 | Object Storage UI (`minioadmin`/`minioadmin123`) |
+| Redis | localhost:6380 | Cache/Sessions |
+| MinIO Console | http://localhost:9001 | Object Storage UI (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`) |
 | Meilisearch Dashboard | http://localhost:7700 | Search UI |
 
 **Environment Variables:**
-All services are pre-configured with development defaults from the `docker-compose.yml`. Key credentials:
-- **PostgreSQL**: `diwei_user` / `diwei_password` on database `diwei_nano_market`
+Core service credentials/endpoints are sourced from `.env` (see `.env.example`) with safe Docker defaults if not set.
+
+```bash
+# Optional: Override Docker Compose service defaults (Story 7.2/7.3)
+# These have defaults in docker-compose.yml; customize as needed:
+POSTGRES_USER=diwei_user
+POSTGRES_PASSWORD=diwei_password
+POSTGRES_DB=diwei_nano_market
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=minioadmin123
+MINIO_BUCKET_NAME=nanos
+
+# Required: Database connection for the FastAPI app
+# When using compose Postgres, build from the POSTGRES_* values above:
+DATABASE_URL=postgresql+asyncpg://diwei_user:diwei_password@localhost:5433/diwei_nano_market
+# For testing (uses different container/port in docker-compose.test.yml):
+TEST_DB_URL=postgresql+asyncpg://test_user:test_password@localhost:5434/test_db
+```
+
+- **PostgreSQL**: `POSTGRES_USER` / `POSTGRES_PASSWORD` on `POSTGRES_DB` (configures container)
 - **Redis**: No authentication (localhost-only)
-- **MinIO**: `minioadmin` / `minioadmin123`
+- **MinIO**: `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`, bucket `MINIO_BUCKET_NAME`
+- **FastAPI app**: Uses `DATABASE_URL` (built from `POSTGRES_*` vars when using compose services)
+
+**Health & Persistence Validation:**
+
+```bash
+# Health checks (postgres/minio should be "healthy")
+docker-compose ps
+
+# Verify MinIO bucket initialization
+docker-compose logs minio_init
+
+# Restart without removing volumes; data should persist
+docker-compose down
+docker-compose up -d
+```
 
 **Troubleshooting Development Environment:**
 
