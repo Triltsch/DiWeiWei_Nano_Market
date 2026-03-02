@@ -283,6 +283,88 @@ docker ps
 
 ### Project Docker Compose Setup
 
+This project includes two Docker Compose configurations:
+
+1. **`docker-compose.yml`** - Complete local development environment (recommended)
+2. **`docker-compose.test.yml`** - PostgreSQL-only environment for CI testing
+
+#### Development Environment with docker-compose.yml (Recommended)
+
+The main `docker-compose.yml` provides a complete local development stack with all required services:
+
+**Services Included:**
+- **PostgreSQL 13** - Primary database (port 5432)
+- **Redis 7** - Caching layer (port 6379)
+- **MinIO** - S3-compatible object storage (port 9000, console 9001)
+- **Meilisearch** - Full-text search engine (port 7700)
+- **FastAPI Backend** - Application server (port 8000)
+
+**Quick Start:**
+
+```bash
+# Start all services in background
+docker-compose up -d
+
+# Check service status (wait for all to show "healthy")
+docker-compose ps
+
+# View application logs
+docker-compose logs -f app
+
+# Stop all services
+docker-compose down
+
+# Remove all services and volumes (clean reset)
+docker-compose down -v
+```
+
+**Access Services:**
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| FastAPI Backend | http://localhost:8000 | REST API |
+| Swagger UI | http://localhost:8000/docs | API Documentation |
+| PostgreSQL | localhost:5432 | Database |
+| Redis | localhost:6379 | Cache/Sessions |
+| MinIO Console | http://localhost:9001 | Object Storage UI (`minioadmin`/`minioadmin123`) |
+| Meilisearch Dashboard | http://localhost:7700 | Search UI |
+
+**Environment Variables:**
+All services are pre-configured with development defaults from the `docker-compose.yml`. Key credentials:
+- **PostgreSQL**: `diwei_user` / `diwei_password` on database `diwei_nano_market`
+- **Redis**: No authentication (localhost-only)
+- **MinIO**: `minioadmin` / `minioadmin123`
+
+**Troubleshooting Development Environment:**
+
+```bash
+# View logs for specific service
+docker-compose logs postgres
+docker-compose logs -f app  # Follow logs in real-time
+
+# Port 8000 already in use
+docker ps | grep 8000
+docker stop <container-id>
+
+# Port conflicts (change port mapping in docker-compose.yml)
+# Example: Change "- '5432:5432'" to "- '5433:5432'" in postgres section
+
+# Database not initialized
+# The FastAPI container waits for PostgreSQL health check
+# If initialization fails, check logs:
+docker-compose logs app
+
+# Rebuild application image after code changes
+docker-compose build app
+docker-compose up -d app
+
+# Clean reset (removes all data)
+docker-compose down -v
+docker-compose up -d  # Starts fresh
+```
+
+#### Docker Compose for Integration Testing (docker-compose.test.yml)
+
 This project includes a `docker-compose.test.yml` file for running PostgreSQL integration tests. The configuration provides an isolated test database environment.
 
 #### Project Docker Images
@@ -294,7 +376,7 @@ The project uses:
   - Credentials: `testuser` / `testpassword`
   - Database: `diweiwei_test`
 
-#### Quick Start with Docker Compose
+#### Quick Start with Docker Compose (Testing)
 
 ```bash
 # Start PostgreSQL test container in the background

@@ -852,3 +852,35 @@ Story 1.5 implemented comprehensive audit logging for tracking user actions, sus
 - **Deployment Readiness**: Cross-database compatible, retention policy configured, admin endpoints ready
 
 **Key Achievement**: Established comprehensive audit system supporting compliance, security monitoring, and operational investigation while maintaining single codebase for SQLite (test) and PostgreSQL (production).
+
+## Docker Compose Dev Stack (Issue #20 - Story 7.1)
+
+### Context
+Implemented a full local development stack with PostgreSQL, Redis, MinIO, Meilisearch, and FastAPI in `docker-compose.yml`, plus onboarding and troubleshooting docs in `README.md`.
+
+### Key Learnings
+
+#### 1. **Keep Test and Dev Compose Files Separate**
+- **Problem**: Reusing one compose file for both CI/testing and local development causes port and service-scope conflicts.
+- **Solution**: Preserve `docker-compose.test.yml` for isolated test DB usage and add dedicated `docker-compose.yml` for full local stack.
+- **Learning**: Separate compose files by lifecycle purpose (test vs dev) to avoid accidental coupling and flaky local setups.
+
+#### 2. **Healthchecks Drive Reliable Startup Order**
+- **Problem**: Service startup order with plain `depends_on` is not sufficient for readiness-sensitive apps.
+- **Solution**: Add healthchecks to all infrastructure services and use `depends_on: condition: service_healthy` for the backend.
+- **Learning**: For local multi-service stacks, readiness checks are essential to avoid startup race conditions and false failure reports.
+
+#### 3. **Document Access Paths and Credentials in One Place**
+- **Problem**: Developers lose time discovering service URLs, ports, and default credentials.
+- **Solution**: Add a single quick-start section in `README.md` with service URLs, credentials, and standard lifecycle commands.
+- **Learning**: A complete “first 5 minutes” runbook in README reduces onboarding friction more than scattered notes.
+
+#### 4. **Troubleshooting Section Prevents Repeated Support Loops**
+- **Problem**: Most local Docker issues are repetitive (port conflicts, stale volumes, missing rebuild, startup logs).
+- **Solution**: Add targeted troubleshooting commands (`logs`, `down -v`, rebuild flow, conflict checks).
+- **Learning**: Proactive troubleshooting guidance in docs significantly lowers recurring setup support overhead.
+
+### Implementation Metrics
+- **Files Added**: `Dockerfile`, `docker-compose.yml`
+- **Files Updated**: `README.md`, `LEARNINGS.md`
+- **Validation**: 188/188 tests passing, Black/isort checks passing
