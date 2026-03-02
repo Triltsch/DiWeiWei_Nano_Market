@@ -22,10 +22,13 @@ Given a pull request, perform the necessary steps in the following order:
 	1. Fetch the active pull request metadata.
 	2. Fetch the pull request by issue/PR number.
 	3. Check all returned fields for review content: comments, timeline comments, reviews, threads, inline suggestions, and bot reviews.
-	4. If no review comments are found but the user indicates comments exist in the PR UI, assume API coverage is incomplete and continue with fallback discovery.
-- **Fallback discovery when MCP does not expose review threads:**
-	- Ask the user for direct review-comment links or screenshots of each unresolved thread.
-	- If available in the environment, use authenticated GitHub CLI/API to query review threads.
+	4. **Search for specialized MCP GitHub tools**: Use `tool_search_tool_regex` with pattern `mcp_github.*review|pull_request.*review` to discover tools like `mcp_github_pull_request_read` which provides the `get_review_comments` method for fetching inline review threads with full context (isResolved, isOutdated, isCollapsed, author, body, path, line).
+	5. If available, call `mcp_github_pull_request_read` with method `get_review_comments` to fetch all review threads. This returns the complete review data structure that standard PR fetch methods do not expose.
+	6. If no review comments are found after steps 1-5 but the user indicates comments exist in the PR UI, assume API coverage is incomplete and continue with fallback discovery.
+- **Fallback discovery when standard methods do not expose review threads:**
+	- **First**: Search for and use specialized MCP GitHub tools (see step 4 above) before attempting other methods.
+	- **Second**: If available in the environment, use authenticated GitHub CLI/API to query review threads.
+	- **Last resort**: Ask the user for direct review-comment links or screenshots of each unresolved thread.
 	- If authenticated access is not available, explicitly state this limitation and continue using user-provided review content as source of truth.
 - **Copilot AI review handling:** Treat Copilot AI review comments exactly like human inline review comments. They are required input and must be implemented unless outdated or explicitly declined by the user.
 - **Stopping rule:** Never conclude "no reviewer comments" after a single API call. Only conclude this after all discovery steps above are completed and results are documented.
