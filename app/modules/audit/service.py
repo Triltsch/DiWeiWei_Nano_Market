@@ -4,13 +4,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from uuid import UUID
 
-from sqlalchemy import and_, desc, func, select
+from sqlalchemy import and_, delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings
 from app.models import AuditAction, AuditLog
-
-settings = get_settings()
 
 
 class AuditLogger:
@@ -162,15 +159,12 @@ class AuditLogger:
         """
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
-        query = select(AuditLog).where(AuditLog.created_at < cutoff_date)
-        result = await session.execute(query)
-        old_logs = result.scalars().all()
-
-        for log in old_logs:
-            await session.delete(log)
-
+        # Use bulk DELETE to avoid loading rows into memory
+        stmt = delete(AuditLog).where(AuditLog.created_at < cutoff_date)
+        result = await session.execute(stmt)
         await session.flush()
-        return len(old_logs)
+
+        return result.rowcount if result.rowcount else 0
 
     @staticmethod
     async def get_suspicious_activity(

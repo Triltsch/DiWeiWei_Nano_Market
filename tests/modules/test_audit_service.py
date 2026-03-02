@@ -3,9 +3,10 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import AuditAction, User
+from app.models import AuditAction, AuditLog, User
 from app.modules.audit.service import AuditLogger
 
 
@@ -123,10 +124,20 @@ class TestAuditLoggerService:
             user_id=verified_user.id,
             resource_type="user",
         )
+        # Make the log older than the retention window so it should be deleted
         log.created_at = datetime.now(timezone.utc) - timedelta(days=91)
         await db_session.commit()
 
         deleted_count = await AuditLogger.cleanup_old_logs(db_session, retention_days=90)
         await db_session.commit()
 
+        # Verify that at least one row was reported deleted
         assert deleted_count >= 1
+
+        # Verify that no logs older than the retention cutoff remain in the database
+        cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+        query = select(AuditLog).where(AuditLog.created_at < cutoff)
+        result = await db_session.execute(query)
+        old_logs = result.scalars().all()
+
+        assert len(old_logs) == 0

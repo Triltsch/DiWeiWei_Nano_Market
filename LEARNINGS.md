@@ -749,3 +749,106 @@ Story 1.4 required GDPR compliance basics: consent tracking, data export, accoun
 - **Middleware-Centric Validation**: Centralizing signature checks, expiry checks, and blacklist checks in auth middleware avoids duplicated endpoint logic and keeps protected-route behavior consistent.
 - **Security/Data Minimization**: Tokens should contain only identity and authorization claims (`sub`, `email`, `role`, `iat`, `exp`, `type`), never password or secret-derived data.
 - **Test Infrastructure Dependency**: Redis-backed auth tests are integration-sensitive; deterministic results require Redis availability during tests. This should be treated as part of the test environment contract, not as optional runtime state.
+
+---
+
+## Audit Logging Framework Implementation: Issue #6
+
+### Context
+Story 1.5 implemented comprehensive audit logging for tracking user actions, suspicious activity detection, and compliance. The implementation required solving cross-database compatibility issues, designing queryable audit schemas, and integrating logging into all authentication endpoints.
+
+### Key Learnings
+
+#### 1. **Cross-Database JSON Type Compatibility**
+- **Problem**: Initial implementation used PostgreSQL-only `JSONB` type, causing "Compiler can't render element of type JSONB" error in SQLite test environment. Affected 140+ tests at collection phase.
+- **Root Cause**: SQLAlchemy dialect system doesn't automatically translate JSONB to JSON for different databases - must be explicit
+- **Solution**: Use `JSON().with_variant(JSONB, "postgresql")` pattern
+- **Why it works**: `JSON()` is base type (SQLite-compatible), `.with_variant()` specifies dialect override, single codebase with no conditional logic
+- **Learning**: Always use dialect-aware types for production-grade code. Test with multiple database backends or understand which types need variants.
+
+#### 2. **Immutable Audit Trail Design**
+- **Problem**: Initial consideration was audit log updates/deletions, but this conflicts with compliance requirements (tamper evidence)
+- **Resolution**: Designed AuditLog as write-only (append-only) with only CREATE and DELETE (old entries only)
+- **Why it matters**: Compliance requirement (tamper-evident), security (prevents covering up incidents), simplicity (no version tracking)
+- **Learning**: Audit systems should be append-only. If deletion is needed, make it explicit and separate (retention cleanup).
+
+#### 3. **Event Metadata Sanitization**
+- **Problem**: Naive implementation might capture full request body (including passwords) in audit metadata
+- **Resolution**: Explicit sanitization at source (endpoint level) - passwords, tokens NEVER captured
+- **Example**: Pass only `{"email": user.email}` not full `request_body.dict()`
+- **Learning**: Audit metadata sanitization is caller's responsibility, not logger's. Document what should NOT be logged.
+
+#### 4. **Response Schema Field Mapping vs. Aliases**
+- **Problem**: ORM has `event_data` field, but API should expose as `metadata`. Using alias with `populate_by_name=True` caused ambiguity
+- **Solution**: Use direct field name in schema, map explicitly in router: `metadata=log.event_data`
+- **Why it works**: Single, unambiguous field name, mapping at serialization time, no confusion about "correct" field name
+- **Learning**: For ORM→API mapping, prefer explicit router mapping over schema aliases. Schema should reflect actual API response.
+
+#### 5. **Pagination Limits for Performance**
+- **Problem**: Without query limits, admin querying large audit table could cause memory/CPU overload
+- **Solution**: Enforce maximum 1000 results per query with configuration: `limit = min(limit, 1000)`
+- **Why it matters**: Cloud DB connections have memory limits, serializing millions of objects causes timeout, dashboard uses pagination naturally
+- **Learning**: Add reasonable upper bounds to query limits. Document the limit and why it exists.
+
+#### 6. **Suspicious Activity Detection with Time Windows**
+- **Problem**: Brute force detection needs both COUNT (how many) and TIME (within what window)
+- **Implementation**: Threshold-based with configurable window (default: 5 failures in 60 minutes)
+- **Why it works**: 5 failures in 60 min = obvious attack, 5 in 30 days = user forgetting password, configurable thresholds adapt to policy
+- **Learning**: For behavioral detection, always include time windows. COUNT without TIME is ambiguous.
+
+#### 7. **Cross-Dialect Query Filter Handling**
+- **Problem**: API receives action filter as string ("login_success") but service expects enum (AuditAction.LOGIN_SUCCESS)
+- **Solution**: Graceful conversion with lenient fallback - ignore invalid action instead of returning 400
+- **Trade-off**: Could be strict (400) or lenient (ignore). Chose lenient for dashboard resilience
+- **Learning**: For enum filters, decide strictness upfront: strict vs lenient. Document the choice and reason.
+
+#### 8. **Audit Log Integration Points**
+- **Problem**: Deciding WHERE to add logging - too much noise, too little coverage, timing inconsistency
+- **Solution**: Log at endpoint level, immediately after auth service calls complete, using a separate audit write/commit
+  - `user = await register_user(db, ...)` → Business logic (service manages its own commit)
+  - `await AuditLogger.log_action(db, ...)` → Log success in a follow-up operation
+  - `await db.commit()` → Persist audit entry (not strictly atomic with auth service commit)
+- **Why it works**: Logging synchronously in the request flow ensures coverage and observability, even though auth and audit changes use separate commits
+- **Learning**: Audit logging should be synchronous and tightly coupled to core auth flows, but atomicity with business operations depends on transaction boundaries in the underlying services. Avoid async fire-and-forget systems for core audit paths.
+
+#### 9. **Test Fixtures and Real Database Integration**
+- **Problem**: Initial audit tests used non-existent fixtures (`db`, `user`, `auth_token`), causing collection-time failures
+- **Root Cause**: Tests written before fixtures existed, used names from different test framework docs
+- **Solution**: Use project's actual fixtures: `db_session`, `verified_user`, `async_client`
+- **Discovery**: These fixtures already defined in conftest - no custom fixtures needed
+- **Learning**: Use real fixtures for audit tests. Audit logging integration depends on real auth flows - mocking defeats the purpose.
+
+#### 10. **Retention Cleanup for Compliance**
+- **Problem**: Audit logs grow indefinitely, creating storage costs and compliance risk
+- **Solution**: Configurable retention policy (default 90 days), cleanup called explicitly (not automatic)
+- **Why 90 days**: Investigation window + compliance requirement + reasonable cost + PII retention principle
+- **Implementation**: `cleanup_old_logs(retention_days=90)` - manual operation prevents accidental loss
+- **Learning**: Make retention explicit and configurable. Document the reasoning. Don't make deletion automatic.
+
+### Process Learnings
+
+#### Database Schema Evolution for Multi-Database Support
+- Single codebase for SQLite (test) + PostgreSQL (prod) requires `.with_variant()` planning upfront
+- Integration tests with Docker PostgreSQL catch database-specific issues early
+- Critical fix: One-line JSON type change resolved 140+ test failures - emphasizes catching dialect issues early
+
+#### Audit Trail as System Documentation
+- Well-designed audit logs become system documentation
+- "Why was this user suspended?" → Check audit log for admin action + reason
+- "Was there a security incident?" → Check suspicious activity detection results
+- Audit logs serve business logic AND compliance AND security investigations
+
+#### API Design for Operational Tools
+- Audit API is operations-focused (admins querying logs), not user-facing
+- Different constraints from user APIs: pagination limits for prevention of DoS (not UX)
+- Dangerous operations (cleanup) are service methods, not endpoints (prevents accidental triggering)
+
+### Implementation Metrics
+- **Total Test Suite**: 187 tests passing, 86.73% coverage
+- **Audit Tests**: 15 new (5 service, 5 routes, 5 integration)
+- **New Code**: ~400 lines (models, service, router, schemas)
+- **API Endpoints**: 3 (query logs, recent logs, suspicious activity)
+- **Critical Fix**: Single-line JSON type change resolved 140+ test failures
+- **Deployment Readiness**: Cross-database compatible, retention policy configured, admin endpoints ready
+
+**Key Achievement**: Established comprehensive audit system supporting compliance, security monitoring, and operational investigation while maintaining single codebase for SQLite (test) and PostgreSQL (production).

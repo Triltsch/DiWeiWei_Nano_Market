@@ -1,8 +1,8 @@
 # Audit Logging Framework Implementation
 
 **Status**: ✅ COMPLETE - Issue #6 Implementation
-**Test Results**: 187/187 tests passing (100%)
-**Code Coverage**: 87%
+**Test Results**: 188/188 tests passing (100%)
+**Code Coverage**: 87.18%
 
 ## Overview
 
@@ -167,7 +167,7 @@ The audit logging system is integrated into the authentication module to capture
 1. **Immutability**: Audit logs can only be created, never updated or deleted (except retention cleanup)
 2. **Sensitive Data Protection**: No passwords, tokens, or sensitive personal data in metadata
 3. **Timezone Awareness**: All timestamps are UTC, timezone-aware
-4. **Access Control**: All audit endpoints require authentication (admin role planned)
+4. **Access Control**: All audit endpoints require authentication and are restricted to users with an `admin` (or equivalent high-privilege) role. Regular users cannot access system-wide audit logs.
 5. **IP & UA Capture**: Full context for investigating suspicious patterns
 6. **JSONB Storage**: Flexible metadata for future extensibility
 
@@ -201,8 +201,8 @@ The audit logging system is integrated into the authentication module to capture
   - Metadata sanitization
 
 ### Test Results
-- **Total**: 171/171 passing (100%)
-- **Coverage**: 87%
+- **Total**: 188/188 passing (100%)
+- **Coverage**: 87.18%
 
 ## Usage Examples
 

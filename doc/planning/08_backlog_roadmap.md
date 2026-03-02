@@ -6,6 +6,11 @@
 
 ### High-Level Epics für MVP (Q3 2025)
 
+> **Tech Stack Note:** The MVP uses a vendor-neutral, open-source stack as defined in `05_system_architecture.md`.
+> Backend: FastAPI + PostgreSQL + Redis (self-hosted) + MinIO + Prometheus/Grafana
+> Frontend: React 18 + Vite + Tailwind CSS
+> Deployment: Docker Compose (no cloud vendor lock-in)
+
 ```
 EPIC 1: Foundation & Security (2 Wochen)
 ├─ Story 1.1: User Registration & Login
@@ -22,7 +27,7 @@ EPIC 2: Core Nano Management (3 Wochen)
 └─ Story 2.5: Nano Detail View & Display
 
 EPIC 3: Discovery & Search (2 Wochen)
-├─ Story 3.1: Full-Text Search Implementation
+├─ Story 3.1: Full-Text Search Implementation (Meilisearch)
 ├─ Story 3.2: Faceted Filtering (Category, Level, Duration)
 ├─ Story 3.3: Search Result Ranking
 ├─ Story 3.4: Pagination & Performance
@@ -48,15 +53,25 @@ EPIC 6: Moderation & Trust (1 Woche)
 └─ Story 6.4: Admin Takedown Functions
 
 EPIC 7: DevOps & Infrastructure (Parallel, 2 Wochen)
-├─ Story 7.1: AWS Environment Setup
-├─ Story 7.2: RDS Aurora MySQL Config
-├─ Story 7.3: S3 Upload Pipeline
-├─ Story 7.4: ElastiCache Setup
-├─ Story 7.5: CloudWatch Monitoring
+├─ Story 7.1: Docker Compose Environment Setup
+├─ Story 7.2: PostgreSQL Setup & Schema Migrations
+├─ Story 7.3: MinIO Object Storage Setup
+├─ Story 7.4: Redis Cache Setup (Self-Hosted)
+├─ Story 7.5: Prometheus/Grafana Monitoring
 ├─ Story 7.6: CI/CD Pipeline (GitHub Actions)
-└─ Story 7.7: SSL/TLS & Security Hardening
+└─ Story 7.7: SSL/TLS & Security Hardening (Caddy/Nginx)
 
-TOTAL: ~8 Wochen (2 Monate) für MVP
+EPIC 8: Frontend & Web Application (3 Wochen, parallel ab Sprint 2)
+├─ Story 8.1: Frontend Project Setup (React 18 + Vite + Tailwind CSS)
+├─ Story 8.2: Landing Page & Global Navigation
+├─ Story 8.3: Auth Pages (Register, Login, Email Verification)
+├─ Story 8.4: Nano Discovery Page & Search UI
+├─ Story 8.5: Nano Detail Page (incl. ratings & chat CTA)
+├─ Story 8.6: Creator Dashboard (upload, manage Nanos)
+├─ Story 8.7: User Profile & Account Settings
+└─ Story 8.8: Admin Panel UI
+
+TOTAL: ~10 Wochen (2.5 Monate) für MVP (inkl. Frontend)
 ```
 
 ---
@@ -132,7 +147,7 @@ Scenario: Creator Uploads Nano
   ✓ UploadProgress shown (0-100%)
   ✓ Upload timeout after 10 min
   ✓ Failed uploads → retry available
-  ✓ S3 ACL: Private (only authenticated users)
+  ✓ MinIO ACL: Private (only authenticated users via pre-signed URLs)
 ```
 
 **Effort Estimate:** 10 Personentage  
@@ -235,61 +250,226 @@ Scenario: Consumer initiates Chat
 
 ---
 
-## 3. Sprint Planning (MVP: 8 Sprints à 1 Woche)
+### Story 8.1: Frontend Project Setup
+
+**Tech Stack:** React 18 + Vite + Tailwind CSS + React Query + Axios + React Router v6
+
+```
+Acceptance Criteria:
+✓ Vite project bootstrapped with TypeScript
+✓ Tailwind CSS configured with design tokens (colors, fonts)
+✓ React Router configured with routes: /, /search, /nano/:id, /login, /register,
+    /dashboard, /profile, /admin
+✓ Axios API client configured (base URL from .env, JWT header injection)
+✓ React Query set up for server-state management
+✓ ESLint + Prettier configured
+✓ Proxy config for local dev → FastAPI backend on :8000
+✓ Docker Compose service added for frontend (nginx static serve)
+```
+
+**Effort Estimate:** 3 Personentage  
+**Done Criteria:**
+- [ ] `npm run dev` works locally against backend
+- [ ] `npm run build` produces deployable static bundle
+- [ ] Linting & formatting checks pass
+
+---
+
+### Story 8.2: Landing Page & Global Navigation
+
+```gherkin
+Feature: Public Landing Page
+
+Scenario: Visitor opens the website
+  Given: User is not logged in
+  When:  User navigates to /
+  Then:  Landing page shows value proposition
+  And:   Navigation shows: Logo, Search, Login, Register
+  And:   CTA buttons link to /register and /search
+  And:   Page renders in <2s (Lighthouse ≥85)
+
+  Acceptance Criteria:
+  ✓ Responsive (mobile, tablet, desktop)
+  ✓ Navigation collapses to hamburger on mobile
+  ✓ Authenticated users see: Dashboard, Profile, Logout in nav
+  ✓ Language: German (de) default
+```
+
+**Effort Estimate:** 4 Personentage
+
+---
+
+### Story 8.3: Auth Pages
+
+```gherkin
+Feature: Register, Login, Email Verification flows
+
+Scenario: Registration Form
+  Given:  Visitor on /register
+  When:   Visitor fills in email, username, password
+  And:    Visitor accepts terms + privacy
+  Then:   POST /api/v1/auth/register called
+  And:    Success → redirect to "Check your email" page
+  And:    Error → inline validation messages shown
+
+Scenario: Login Form
+  Given:  Visitor on /login
+  When:   Visitor submits valid credentials
+  Then:   Tokens stored (access: memory, refresh: httpOnly cookie)
+  And:    Redirect to /dashboard
+
+  Acceptance Criteria:
+  ✓ Password strength indicator shown during registration
+  ✓ Account locked state shows remaining lockout time
+  ✓ "Resend verification email" link on verification-pending page
+  ✓ Forgot password link (Phase 1 — placeholder for MVP)
+  ✓ Protected routes redirect to /login if unauthenticated
+```
+
+**Effort Estimate:** 6 Personentage  
+**Done Criteria:**
+- [ ] Full auth flow works end-to-end (register → verify → login → logout)
+- [ ] Token refresh handled transparently by Axios interceptor
+
+---
+
+### Story 8.4: Nano Discovery Page & Search UI
+
+```gherkin
+Feature: Browse and Search Nanos
+
+Scenario: User browses Nanos
+  Given:  User on /search
+  Then:   Published Nanos shown (paginated, 20/page)
+  And:    Filter sidebar: Category, Level, Duration, Language
+
+Scenario: User enters search term
+  When:   User types in search box
+  Then:   Results update (debounced, 300ms)
+  And:    Each result shows: Title, Creator, Avg Rating, Duration
+
+  Acceptance Criteria:
+  ✓ Empty state: "No Nanos found. Try different keywords."
+  ✓ Loading skeleton shown during fetch
+  ✓ URL reflects search term + active filters (shareable link)
+  ✓ Pagination: page numbers or "Load more"
+```
+
+**Effort Estimate:** 6 Personentage
+
+---
+
+### Story 8.5–8.8: Nano Detail, Creator Dashboard, User Profile, Admin Panel
+
+```
+Story 8.5: Nano Detail Page
+- Full Nano information, file preview/download CTA
+- Star rating widget, comment list
+- "Message Creator" button → opens chat modal
+- Acceptance: Authenticated download only; unauthenticated → /login
+
+Story 8.6: Creator Dashboard
+- List of creator's own Nanos with status badges
+- Upload wizard (ZIP select → metadata form → submit)
+- Edit/delete draft Nanos
+- Acceptance: Only accessible to users with 'creator' role
+
+Story 8.7: User Profile & Account Settings
+- Display username, bio, language preference
+- Change password form
+- GDPR: Export my data / Request account deletion buttons
+- Acceptance: All DSGVO endpoints wired up
+
+Story 8.8: Admin Panel UI
+- User list with role management
+- Audit log viewer (paginated)
+- Moderation queue for flagged Nanos
+- Acceptance: Only accessible to 'admin' role (401/403 otherwise)
+```
+
+**Effort Estimate:** 16 Personentage (combined)
+
+---
+
+## 3. Sprint Planning (MVP: 10 Sprints à 1 Woche)
+
+> **Two parallel tracks from Sprint 2 onwards:**
+> - **Backend Track:** API, business logic, database, infrastructure
+> - **Frontend Track:** React application (can be developed alongside backend by second developer or sequentially)
 
 ```
 Sprint 1 (Week 1): Foundation
-├─ Story 1.1: Auth & Login
-├─ Story 1.3: Password Hashing
-└─ Story 1.4: DSGVO Basics
-Goal: Secure API baseline
+├─ Story 1.1: Auth & Login (Backend)
+├─ Story 1.3: Password Hashing (Backend)
+├─ Story 1.4: DSGVO Basics (Backend)
+└─ Story 7.1: Docker Compose Environment Setup
+Goal: Secure API baseline + local dev environment running
 
-Sprint 2 (Week 2): Nano Upload
-├─ Story 2.1: Nano Upload
-├─ Story 7.1: AWS Setup
-└─ Story 7.3: S3 Pipeline
-Goal: Can upload Nanos to cloud
+Sprint 2 (Week 2): Nano Upload & Storage + Frontend Bootstrap
+├─ Story 2.1: Nano Upload (Backend)
+├─ Story 7.2: PostgreSQL Setup & Migrations
+├─ Story 7.3: MinIO Object Storage Setup
+└─ Story 8.1: Frontend Project Setup (React + Vite + Tailwind)
+Goal: Can upload Nanos to MinIO; frontend scaffold ready
 
-Sprint 3 (Week 3): Metadata & Status
-├─ Story 2.2: Nano Metadata Capture
-├─ Story 2.4: Status Workflow
-└─ Story 6.2: Moderation Queue
-Goal: Full Nano Management cycle
+Sprint 3 (Week 3): Metadata, Status & Auth Frontend
+├─ Story 2.2: Nano Metadata Capture (Backend)
+├─ Story 2.4: Status Workflow (Backend)
+├─ Story 8.2: Landing Page & Global Navigation (Frontend)
+└─ Story 8.3: Auth Pages (Register, Login, Email Verification) (Frontend)
+Goal: Full Nano management backend; working auth UI
 
-Sprint 4 (Week 4): Search Infrastructure
-├─ Story 3.1: Full-Text Search
-├─ Story 7.4: ElastiCache
-└─ Story 7.5: CloudWatch
-Goal: Search operational
+Sprint 4 (Week 4): Search Infrastructure & Discovery UI
+├─ Story 3.1: Full-Text Search (Meilisearch) (Backend)
+├─ Story 7.4: Redis Cache Setup
+├─ Story 8.4: Nano Discovery Page & Search UI (Frontend)
+└─ Story 3.5: Search UI integration with backend API
+Goal: Search operational end-to-end
 
-Sprint 5 (Week 5): Feedback
-├─ Story 4.1: Star Rating
-├─ Story 4.2: Comments
-└─ Story 4.4: Rating Moderation
-Goal: Users can provide feedback
+Sprint 5 (Week 5): Monitoring, Nano Detail & Creator Dashboard
+├─ Story 7.5: Prometheus/Grafana Monitoring
+├─ Story 2.5: Nano Detail View (Backend)
+├─ Story 8.5: Nano Detail Page (Frontend)
+└─ Story 8.6: Creator Dashboard (upload, manage Nanos) (Frontend)
+Goal: Creators can publish Nanos; monitoring live
 
-Sprint 6 (Week 6): Communication
-├─ Story 5.1: Chat Sessions
-├─ Story 5.2: Messages
-└─ Story 5.4: Encryption (TLS)
-Goal: Direct messaging works
+Sprint 6 (Week 6): Feedback System
+├─ Story 4.1: Star Rating (Backend)
+├─ Story 4.2: Comments / Reviews (Backend)
+├─ Story 4.4: Rating Moderation (Backend)
+└─ Rating UI integrated into Nano Detail Page (Frontend)
+Goal: Users can provide feedback end-to-end
 
-Sprint 7 (Week 7): Frontend & UX
-├─ Story 3.5: Search UI
-├─ Story 5.3: Chat UI
-├─ Story 2.5: Nano Detail View
-└─ Story 6.4: Admin UI
-Goal: All UIs integrated
+Sprint 7 (Week 7): Communication
+├─ Story 5.1: Chat Sessions (Backend)
+├─ Story 5.2: Messages (Backend)
+├─ Story 5.4: Encryption TLS (Backend)
+└─ Story 5.3: Chat UI with Polling (Frontend)
+Goal: Direct messaging works end-to-end
 
-Sprint 8 (Week 8): Testing & Hardening
-├─ Integration tests
+Sprint 8 (Week 8): User Profile, Moderation & Admin UI
+├─ Story 8.7: User Profile & Account Settings (Frontend)
+├─ Story 6.2: Content Review Workflow (Backend)
+├─ Story 6.4: Admin Takedown Functions (Backend)
+└─ Story 8.8: Admin Panel UI (Frontend)
+Goal: Full admin + user profile functionality
+
+Sprint 9 (Week 9): Security Hardening & CI/CD
+├─ Story 7.6: CI/CD Pipeline (GitHub Actions)
+├─ Story 7.7: SSL/TLS & Security Hardening (Caddy/Nginx)
+├─ Story 6.3: Flag System (User Reporting)
+└─ Story 5.5: Spam Prevention
+Goal: Production-safe deployment pipeline
+
+Sprint 10 (Week 10): Testing, QA & Go-Live
+├─ Integration tests (full stack)
 ├─ Security audit
-├─ Load testing
-├─ Go-Live prep
-└─ Documentation
+├─ Load testing & performance tuning
+├─ Go-Live prep & documentation
+└─ Story 8.2 polish (landing page final)
 Goal: Production-ready
 
-TOTAL: 8 Sprints = 2 Monate MVP
+TOTAL: 10 Sprints = 2.5 Monate MVP (inkl. Frontend)
 ```
 
 ---
