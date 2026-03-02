@@ -5,7 +5,6 @@ This module defines request and response models for the upload API endpoints.
 """
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field

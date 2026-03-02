@@ -1145,9 +1145,9 @@ Implemented file upload endpoint with ZIP validation, authentication, and draft 
 
 #### 3. **Memory-Safe File Size Validation**
 - **Problem**: Need to enforce 100MB upload limit without loading entire file into memory
-- **Solution**: Stream file content in 8KB chunks, accumulate size, reject when threshold exceeded
+- **Solution**: Stream file content in 1MB chunks, accumulate size, reject when threshold exceeded
   ```python
-  while chunk := await file.read(8192):
+  while chunk := await file.read(1024 * 1024):
       total_size += len(chunk)
       if total_size > MAX_FILE_SIZE:
           raise HTTPException(status_code=413)
@@ -1253,4 +1253,14 @@ tests/modules/upload/
 - **Code Quality**: Black ✅, isort ✅, no linting errors ✅
 - **Time to Implement**: ~3 hours
 - **Achievement**: Production-ready file upload endpoint with comprehensive validation and testing
+
+### PR Review Follow-Up Learnings (Issue #24 / PR #38)
+
+- **Review-only blind spot #1 (error exposure):** Generic exception handlers that return `str(e)` can leak internal details. Use stable client-facing messages and log full exceptions server-side.
+- **Review-only blind spot #2 (test memory pressure):** Unit tests used very large in-memory payloads (50-101MB), which did not fail locally but can slow or destabilize CI.
+- **Why this was caught in PR review and not initial implementation:** Local runs had sufficient memory headroom and no security-focused assertion for error detail leakage.
+- **Prevention added:**
+  - Reworked size tests to monkeypatch `MAX_UPLOAD_SIZE` and use small payloads while preserving boundary semantics.
+  - Added test to assert unexpected ZIP parsing errors return a generic message and never expose internal exception text.
+  - Updated ZIP structure validation to avoid reading full upload into memory via `await file.read()`.
 

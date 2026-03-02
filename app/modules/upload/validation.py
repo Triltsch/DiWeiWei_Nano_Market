@@ -7,11 +7,13 @@ This module provides utilities for validating uploaded ZIP files:
 - ZIP structure validation
 """
 
+import logging
 import zipfile
-from io import BytesIO
 from typing import Final
 
 from fastapi import HTTPException, UploadFile, status
+
+logger = logging.getLogger(__name__)
 
 # Constants
 MAX_UPLOAD_SIZE: Final[int] = 100 * 1024 * 1024  # 100 MB in bytes
@@ -71,7 +73,7 @@ async def validate_file_size(file: UploadFile) -> None:
         total_size += len(chunk)
         if total_size > MAX_UPLOAD_SIZE:
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=f"File size exceeds maximum allowed size of {MAX_UPLOAD_SIZE // (1024 * 1024)} MB.",
             )
 
@@ -92,15 +94,9 @@ async def validate_zip_structure(file: UploadFile) -> None:
     # Reset file position
     await file.seek(0)
 
-    # Read file content
-    content = await file.read()
-
-    # Reset file position for subsequent operations
-    await file.seek(0)
-
     try:
-        # Attempt to open as ZIP
-        with zipfile.ZipFile(BytesIO(content), "r") as zip_file:
+        # Attempt to open as ZIP from underlying file object to avoid full buffering in memory
+        with zipfile.ZipFile(file.file, "r") as zip_file:
             # Test ZIP integrity
             if zip_file.testzip() is not None:
                 raise HTTPException(
@@ -132,11 +128,15 @@ async def validate_zip_structure(file: UploadFile) -> None:
     except HTTPException:
         # Re-raise our own exceptions
         raise
-    except Exception as e:
+    except Exception:
+        logger.exception("Unexpected error while validating ZIP structure")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Error processing ZIP file: {str(e)}",
+            detail="Unable to process ZIP file. Ensure the file is a valid ZIP archive.",
         )
+    finally:
+        # Reset file position for subsequent operations
+        await file.seek(0)
 
 
 async def validate_upload(file: UploadFile) -> None:

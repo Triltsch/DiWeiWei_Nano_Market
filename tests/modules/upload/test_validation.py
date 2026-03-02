@@ -14,8 +14,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import HTTPException, UploadFile
 
+from app.modules.upload import validation as upload_validation
 from app.modules.upload.validation import (
-    MAX_UPLOAD_SIZE,
     validate_file_size,
     validate_file_type,
     validate_upload,
@@ -90,14 +90,12 @@ class TestFileSizeValidation:
     """
 
     @pytest.mark.asyncio
-    async def test_file_within_size_limit(self):
+    async def test_file_within_size_limit(self, monkeypatch):
         """Test that files under 100 MB are accepted."""
-        # Create a file of 50 MB
-        size = 50 * 1024 * 1024
-        content = b"0" * size
+        monkeypatch.setattr(upload_validation, "MAX_UPLOAD_SIZE", 1024)
 
         file = MagicMock(spec=UploadFile)
-        file.read = AsyncMock(side_effect=[content, b""])
+        file.read = AsyncMock(side_effect=[b"0" * 512, b""])
         file.seek = AsyncMock()
 
         # Should not raise exception
@@ -105,14 +103,12 @@ class TestFileSizeValidation:
         assert file.seek.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_file_exceeds_size_limit(self):
+    async def test_file_exceeds_size_limit(self, monkeypatch):
         """Test that files over 100 MB are rejected."""
-        # Create chunks that exceed 100 MB
-        chunk_size = 1024 * 1024  # 1 MB
-        num_chunks = 101  # 101 MB total
+        monkeypatch.setattr(upload_validation, "MAX_UPLOAD_SIZE", 1024)
 
         file = MagicMock(spec=UploadFile)
-        chunks = [b"0" * chunk_size for _ in range(num_chunks)] + [b""]
+        chunks = [b"0" * 600, b"0" * 600, b""]
         file.read = AsyncMock(side_effect=chunks)
         file.seek = AsyncMock()
 
@@ -123,15 +119,12 @@ class TestFileSizeValidation:
         assert "exceeds maximum allowed size" in exc_info.value.detail
 
     @pytest.mark.asyncio
-    async def test_file_exactly_at_size_limit(self):
+    async def test_file_exactly_at_size_limit(self, monkeypatch):
         """Test that a file exactly at 100 MB is accepted."""
-        # Create a file of exactly 100 MB
-        size = MAX_UPLOAD_SIZE
-        chunk_size = 1024 * 1024  # 1 MB
-        num_chunks = size // chunk_size
+        monkeypatch.setattr(upload_validation, "MAX_UPLOAD_SIZE", 1024)
 
         file = MagicMock(spec=UploadFile)
-        chunks = [b"0" * chunk_size for _ in range(num_chunks)] + [b""]
+        chunks = [b"0" * 512, b"0" * 512, b""]
         file.read = AsyncMock(side_effect=chunks)
         file.seek = AsyncMock()
 
@@ -158,8 +151,8 @@ class TestZipStructureValidation:
         zip_content = zip_buffer.getvalue()
 
         file = MagicMock(spec=UploadFile)
-        file.read = AsyncMock(return_value=zip_content)
         file.seek = AsyncMock()
+        file.file = io.BytesIO(zip_content)
 
         # Should not raise exception
         await validate_zip_structure(file)
@@ -175,8 +168,8 @@ class TestZipStructureValidation:
         zip_content = zip_buffer.getvalue()
 
         file = MagicMock(spec=UploadFile)
-        file.read = AsyncMock(return_value=zip_content)
         file.seek = AsyncMock()
+        file.file = io.BytesIO(zip_content)
 
         with pytest.raises(HTTPException) as exc_info:
             await validate_zip_structure(file)
@@ -196,8 +189,8 @@ class TestZipStructureValidation:
         zip_content = zip_buffer.getvalue()
 
         file = MagicMock(spec=UploadFile)
-        file.read = AsyncMock(return_value=zip_content)
         file.seek = AsyncMock()
+        file.file = io.BytesIO(zip_content)
 
         with pytest.raises(HTTPException) as exc_info:
             await validate_zip_structure(file)
@@ -212,8 +205,8 @@ class TestZipStructureValidation:
         corrupt_content = b"This is not a valid ZIP file"
 
         file = MagicMock(spec=UploadFile)
-        file.read = AsyncMock(return_value=corrupt_content)
         file.seek = AsyncMock()
+        file.file = io.BytesIO(corrupt_content)
 
         with pytest.raises(HTTPException) as exc_info:
             await validate_zip_structure(file)
@@ -236,11 +229,35 @@ class TestZipStructureValidation:
         zip_content = zip_buffer.getvalue()
 
         file = MagicMock(spec=UploadFile)
-        file.read = AsyncMock(return_value=zip_content)
         file.seek = AsyncMock()
+        file.file = io.BytesIO(zip_content)
 
         # Should not raise exception
         await validate_zip_structure(file)
+
+    @pytest.mark.asyncio
+    async def test_unexpected_zip_error_returns_generic_message(self, monkeypatch):
+        """Test that unexpected ZIP parsing errors do not leak internal details."""
+
+        class BrokenZipFile:
+            def __init__(self, *args, **kwargs):
+                raise RuntimeError("internal-parser-error")
+
+        monkeypatch.setattr(upload_validation.zipfile, "ZipFile", BrokenZipFile)
+
+        file = MagicMock(spec=UploadFile)
+        file.seek = AsyncMock()
+        file.file = io.BytesIO(b"any-content")
+
+        with pytest.raises(HTTPException) as exc_info:
+            await validate_zip_structure(file)
+
+        assert exc_info.value.status_code == 400
+        assert (
+            exc_info.value.detail
+            == "Unable to process ZIP file. Ensure the file is a valid ZIP archive."
+        )
+        assert "internal-parser-error" not in exc_info.value.detail
 
 
 class TestCompleteValidation:
@@ -265,6 +282,7 @@ class TestCompleteValidation:
         file.filename = "test.zip"
         file.read = AsyncMock(side_effect=[zip_content, b"", zip_content])
         file.seek = AsyncMock()
+        file.file = io.BytesIO(zip_content)
 
         # Should not raise exception
         await validate_upload(file)
@@ -283,16 +301,14 @@ class TestCompleteValidation:
         # Validation should fail at type check, before size/structure checks
 
     @pytest.mark.asyncio
-    async def test_complete_validation_fails_on_size(self):
+    async def test_complete_validation_fails_on_size(self, monkeypatch):
         """Test that validation fails on file size even if type is correct."""
-        # Create chunks that exceed 100 MB
-        chunk_size = 1024 * 1024  # 1 MB
-        num_chunks = 101  # 101 MB total
+        monkeypatch.setattr(upload_validation, "MAX_UPLOAD_SIZE", 1024)
 
         file = MagicMock(spec=UploadFile)
         file.content_type = "application/zip"
         file.filename = "test.zip"
-        chunks = [b"0" * chunk_size for _ in range(num_chunks)] + [b""]
+        chunks = [b"0" * 700, b"0" * 700, b""]
         file.read = AsyncMock(side_effect=chunks)
         file.seek = AsyncMock()
 
