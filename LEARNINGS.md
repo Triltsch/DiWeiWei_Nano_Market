@@ -852,3 +852,105 @@ Story 1.5 implemented comprehensive audit logging for tracking user actions, sus
 - **Deployment Readiness**: Cross-database compatible, retention policy configured, admin endpoints ready
 
 **Key Achievement**: Established comprehensive audit system supporting compliance, security monitoring, and operational investigation while maintaining single codebase for SQLite (test) and PostgreSQL (production).
+
+## Docker Compose Dev Stack (Issue #20 - Story 7.1)
+
+### Context
+Implemented a full local development stack with PostgreSQL, Redis, MinIO, Meilisearch, and FastAPI in `docker-compose.yml`, plus onboarding and troubleshooting docs in `README.md`.
+
+### Key Learnings
+
+#### 1. **Keep Test and Dev Compose Files Separate**
+- **Problem**: Reusing one compose file for both CI/testing and local development causes port and service-scope conflicts.
+- **Solution**: Preserve `docker-compose.test.yml` for isolated test DB usage and add dedicated `docker-compose.yml` for full local stack.
+- **Learning**: Separate compose files by lifecycle purpose (test vs dev) to avoid accidental coupling and flaky local setups.
+
+#### 2. **Healthchecks Drive Reliable Startup Order**
+- **Problem**: Service startup order with plain `depends_on` is not sufficient for readiness-sensitive apps.
+- **Solution**: Add healthchecks to all infrastructure services and use `depends_on: condition: service_healthy` for the backend.
+- **Learning**: For local multi-service stacks, readiness checks are essential to avoid startup race conditions and false failure reports.
+
+#### 3. **Document Access Paths and Credentials in One Place**
+- **Problem**: Developers lose time discovering service URLs, ports, and default credentials.
+- **Solution**: Add a single quick-start section in `README.md` with service URLs, credentials, and standard lifecycle commands.
+- **Learning**: A complete “first 5 minutes” runbook in README reduces onboarding friction more than scattered notes.
+
+#### 4. **Troubleshooting Section Prevents Repeated Support Loops**
+- **Problem**: Most local Docker issues are repetitive (port conflicts, stale volumes, missing rebuild, startup logs).
+- **Solution**: Add targeted troubleshooting commands (`logs`, `down -v`, rebuild flow, conflict checks).
+- **Learning**: Proactive troubleshooting guidance in docs significantly lowers recurring setup support overhead.
+
+### Implementation Metrics
+- **Files Added**: `Dockerfile`, `docker-compose.yml`
+- **Files Updated**: `README.md`, `LEARNINGS.md`
+- **Validation**: 188/188 tests passing, Black/isort checks passing
+
+### Code Review Learnings (10 Copilot Review Comments)
+
+#### 1. **Python Version Alignment Across Environments**
+- **Problem**: Dockerfile used Python 3.13 but project tooling (GitHub Actions/CI, mypy, black) targeted 3.11.
+- **Impact**: "Works in container but fails in CI" incompatibilities from dependency/typing differences.
+- **Fix**: Changed Dockerfile base from `python:3.13-slim` to `python:3.11-slim`.
+- **Learning**: Align ALL runtime environments (Docker, CI, local IDE) to single Python minor version declared in pyproject.toml.
+
+#### 2. **Docker Editable Install Without Source**
+- **Problem**: Builder stage ran `pip install -e .` after copying only `pyproject.toml`, causing build failures.
+- **Root Cause**: Editable installs require source code at install time.
+- **Fix**: Copy both `pyproject.toml` AND `app/` before install, use non-editable install (`pip install .`).
+- **Learning**: For Docker multi-stage builds, install non-editable packages in builder stage.
+
+#### 3. **Healthcheck Dependencies Not in Requirements**
+- **Problem**: Dockerfile HEALTHCHECK used `import requests`, but `requests` not in dependencies → container stays unhealthy forever.
+- **Fix**: Changed healthcheck to use stdlib `urllib.request` instead.
+- **Learning**: Container healthchecks must use only stdlib or explicitly installed  dependencies.
+
+#### 4. **Port Conflicts Between Dev and Test Compose**
+- **Problem**: `docker-compose.yml` Redis port 6379 conflicted with `docker-compose.test.yml` Redis 6379, violating "no port conflicts" acceptance criteria.
+- **Fix**: Changed dev Redis to port 6380, bound all service ports to `127.0.0.1` for security.
+- **Learning**: Separate compose files must have disjoint port ranges; document port mapping decisions.
+
+#### 5. **Security: Port Bindings Default to All Interfaces**
+- **Problem**: Docker Compose port syntax `"8000:8000"` exposes on `0.0.0.0` (all interfaces), accessible from LAN despite docs claiming "localhost-only".
+- **Fix**: Changed all port bindings to `"127.0.0.1:PORT:PORT"` to restrict to localhost.
+- **Learning**: Always explicitly bind to `127.0.0.1` for local-only services to prevent accidental LAN exposure.
+
+#### 6. **`:latest` Tags Break Reproducibility**
+- **Problem**: MinIO/Meilisearch using `:latest` tag causes non-reproducible builds, surprise breaking changes on rebuild.
+- **Fix**: Pinned to specific versions (MinIO `RELEASE.2025-02-26T08-46-43Z`, Meilisearch `v1.6.0`).
+- **Learning**: Never use `:latest` in dev/prod compose files; pin to immutable tags with documented upgrade path.
+
+#### 7. **Hardcoded Environment Variables vs `.env` File**
+- **Problem**: App service hardcoded 30+ env vars in compose instead of loading from `.env`, causing config drift.
+- **Story Requirement**: "Environment variables from .env injected" not met.
+- **Fix**: Changed to `env_file: .env` with minimal compose-specific overrides (REDIS_HOST, REDIS_PORT).
+- **Learning**: Use `env_file` for app config, only override infrastructure hostnames/ports in compose environment section.
+
+#### 8. **Missing Acceptance Criteria: Bucket Auto-Creation**
+- **Problem**: Story required MinIO bucket `nanos` auto-created on startup, but compose only started MinIO server.
+- **Fix**: Added `minio_init` service with MinIO Client (mc) to create bucket after MinIO healthcheck.
+- **Learning**: Infrastructure "init" services are essential for acceptance criteria requiring post-startup setup.
+
+#### 9. **Documentation Accuracy: Service Descriptions**
+- **Problem**: README claimed `docker-compose.test.yml` is "PostgreSQL-only" but actually includes Redis too.
+- **Fix**: Updated description to "Minimal PostgreSQL + Redis environment for CI testing".
+- **Learning**: Review existing files before documenting "what's already there" to avoid misleading descriptions.
+
+#### 10. **Security Warnings in Documentation**
+- **Problem**: README stated Redis is "localhost-only" without warning about no authentication, implying false security.
+- **Fix**: Added explicit warnings: "no auth; development use only; do not expose to untrusted networks".
+- **Learning**: Always document security implications of no-auth services, even if "localhost-only".
+
+### Why These Issues Weren't Caught Initially
+1. **Testing Gap**: No Docker build/run validation in the initial implementation.
+2. **Version Mismatch**: Python 3.13 installed locally but project configured for 3.11 (not immediately obvious).
+3. **Security Assumptions**: Port bindings to `0.0.0.0` are Docker default, requires explicit security awareness.
+4. **Editable Install**: `pip install -e .` works locally with source present, masks Docker build context issue.
+5. **Acceptance Criteria**: MinIO bucket creation wasn't in explicit checklist (story prose only).
+
+### Review Process Value
+- **10 substantial issues** caught by systematic PR review before merge.
+- **Security improvements**: Localhost-only binding, explicit no-auth warnings.
+- **Reproducibility**: Version pinning, Python version alignment.
+- **Acceptance criteria completeness**: Bucket auto-creation now implemented.
+
+**Time Investment**: Review fixes took ~30 minutes; would have cost hours of debugging in production.
