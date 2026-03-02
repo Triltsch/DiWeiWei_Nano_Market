@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import AuditAction
 from app.modules.audit.service import AuditLogger
+from app.modules.auth.middleware import require_role
 from app.schemas import AuditLogResponse, AuditLogsQueryResponse, SuspiciousActivityResponse
 
 
@@ -19,7 +20,11 @@ def get_audit_router() -> APIRouter:
     Returns:
         APIRouter: Configured router for audit endpoints
     """
-    router = APIRouter(prefix="/api/v1/admin", tags=["audit"])
+    router = APIRouter(
+        prefix="/api/v1/admin",
+        tags=["audit"],
+        dependencies=[Depends(require_role("admin"))],
+    )
 
     @router.get(
         "/audit-logs",

@@ -110,6 +110,9 @@ async def register(
     Returns new user with ID and timestamps. Email verification required before login.
     """
     try:
+        # NOTE: register_user() commits internally before we log the audit entry.
+        # This means if audit logging fails, the user is already registered.
+        # TODO: Refactor to single transaction boundary (services should flush, not commit)
         user = await register_user(db, user_data)
 
         # Log successful registration
@@ -168,7 +171,9 @@ async def login(
     Returns access_token (15 min expiry) and refresh_token (7 days expiry).
     User must have verified email to login. Account locks after 3 failed attempts for 1 hour.
     """
-    try:
+    try:  # NOTE: authenticate_user() commits internally (updates last_login, resets attempts)
+        # before we log the audit entry. If audit logging fails, login state is already committed.
+        # TODO: Refactor to single transaction boundary at router level
         user, tokens = await authenticate_user(db, credentials.email, credentials.password)
 
         # Log successful login

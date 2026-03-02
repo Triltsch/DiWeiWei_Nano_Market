@@ -7,10 +7,7 @@ from uuid import UUID
 from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings
 from app.models import AuditAction, AuditLog
-
-settings = get_settings()
 
 
 class AuditLogger:
@@ -167,7 +164,7 @@ class AuditLogger:
         old_logs = result.scalars().all()
 
         for log in old_logs:
-            await session.delete(log)
+            session.delete(log)
 
         await session.flush()
         return len(old_logs)

@@ -3,7 +3,7 @@
 import enum
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import JSON, Boolean, DateTime
 from sqlalchemy import Enum as SQLEnum
@@ -236,7 +236,7 @@ class AuditLog(Base):
     resource_id: Mapped[Optional[str]] = mapped_column(
         String(200), nullable=True, index=True, comment="ID of the resource affected"
     )
-    event_data: Mapped[Optional[dict]] = mapped_column(
+    event_data: Mapped[Optional[dict[str, Any]]] = mapped_column(
         JSON().with_variant(JSONB, "postgresql"),
         nullable=True,
         comment="Additional context about the action",

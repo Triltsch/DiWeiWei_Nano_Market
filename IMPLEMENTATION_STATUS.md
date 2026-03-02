@@ -503,7 +503,7 @@ Service functions for GDPR compliance:
 
 # Implementation Status - Story 1.5: Audit Logging Framework
 
-## Status: COMPLETE - All 171/171 tests passing with 87% code coverage
+## Status: COMPLETE - All 187/187 tests passing with 86.73% code coverage
 
 **Latest Update**: Issue #6 (Audit Logging Framework) - Complete
 
@@ -523,7 +523,7 @@ Service functions for GDPR compliance:
    - cleanup_old_logs() - 90-day retention policy enforcement
 
 3. **Admin API Endpoints**
-   - POST /api/v1/admin/audit-logs - Query with filters and pagination
+   - GET /api/v1/admin/audit-logs - Query with filters and pagination
    - GET /api/v1/admin/audit-logs/recent - Recent logs for dashboard
    - GET /api/v1/admin/audit-logs/suspicious/{user_id} - Suspicious activity alerts
 
@@ -536,8 +536,8 @@ Service functions for GDPR compliance:
 
 ### Test Results
 
-- **Total Tests**: 171/171 passing (100%)
-- **Coverage**: 87% (902 statements, 117 missed)
+- **Total Tests**: 187/187 passing (100%)
+- **Coverage**: 86.73% (updated to match actual results)
 - **Service Tests**: 18 tests for logging, querying, filtering, pagination
 - **API Tests**: 9 tests for endpoint functionality and authentication
 - **Integration Tests**: 9 tests for auth flow logging

@@ -1,12 +1,12 @@
 """Pydantic schemas for request/response validation"""
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from app.models import AuditAction, UserRole, UserStatus
+from app.models import UserRole, UserStatus
 
 
 class UserBase(BaseModel):
@@ -203,7 +203,7 @@ class AuditLogResponse(BaseModel):
     action: str
     resource_type: Optional[str] = None
     resource_id: Optional[str] = None
-    metadata: Optional[dict] = None
+    metadata: Optional[dict[str, Any]] = None
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     created_at: datetime

@@ -3,6 +3,7 @@
 import asyncio
 import os
 import sys
+import uuid
 from uuid import UUID
 
 import httpx
@@ -284,3 +285,50 @@ async def verified_user(async_client, db_session, test_user_data) -> User:
     result = await db_session.execute(query)
     user = result.scalar_one()
     return user
+
+
+@pytest.fixture
+async def admin_user(async_client, db_session) -> User:
+    """Create and verify an admin user, return the User object"""
+    from sqlalchemy import select
+
+    from app.models import UserRole
+
+    admin_data = {
+        "email": f"admin_{uuid.uuid4().hex[:8]}@example.com",
+        "username": f"admin_{uuid.uuid4().hex[:8]}",
+        "password": "AdminPass123!",
+        "accept_terms": True,
+        "accept_privacy": True,
+    }
+
+    response = await async_client.post("/api/v1/auth/register", json=admin_data)
+    assert response.status_code == 201
+    user_id = UUID(response.json()["id"])
+
+    # Verify the user email and promote to admin
+    await verify_user_email(db_session, user_id)
+
+    # Promote user to admin role
+    query = select(User).where(User.id == user_id)
+    result = await db_session.execute(query)
+    user = result.scalar_one()
+    user.role = UserRole.ADMIN
+    await db_session.commit()
+
+    return user
+
+
+@pytest.fixture
+async def admin_token(async_client, admin_user: User) -> str:
+    """Create and return access token for admin user"""
+    # Login to get token
+    login_response = await async_client.post(
+        "/api/v1/auth/login",
+        json={
+            "email": admin_user.email,
+            "password": "AdminPass123!",
+        },
+    )
+    assert login_response.status_code == 200
+    return login_response.json()["access_token"]

@@ -804,12 +804,12 @@ Story 1.5 implemented comprehensive audit logging for tracking user actions, sus
 
 #### 8. **Audit Log Integration Points**
 - **Problem**: Deciding WHERE to add logging - too much noise, too little coverage, timing inconsistency
-- **Solution**: Log at endpoint level, after business logic succeeds, before commit
-  - `user = await register_user(db, ...)` → Business logic
-  - `await AuditLogger.log_action(db, ...)` → Log success
-  - `await db.commit()` → Persist both atomically
-- **Why it works**: Logging after success, before commit ensures atomicity. Endpoint-level keeps logging observable
-- **Learning**: Audit logging should be synchronous and colocated with transaction boundaries. Avoid async event systems for core audit paths.
+- **Solution**: Log at endpoint level, immediately after auth service calls complete, using a separate audit write/commit
+  - `user = await register_user(db, ...)` → Business logic (service manages its own commit)
+  - `await AuditLogger.log_action(db, ...)` → Log success in a follow-up operation
+  - `await db.commit()` → Persist audit entry (not strictly atomic with auth service commit)
+- **Why it works**: Logging synchronously in the request flow ensures coverage and observability, even though auth and audit changes use separate commits
+- **Learning**: Audit logging should be synchronous and tightly coupled to core auth flows, but atomicity with business operations depends on transaction boundaries in the underlying services. Avoid async fire-and-forget systems for core audit paths.
 
 #### 9. **Test Fixtures and Real Database Integration**
 - **Problem**: Initial audit tests used non-existent fixtures (`db`, `user`, `auth_token`), causing collection-time failures

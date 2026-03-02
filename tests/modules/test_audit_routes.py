@@ -11,11 +11,39 @@ class TestAuditRoutes:
     """API tests for admin audit endpoints."""
 
     @pytest.mark.asyncio
+    async def test_query_audit_logs_requires_admin_auth(
+        self,
+        async_client,
+        db_session: AsyncSession,
+        verified_user: User,
+    ) -> None:
+        """Rejects unauthenticated and non-admin requests."""
+        # Unauthenticated request
+        response = await async_client.get("/api/v1/admin/audit-logs")
+        assert response.status_code == 401
+
+        # Regular user (non-admin) request
+        # Login as regular user to get token
+        login_response = await async_client.post(
+            "/api/v1/auth/login",
+            json={"email": verified_user.email, "password": "SecurePassword123!"},
+        )
+        assert login_response.status_code == 200
+        user_token = login_response.json()["access_token"]
+
+        response = await async_client.get(
+            "/api/v1/admin/audit-logs",
+            headers={"Authorization": f"Bearer {user_token}"},
+        )
+        assert response.status_code == 403
+
+    @pytest.mark.asyncio
     async def test_query_audit_logs_returns_paginated_result(
         self,
         async_client,
         db_session: AsyncSession,
         verified_user: User,
+        admin_token: str,
     ) -> None:
         """Returns the expected pagination wrapper with logs."""
         await AuditLogger.log_action(
@@ -27,7 +55,10 @@ class TestAuditRoutes:
         )
         await db_session.commit()
 
-        response = await async_client.get("/api/v1/admin/audit-logs?limit=10&offset=0")
+        response = await async_client.get(
+            "/api/v1/admin/audit-logs?limit=10&offset=0",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -43,6 +74,7 @@ class TestAuditRoutes:
         async_client,
         db_session: AsyncSession,
         verified_user: User,
+        admin_token: str,
     ) -> None:
         """Applies action filter when provided."""
         await AuditLogger.log_action(
@@ -59,7 +91,10 @@ class TestAuditRoutes:
         )
         await db_session.commit()
 
-        response = await async_client.get("/api/v1/admin/audit-logs?action=login_success")
+        response = await async_client.get(
+            "/api/v1/admin/audit-logs?action=login_success",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
 
         assert response.status_code == 200
         logs = response.json()["logs"]
@@ -72,6 +107,7 @@ class TestAuditRoutes:
         async_client,
         db_session: AsyncSession,
         verified_user: User,
+        admin_token: str,
     ) -> None:
         """Limits returned recent logs."""
         for _ in range(3):
@@ -83,7 +119,10 @@ class TestAuditRoutes:
             )
         await db_session.commit()
 
-        response = await async_client.get("/api/v1/admin/audit-logs/recent?limit=2")
+        response = await async_client.get(
+            "/api/v1/admin/audit-logs/recent?limit=2",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -96,6 +135,7 @@ class TestAuditRoutes:
         async_client,
         db_session: AsyncSession,
         verified_user: User,
+        admin_token: str,
     ) -> None:
         """Returns suspicious activity response for a user."""
         for _ in range(5):
@@ -108,7 +148,8 @@ class TestAuditRoutes:
         await db_session.commit()
 
         response = await async_client.get(
-            f"/api/v1/admin/audit-logs/suspicious/{verified_user.id}?window_minutes=60&threshold=5"
+            f"/api/v1/admin/audit-logs/suspicious/{verified_user.id}?window_minutes=60&threshold=5",
+            headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         assert response.status_code == 200
@@ -124,6 +165,7 @@ class TestAuditRoutes:
         async_client,
         db_session: AsyncSession,
         verified_user: User,
+        admin_token: str,
     ) -> None:
         """Exposes metadata in API response via schema alias."""
         await AuditLogger.log_action(
@@ -135,7 +177,10 @@ class TestAuditRoutes:
         )
         await db_session.commit()
 
-        response = await async_client.get("/api/v1/admin/audit-logs?limit=1")
+        response = await async_client.get(
+            "/api/v1/admin/audit-logs?limit=1",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
 
         assert response.status_code == 200
         logs = response.json()["logs"]
