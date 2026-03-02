@@ -1,8 +1,8 @@
 # Audit Logging Framework Implementation
 
 **Status**: ✅ COMPLETE - Issue #6 Implementation
-**Test Results**: 171/171 tests passing (100%)
-**Code Coverage**: 86.73%
+**Test Results**: 188/188 tests passing (100%)
+**Code Coverage**: 87.18%
 
 ## Overview
 
@@ -201,8 +201,8 @@ The audit logging system is integrated into the authentication module to capture
   - Metadata sanitization
 
 ### Test Results
-- **Total**: 171/171 passing (100%)
-- **Coverage**: 87%
+- **Total**: 188/188 passing (100%)
+- **Coverage**: 87.18%
 
 ## Usage Examples
 

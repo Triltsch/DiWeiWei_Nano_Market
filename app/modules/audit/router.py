@@ -37,7 +37,7 @@ def get_audit_router() -> APIRouter:
         user_id: Optional[UUID] = Query(
             None, description="Filter by user who performed the action"
         ),
-        action: Optional[str] = Query(None, description="Filter by action type"),
+        action: Optional[AuditAction] = Query(None, description="Filter by action type"),
         resource_type: Optional[str] = Query(None, description="Filter by resource type"),
         start_date: Optional[datetime] = Query(
             None, description="Filter logs after this date (ISO format)"
@@ -53,19 +53,10 @@ def get_audit_router() -> APIRouter:
         Returns:
             AuditLogsQueryResponse: Paginated list of audit logs
         """
-        # Convert action string to enum if provided
-        action_enum = None
-        if action:
-            try:
-                action_enum = AuditAction[action.upper()]
-            except KeyError:
-                # If invalid action, just ignore the filter
-                action_enum = None
-
         logs, total = await AuditLogger.query_logs(
             session,
             user_id=user_id,
-            action=action_enum,
+            action=action,
             resource_type=resource_type,
             start_date=start_date,
             end_date=end_date,

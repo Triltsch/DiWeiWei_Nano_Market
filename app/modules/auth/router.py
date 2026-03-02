@@ -33,6 +33,7 @@ from app.modules.auth.service import (
     resend_email_verification_token,
     verify_email_with_token,
 )
+from app.modules.auth.tokens import verify_token
 from app.modules.auth.validators import calculate_password_strength
 from app.schemas import (
     AccountDeletionRequest,
@@ -60,14 +61,32 @@ router = APIRouter(
 )
 
 
+# IP addresses of reverse proxies that are allowed to supply X-Forwarded-For
+# values that we trust for audit logging. When a request comes directly from
+# a client (i.e. not via one of these proxies), we ignore X-Forwarded-For and
+# instead use the immediate peer IP from request.client.host.
+TRUSTED_PROXIES: set[str] = {
+    "127.0.0.1",
+    "::1",
+}
+
+
 def _get_client_ip(request: Request) -> str:
     """Extract client IP address from request.
 
-    Handles X-Forwarded-For header for proxied requests.
+    When the request originates from a trusted reverse proxy, trust the
+    X-Forwarded-For header (first value only). Otherwise, fall back to the
+    immediate peer IP from request.client.host.
     """
-    if "x-forwarded-for" in request.headers:
-        return request.headers["x-forwarded-for"].split(",")[0].strip()
-    return request.client.host if request.client else ""
+    client_host: str = request.client.host if request.client else ""
+
+    # Only honor X-Forwarded-For when the immediate client is a trusted proxy
+    if client_host in TRUSTED_PROXIES:
+        x_forwarded_for = request.headers.get("x-forwarded-for")
+        if x_forwarded_for:
+            return x_forwarded_for.split(",")[0].strip()
+
+    return client_host
 
 
 def _get_user_agent(request: Request) -> str:
@@ -270,13 +289,19 @@ async def refresh_token(
     Returns new access_token with same expiry (15 min) and original refresh_token.
     """
     try:
+        # Verify token first to extract user_id for audit logging
+        token_data = verify_token(body.refresh_token, token_type="refresh")
+        user_id = token_data.user_id if token_data else None
+
         tokens = await refresh_access_token(db, body.refresh_token)
 
-        # Log token refresh
+        # Log token refresh with user_id for investigation purposes
         await AuditLogger.log_action(
             db,
             action=AuditAction.TOKEN_REFRESH,
+            user_id=user_id,
             resource_type="token",
+            resource_id=str(user_id) if user_id else None,
             metadata={"token_type": "refresh_token"},
             ip_address=_get_client_ip(request),
             user_agent=_get_user_agent(request),
