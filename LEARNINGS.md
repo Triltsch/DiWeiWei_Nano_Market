@@ -1073,3 +1073,44 @@ After implementing Issue #27 (PostgreSQL + MinIO compose provisioning), Copilot 
 - **Time to Implement**: ~15 minutes after review (much faster than eventual debugging)
 
 **Key Achievement**: Transformed working but fragile infrastructure config into production-ready pattern through systematic review. Emphasized importance of consistency, fail-fast behavior, and clear documentation even when functionality works.
+
+---
+
+## Database Migrations with Alembic & PostgreSQL Enums (Issue #22 - Nano Upload Domain Model)
+
+### Context
+Implemented database migrations for Sprint 2 Nano upload feature, establishing migration infrastructure and Nano domain models for upload workflow.
+
+### Key Learnings
+
+#### 1. **Alembic Setup with Async SQLAlchemy**
+- Modified migrations/env.py for async patterns (async_engine_from_config, asyncio.run)
+- Source database URL from environment at runtime
+- Learning: Async ORM requires explicit async handling in Alembic
+
+#### 2. **PostgreSQL Enum Types and Downgrade Safety**
+- Auto-generated migrations create enums but don't clean them up on downgrade
+- Solution: Add op.execute("DROP TYPE IF EXISTS myenum CASCADE") to downgrade()
+- Learning: PostgreSQL enums persist after table drops and must be explicitly cleaned
+
+#### 3. **Test Database Enum Cleanup**
+- Pytest fixtures using Base.metadata.create_all() fail with existing enums
+- Solution: Drop tables → drop orphaned enums → recreate everything
+- Learning: Integration tests need explicit enum cleanup before create_all()
+
+#### 4. **Nano Domain Model - Denormalization for Performance**
+- Added cache fields (download_count, average_rating, rating_count) for UI metrics
+- Learning: Denormalization acceptable when reads frequent and updates batched
+
+#### 5. **Enum as Primary Semantic Entity**
+- Use Python enums in code, let SQLAlchemy handle schema
+- Learning: Never scatter state values across migrations and code
+
+#### 6. **Foreign Key Strategy**
+- Nano ownership: CASCADE delete (user deletion cascades to Nanos)
+- Learning: CASCADE for ownership, SET NULL for audit trails
+
+### Implementation Stats
+- Files Modified: 5 | Migration: 1 (8 tables, 8 enums, 20+ indexes) | Tests: 188 passing
+- Time: ~2 hours | Achievement: Production-ready migration infrastructure
+

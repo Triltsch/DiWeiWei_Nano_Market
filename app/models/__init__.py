@@ -3,11 +3,12 @@
 import enum
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Optional
 
 from sqlalchemy import JSON, Boolean, DateTime
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, String, Text, func
+from sqlalchemy import ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -260,3 +261,284 @@ class AuditLog(Base):
     def __repr__(self) -> str:
         """String representation of audit log entry"""
         return f"<AuditLog(id={self.id}, user_id={self.user_id}, action={self.action}, resource_type={self.resource_type})>"
+
+
+# ================================
+# Nano Domain Models (Sprint 2)
+# ================================
+
+
+class NanoStatus(str, enum.Enum):
+    """Status of a Nano in the publishing workflow"""
+
+    DRAFT = "draft"
+    PENDING_REVIEW = "pending_review"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+    DELETED = "deleted"
+
+
+class NanoFormat(str, enum.Enum):
+    """Format/type of the Nano content"""
+
+    VIDEO = "video"
+    TEXT = "text"
+    QUIZ = "quiz"
+    INTERACTIVE = "interactive"
+    MIXED = "mixed"
+
+
+class CompetencyLevel(int, enum.Enum):
+    """Didactic/competency level (1=Basic, 2=Intermediate, 3=Advanced)"""
+
+    BASIC = 1
+    INTERMEDIATE = 2
+    ADVANCED = 3
+
+
+class LicenseType(str, enum.Enum):
+    """Content license types"""
+
+    CC_BY = "CC-BY"
+    CC_BY_SA = "CC-BY-SA"
+    CC0 = "CC0"
+    PROPRIETARY = "proprietary"
+
+
+class Nano(Base):
+    """
+    Nano entity - Core learning unit model.
+
+    Represents uploadable learning content with metadata,
+    versioning, and publishing workflow support.
+    """
+
+    __tablename__ = "nanos"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+
+    # Ownership
+    creator_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Creator/owner of the Nano",
+    )
+
+    # Core metadata
+    title: Mapped[str] = mapped_column(
+        String(200), nullable=False, comment="Nano title (max 200 chars)"
+    )
+    description: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, comment="Detailed description (max 1000 chars)"
+    )
+
+    # Learning metadata
+    duration_minutes: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, comment="Estimated duration in minutes"
+    )
+    competency_level: Mapped[CompetencyLevel] = mapped_column(
+        SQLEnum(CompetencyLevel),
+        default=CompetencyLevel.BASIC,
+        nullable=False,
+        index=True,
+        comment="Didactic level (1=Basic, 2=Intermediate, 3=Advanced)",
+    )
+    language: Mapped[str] = mapped_column(
+        String(5), default="de", nullable=False, index=True, comment="Content language (ISO 639-1)"
+    )
+    format: Mapped[NanoFormat] = mapped_column(
+        SQLEnum(NanoFormat),
+        default=NanoFormat.MIXED,
+        nullable=False,
+        comment="Content format/type",
+    )
+
+    # Publishing workflow
+    status: Mapped[NanoStatus] = mapped_column(
+        SQLEnum(NanoStatus),
+        default=NanoStatus.DRAFT,
+        nullable=False,
+        index=True,
+        comment="Publishing status",
+    )
+    version: Mapped[str] = mapped_column(
+        String(20), default="1.0.0", nullable=False, comment="Semantic version (semver)"
+    )
+
+    # Storage references
+    thumbnail_url: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True, comment="Thumbnail image URL (object storage)"
+    )
+    file_storage_path: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True, comment="ZIP file path in object storage (MinIO)"
+    )
+
+    # License
+    license: Mapped[LicenseType] = mapped_column(
+        SQLEnum(LicenseType),
+        default=LicenseType.PROPRIETARY,
+        nullable=False,
+        comment="Content license",
+    )
+
+    # Timestamps
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    published_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True, comment="When Nano was published"
+    )
+    archived_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, comment="When Nano was archived"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    # Denormalized cache fields for performance
+    download_count: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False, comment="Total downloads (cache)"
+    )
+    average_rating: Mapped[Decimal] = mapped_column(
+        Numeric(3, 2),
+        default=Decimal("0.00"),
+        nullable=False,
+        index=True,
+        comment="Average rating 0.00-5.00 (cache)",
+    )
+    rating_count: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False, comment="Total ratings (cache)"
+    )
+
+    def __repr__(self) -> str:
+        """String representation of Nano"""
+        return f"<Nano(id={self.id}, title={self.title}, status={self.status})>"
+
+
+class NanoVersion(Base):
+    """
+    Nano version audit trail.
+
+    Immutable ledger of Nano version history for audit/rollback purposes.
+    """
+
+    __tablename__ = "nano_versions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    nano_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("nanos.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Reference to parent Nano",
+    )
+    version: Mapped[str] = mapped_column(
+        String(20), nullable=False, comment="Semantic version (semver)"
+    )
+    changelog: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, comment="What changed in this version"
+    )
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="User who created this version",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    file_storage_path: Mapped[str] = mapped_column(
+        String(500), nullable=False, comment="Snapshot of file path at this version"
+    )
+    status: Mapped[NanoStatus] = mapped_column(
+        SQLEnum(NanoStatus),
+        default=NanoStatus.PUBLISHED,
+        nullable=False,
+        comment="Version status",
+    )
+
+    def __repr__(self) -> str:
+        """String representation of NanoVersion"""
+        return f"<NanoVersion(id={self.id}, nano_id={self.nano_id}, version={self.version})>"
+
+
+class Category(Base):
+    """
+    Category/Tag dictionary for Nano classification.
+
+    Hierarchical category system for content organization.
+    """
+
+    __tablename__ = "categories"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    name: Mapped[str] = mapped_column(
+        String(100), unique=True, nullable=False, index=True, comment="Category name"
+    )
+    description: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, comment="Category description"
+    )
+    parent_category_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("categories.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Parent category for hierarchy",
+    )
+    icon_url: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True, comment="Category icon URL"
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), default="active", nullable=False, comment="active or inactive"
+    )
+
+    def __repr__(self) -> str:
+        """String representation of Category"""
+        return f"<Category(id={self.id}, name={self.name})>"
+
+
+class NanoCategoryAssignment(Base):
+    """
+    Many-to-many relationship between Nanos and Categories.
+
+    Allows Nanos to be tagged with multiple categories (max 5).
+    """
+
+    __tablename__ = "nano_category_assignments"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    nano_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("nanos.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Nano reference",
+    )
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("categories.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Category reference",
+    )
+    rank: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False, comment="Display order/priority"
+    )
+
+    def __repr__(self) -> str:
+        """String representation of NanoCategoryAssignment"""
+        return f"<NanoCategoryAssignment(nano_id={self.nano_id}, category_id={self.category_id})>"

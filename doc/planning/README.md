@@ -36,6 +36,7 @@ Die Planung ist abgeleitet aus einer **Studienarbeit** (Januar 2025) und folgt E
 | **[07_modules.md](./07_modules.md)** | Modularer Aufbau (10 Module), Inter-Module Communication | Engineering, Architects |
 | **[08_backlog_roadmap.md](./08_backlog_roadmap.md)** | User Stories, Sprint-Planung, Releases (MVP → Phase 2) | Product, Scrum Master |
 | **[09_testing_quality.md](./09_testing_quality.md)** | Test-Pyramide, Unit/Integration/E2E Tests, Security Tests | QA, Engineering |
+| **[12_sprint_2_issue_plan.md](./12_sprint_2_issue_plan.md)** | Konkrete Issue-Planung für Sprint 2 (Backend/Ops/Frontend) | Product, Engineering, Scrum Master |
 
 ### Phase 4: Betrieb & Risiken
 

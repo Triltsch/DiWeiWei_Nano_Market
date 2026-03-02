@@ -10,6 +10,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.database import get_db
@@ -58,12 +59,42 @@ async def test_db_engine():
         )
 
     async with engine.begin() as conn:
+        # For PostgreSQL, drop all tables and enum types first to ensure clean state
+        if test_db_url:
+            await conn.run_sync(Base.metadata.drop_all)
+            # Drop enum types that might exist from previous migrations
+            await conn.execute(text("""
+                    DO $$ DECLARE
+                        r RECORD;
+                    BEGIN
+                        FOR r IN (SELECT typname FROM pg_type WHERE typname IN 
+                            ('userstatus', 'userrole', 'auditaction', 'consenttype', 
+                             'nanostatus', 'nanoformat', 'competencylevel', 'licensetype')) 
+                        LOOP
+                            EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(r.typname) || ' CASCADE';
+                        END LOOP;
+                    END $$;
+                    """))
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+        # Clean up enum types after tests
+        if test_db_url:
+            await conn.execute(text("""
+                    DO $$ DECLARE
+                        r RECORD;
+                    BEGIN
+                        FOR r IN (SELECT typname FROM pg_type WHERE typname IN 
+                            ('userstatus', 'userrole', 'auditaction', 'consenttype', 
+                             'nanostatus', 'nanoformat', 'competencylevel', 'licensetype')) 
+                        LOOP
+                            EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(r.typname) || ' CASCADE';
+                        END LOOP;
+                    END $$;
+                    """))
 
     await engine.dispose()
 
