@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.modules.audit.router import get_audit_router
 from app.modules.auth.router import get_auth_router
 from app.redis_client import close_redis, get_redis
 
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
 
     # Include routers
     app.include_router(get_auth_router())
+    app.include_router(get_audit_router())
 
     @app.get("/health")
     async def health_check() -> dict:

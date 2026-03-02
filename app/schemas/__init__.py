@@ -1,7 +1,7 @@
 """Pydantic schemas for request/response validation"""
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
@@ -191,3 +191,37 @@ class PasswordStrengthResponse(BaseModel):
         ...,
         description="Whether password meets minimum security policy requirements",
     )
+
+
+class AuditLogResponse(BaseModel):
+    """Audit log response schema"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    user_id: Optional[UUID] = None
+    action: str
+    resource_type: Optional[str] = None
+    resource_id: Optional[str] = None
+    metadata: Optional[dict[str, Any]] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    created_at: datetime
+
+
+class AuditLogsQueryResponse(BaseModel):
+    """Paginated audit logs query response schema"""
+
+    logs: list[AuditLogResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class SuspiciousActivityResponse(BaseModel):
+    """Suspicious activity detection response schema"""
+
+    user_id: UUID
+    activity_count: int
+    logs: list[AuditLogResponse]
+    message: str
