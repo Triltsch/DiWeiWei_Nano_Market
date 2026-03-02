@@ -325,15 +325,40 @@ docker-compose down -v
 | FastAPI Backend | http://localhost:8000 | REST API |
 | Swagger UI | http://localhost:8000/docs | API Documentation |
 | PostgreSQL | localhost:5432 | Database |
-| Redis | localhost:6379 | Cache/Sessions |
-| MinIO Console | http://localhost:9001 | Object Storage UI (`minioadmin`/`minioadmin123`) |
+| Redis | localhost:6380 | Cache/Sessions |
+| MinIO Console | http://localhost:9001 | Object Storage UI (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`) |
 | Meilisearch Dashboard | http://localhost:7700 | Search UI |
 
 **Environment Variables:**
-All services are pre-configured with development defaults from the `docker-compose.yml`. Key credentials:
-- **PostgreSQL**: `diwei_user` / `diwei_password` on database `diwei_nano_market`
+Core service credentials/endpoints are sourced from `.env` (see `.env.example`) with safe Docker defaults if not set.
+
+```bash
+# Required for Story 7.2 / 7.3 compose provisioning
+POSTGRES_USER=diwei_user
+POSTGRES_PASSWORD=diwei_password
+POSTGRES_DB=diwei_nano_market
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=minioadmin123
+MINIO_BUCKET_NAME=nanos
+```
+
+- **PostgreSQL**: `POSTGRES_USER` / `POSTGRES_PASSWORD` on `POSTGRES_DB`
 - **Redis**: No authentication (localhost-only)
-- **MinIO**: `minioadmin` / `minioadmin123`
+- **MinIO**: `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`, bucket `MINIO_BUCKET_NAME`
+
+**Health & Persistence Validation:**
+
+```bash
+# Health checks (postgres/minio should be "healthy")
+docker-compose ps
+
+# Verify MinIO bucket initialization
+docker-compose logs minio_init
+
+# Restart without removing volumes; data should persist
+docker-compose down
+docker-compose up -d
+```
 
 **Troubleshooting Development Environment:**
 

@@ -954,3 +954,34 @@ Implemented a full local development stack with PostgreSQL, Redis, MinIO, Meilis
 - **Acceptance criteria completeness**: Bucket auto-creation now implemented.
 
 **Time Investment**: Review fixes took ~30 minutes; would have cost hours of debugging in production.
+
+## Compose Provisioning Hardening (Issue #27)
+
+### Context
+Implemented Sprint 2 infrastructure story `S2-OPS-01` to ensure PostgreSQL + MinIO can be provisioned reliably via `docker-compose`, with health checks, environment-driven credentials/endpoints, and restart-safe persistence behavior.
+
+### Key Learnings
+
+#### 1. **Environment-Driven Compose Config Prevents Drift**
+- **Problem**: PostgreSQL and MinIO credentials/bucket values were hardcoded in `docker-compose.yml`.
+- **Fix**: Switched to `${VAR:-default}` interpolation and added required variables in `.env.example`.
+- **Learning**: Use env interpolation for infrastructure config even in local dev so credentials/endpoints are explicit, overridable, and documented.
+
+#### 2. **Pinned Image Tags Can Become Invalid**
+- **Problem**: The configured MinIO tag `RELEASE.2025-02-26T08-46-43Z` was no longer resolvable, causing compose startup failure.
+- **Fix**: Replaced with a resolvable image reference (`minio/minio:latest`) to restore startup reliability.
+- **Learning**: Validate referenced image tags in CI or preflight checks; an invalid tag silently blocks the entire local stack.
+
+#### 3. **Init Containers Should Reuse Same Credential Source**
+- **Problem**: MinIO bucket initialization used hardcoded credentials and bucket name.
+- **Fix**: Passed `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, and `MINIO_BUCKET_NAME` into `minio_init` and reused them in `mc` commands.
+- **Learning**: Bootstrap/init services must consume the same env contract as primary services to avoid hidden mismatch bugs.
+
+#### 4. **Documentation Must Match Actual Port Mappings**
+- **Problem**: README listed Redis on `localhost:6379` while compose mapped Redis to host `6380`.
+- **Fix**: Corrected README and added explicit health/persistence verification commands.
+- **Learning**: Always reconcile docs with effective container port mappings; stale docs create false-negative debugging paths.
+
+#### 5. **Test Suite Reliability Depends on Explicit Service Prereqs**
+- **Observation**: Full test runs can fail with Redis connection errors when required services are not running.
+- **Learning**: Infrastructure-dependent test suites should have an explicit setup step (or pre-test task) that starts required containers deterministically.
