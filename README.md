@@ -333,18 +333,26 @@ docker-compose down -v
 Core service credentials/endpoints are sourced from `.env` (see `.env.example`) with safe Docker defaults if not set.
 
 ```bash
-# Required for Story 7.2 / 7.3 compose provisioning
+# Optional: Override Docker Compose service defaults (Story 7.2/7.3)
+# These have defaults in docker-compose.yml; customize as needed:
 POSTGRES_USER=diwei_user
 POSTGRES_PASSWORD=diwei_password
 POSTGRES_DB=diwei_nano_market
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=minioadmin123
 MINIO_BUCKET_NAME=nanos
+
+# Required: Database connection for the FastAPI app
+# When using compose Postgres, build from the POSTGRES_* values above:
+DATABASE_URL=postgresql+asyncpg://diwei_user:diwei_password@localhost:5433/diwei_nano_market
+# For testing (uses different container/port in docker-compose.test.yml):
+TEST_DB_URL=postgresql+asyncpg://test_user:test_password@localhost:5434/test_db
 ```
 
-- **PostgreSQL**: `POSTGRES_USER` / `POSTGRES_PASSWORD` on `POSTGRES_DB`
+- **PostgreSQL**: `POSTGRES_USER` / `POSTGRES_PASSWORD` on `POSTGRES_DB` (configures container)
 - **Redis**: No authentication (localhost-only)
 - **MinIO**: `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`, bucket `MINIO_BUCKET_NAME`
+- **FastAPI app**: Uses `DATABASE_URL` (built from `POSTGRES_*` vars when using compose services)
 
 **Health & Persistence Validation:**
 
