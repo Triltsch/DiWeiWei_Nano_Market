@@ -286,18 +286,18 @@ docker ps
 This project includes two Docker Compose configurations:
 
 1. **`docker-compose.yml`** - Complete local development environment (recommended)
-2. **`docker-compose.test.yml`** - PostgreSQL-only environment for CI testing
+2. **`docker-compose.test.yml`** - Minimal PostgreSQL + Redis environment for CI testing
 
 #### Development Environment with docker-compose.yml (Recommended)
 
 The main `docker-compose.yml` provides a complete local development stack with all required services:
 
 **Services Included:**
-- **PostgreSQL 13** - Primary database (port 5432)
-- **Redis 7** - Caching layer (port 6379)
-- **MinIO** - S3-compatible object storage (port 9000, console 9001)
-- **Meilisearch** - Full-text search engine (port 7700)
-- **FastAPI Backend** - Application server (port 8000)
+- **PostgreSQL 13** - Primary database (port 5432, bound to localhost only)
+- **Redis 7** - Caching layer (port 6380, bound to localhost only)
+- **MinIO** - S3-compatible object storage (port 9000, console 9001, bound to localhost only)
+- **Meilisearch** - Full-text search engine (port 7700, bound to localhost only)
+- **FastAPI Backend** - Application server (port 8000, bound to localhost only)
 
 **Quick Start:**
 
