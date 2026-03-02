@@ -447,7 +447,7 @@ class NanoVersion(Base):
     changelog: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True, comment="What changed in this version"
     )
-    created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+    created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
