@@ -1515,8 +1515,12 @@ Implemented complete test suite for upload endpoint, ZIP validation, DB persiste
 - All checks passed for current setup
 
 ### Implementation Stats (Issue #28)
-- Files Modified: 2 (test_storage.py, README.md)
+- Files Modified: 3 (test_storage.py, README.md, LEARNINGS.md)
 - Tests: 240 passed, 1 skipped, 89.08% coverage
 - Acceptance Criteria: 4/4 met
 - Quality: Black/isort compliant
 - Docker: All services healthy
+
+### PR Review Follow-up (Issue #28)
+- Optional real-integration tests should use best-effort cleanup in `finally` blocks so cleanup failures do not mask the primary assertion failure.
+- Manual implementation stats in documentation can drift after late edits; include a final pre-push consistency check against `git diff --name-only` to keep file counts accurate.

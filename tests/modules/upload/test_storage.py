@@ -386,5 +386,14 @@ class TestRealMinIOStorageIntegration:
             assert presigned_url
             assert object_key in presigned_url
         finally:
-            adapter.delete_file(object_key)
-            assert adapter.object_exists(object_key) is False
+            try:
+                adapter.delete_file(object_key)
+            except StorageError:
+                pass
+
+            try:
+                exists_after_delete = adapter.object_exists(object_key)
+            except StorageError:
+                exists_after_delete = None
+            else:
+                assert exists_after_delete is False
