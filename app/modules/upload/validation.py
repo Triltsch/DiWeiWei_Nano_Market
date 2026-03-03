@@ -9,6 +9,7 @@ This module provides utilities for validating uploaded ZIP files:
 
 import logging
 import zipfile
+from pathlib import PurePosixPath
 from typing import Final
 
 from fastapi import HTTPException, UploadFile, status
@@ -22,6 +23,9 @@ ALLOWED_MIME_TYPES: Final[set[str]] = {
     "application/x-zip-compressed",
     "application/x-zip",
 }
+SUPPORTED_CONTENT_EXTENSIONS: Final[frozenset[str]] = frozenset(
+    {".pdf", ".jpg", ".png", ".mp4", ".webm"}
+)
 
 
 async def validate_file_type(file: UploadFile) -> None:
@@ -118,6 +122,21 @@ async def validate_zip_structure(file: UploadFile) -> None:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="ZIP file contains only directories. At least one file is required.",
+                )
+
+            # Ensure ZIP contains at least one supported content file
+            supported_files = [
+                name
+                for name in actual_files
+                if PurePosixPath(name).suffix.lower() in SUPPORTED_CONTENT_EXTENSIONS
+            ]
+            if not supported_files:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "ZIP file does not contain supported content files. "
+                        "Supported file types: .pdf, .jpg, .png, .mp4, .webm."
+                    ),
                 )
 
     except zipfile.BadZipFile:

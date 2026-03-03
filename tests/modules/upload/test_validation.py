@@ -141,12 +141,12 @@ class TestZipStructureValidation:
 
     @pytest.mark.asyncio
     async def test_valid_zip_with_files(self):
-        """Test that a valid ZIP with files passes validation."""
+        """Test that a valid ZIP with supported files passes validation."""
         # Create a valid ZIP file in memory
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("test.txt", "Hello World")
-            zf.writestr("subfolder/file.txt", "Content")
+            zf.writestr("module.pdf", "Hello World")
+            zf.writestr("images/cover.png", "Content")
 
         zip_content = zip_buffer.getvalue()
 
@@ -218,13 +218,13 @@ class TestZipStructureValidation:
 
     @pytest.mark.asyncio
     async def test_zip_with_files_and_directories(self):
-        """Test that a ZIP with both files and directories passes validation."""
+        """Test that a ZIP with directories and supported files passes validation."""
         # Create a ZIP with files and directories
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("folder1/", "")
-            zf.writestr("folder1/file.txt", "Content")
-            zf.writestr("root_file.txt", "Root content")
+            zf.writestr("folder1/module.pdf", "Content")
+            zf.writestr("root_video.webm", "Root content")
 
         zip_content = zip_buffer.getvalue()
 
@@ -234,6 +234,26 @@ class TestZipStructureValidation:
 
         # Should not raise exception
         await validate_zip_structure(file)
+
+    @pytest.mark.asyncio
+    async def test_zip_without_supported_files_rejected(self):
+        """Test that ZIPs with only unsupported file extensions are rejected."""
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("notes.txt", "Plain text")
+            zf.writestr("data.json", "{}")
+
+        zip_content = zip_buffer.getvalue()
+
+        file = MagicMock(spec=UploadFile)
+        file.seek = AsyncMock()
+        file.file = io.BytesIO(zip_content)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await validate_zip_structure(file)
+
+        assert exc_info.value.status_code == 400
+        assert "supported content files" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
     async def test_unexpected_zip_error_returns_generic_message(self, monkeypatch):
@@ -273,7 +293,7 @@ class TestCompleteValidation:
         # Create a valid ZIP file
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("test.txt", "Hello World")
+            zf.writestr("module.pdf", "Hello World")
 
         zip_content = zip_buffer.getvalue()
 

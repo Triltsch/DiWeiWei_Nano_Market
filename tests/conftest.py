@@ -21,7 +21,39 @@ from app.redis_client import close_redis, get_redis
 
 
 def pytest_configure(config):
-    """Register custom pytest markers"""
+    """Register custom pytest markers and load environment"""
+    # Load .env file early before any imports of app modules
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(".env", override=True)
+    except ImportError:
+        # Fallback: manually parse .env file
+        import re
+
+        if os.path.exists(".env"):
+            with open(".env") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        match = re.match(r"^([^=]+)=(.*)$", line)
+                        if match:
+                            key, value = match.groups()
+                            # Remove quotes if present
+                            value = value.strip('"')
+                            os.environ[key] = value
+
+    # Clear any cached settings to ensure fresh load from updated environment
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+
+    # Force reload of redis_client to pick up fresh settings
+    import importlib
+
+    if "app.redis_client" in sys.modules:
+        importlib.reload(sys.modules["app.redis_client"])
+
     config.addinivalue_line(
         "markers", "integration: mark test as an integration test (requires Docker PostgreSQL)"
     )

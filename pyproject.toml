@@ -104,6 +104,8 @@ markers = [
     "integration: mark test as an integration test (requires Docker PostgreSQL)",
     "unit: mark test as a unit test (uses in-memory SQLite)",
 ]
+# Note: Environment variables are loaded from .env file via Pydantic Settings
+# Ensure REDIS_URL=redis://localhost:6379/0 is set in .env for tests to pass
 
 [tool.pylint]
 max-line-length = 100

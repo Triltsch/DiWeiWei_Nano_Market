@@ -6,8 +6,6 @@ import redis.asyncio as redis
 
 from app.config import get_settings
 
-settings = get_settings()
-
 _redis_client: Optional[redis.Redis] = None
 
 
@@ -17,6 +15,8 @@ def get_redis_url() -> str:
     Returns:
         Redis connection URL
     """
+    settings = get_settings()
+
     if settings.REDIS_URL:
         return settings.REDIS_URL
 
