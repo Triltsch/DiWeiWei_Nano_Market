@@ -144,6 +144,24 @@ class TestMinIOStorageAdapter:
 
         assert "after 3 attempts" in str(exc_info.value)
 
+    def test_upload_file_non_transient_failure_no_retry(self, storage_adapter):
+        """Test that non-transient storage failures are not retried."""
+        nano_id = uuid.uuid4()
+        file_content = b"file content"
+        filename = "test.zip"
+
+        storage_adapter.client.put_object = MagicMock(side_effect=ValueError("invalid metadata"))
+
+        with pytest.raises(StorageError) as exc_info:
+            storage_adapter.upload_file(
+                nano_id=nano_id,
+                file_content=file_content,
+                filename=filename,
+            )
+
+        assert "non-retryable" in str(exc_info.value).lower()
+        assert storage_adapter.client.put_object.call_count == 1
+
     def test_upload_file_size_verification_mismatch(self, storage_adapter):
         """Test error when uploaded file size doesn't match."""
         nano_id = uuid.uuid4()
@@ -256,9 +274,7 @@ class TestMinIOStorageIntegration:
             mock_adapter.return_value = mock_instance
 
             # Mock upload_file to return storage key
-            def mock_upload_file(
-                nano_id, file_content, filename, content_type="application/zip"
-            ):
+            def mock_upload_file(nano_id, file_content, filename, content_type="application/zip"):
                 return f"nanos/{str(nano_id)}/content/{filename}"
 
             mock_instance.upload_file = mock_upload_file
@@ -303,7 +319,10 @@ class TestMinIOStorageIntegration:
         with patch("app.modules.upload.router.MinIOStorageAdapter") as mock_adapter:
             mock_instance = MagicMock()
             mock_adapter.return_value = mock_instance
-            mock_instance.upload_file.side_effect = StorageError("MinIO connection failed")
+            # Create a StorageError with is_retryable=True to simulate transient failure
+            mock_instance.upload_file.side_effect = StorageError(
+                "MinIO connection failed", is_retryable=True
+            )
 
             # Get auth token
             login_response = await async_client.post(
@@ -324,4 +343,9 @@ class TestMinIOStorageIntegration:
 
             # Should return 503 (Service Unavailable)
             assert response.status_code == 503
-            assert "storage temporarily unavailable" in response.json()["detail"].lower()
+            data = response.json()
+            assert "storage temporarily unavailable" in data["detail"].lower()
+            assert data["error_code"] == "UPLOAD_TRANSIENT_FAILURE"
+            assert data["failure_state"] == "failed"
+            assert data["retryable"] is True
+            assert data["retry_after_seconds"] == 30

@@ -4,6 +4,7 @@ Tests for upload service layer.
 This module tests the business logic for creating Nano records.
 """
 
+import time
 import uuid
 from unittest.mock import AsyncMock, MagicMock
 
@@ -12,6 +13,7 @@ from fastapi import UploadFile
 
 from app.models import Nano, NanoStatus
 from app.modules.upload.service import create_draft_nano, get_nano_by_id
+from app.modules.upload.storage import StorageError
 
 
 class TestCreateDraftNano:
@@ -170,6 +172,35 @@ class TestCreateDraftNano:
         assert retrieved_nano is not None
         assert retrieved_nano.id == nano.id
         assert retrieved_nano.title == "Test Nano"
+
+    @pytest.mark.asyncio
+    async def test_create_nano_upload_timeout_raises_storage_error(self, db_session):
+        """Test that upload operation timeout is surfaced as StorageError.
+
+        Uses deterministic mocking to simulate timeout without real delays.
+        """
+        from unittest.mock import patch
+
+        creator_id = uuid.uuid4()
+        file = self._create_mock_file("timeout.zip")
+
+        storage = MagicMock()
+        storage.timeout = 1
+
+        with patch("asyncio.wait_for") as mock_wait_for:
+            # Simulate asyncio.wait_for raising TimeoutError
+            mock_wait_for.side_effect = TimeoutError("Upload operation exceeded timeout")
+
+            with pytest.raises(StorageError) as exc_info:
+                await create_draft_nano(
+                    db=db_session,
+                    creator_id=creator_id,
+                    file=file,
+                    storage_adapter=storage,
+                )
+
+            assert "timeout" in str(exc_info.value).lower()
+            assert exc_info.value.is_retryable is True
 
 
 class TestGetNanoById:

@@ -1,5 +1,39 @@
 # Implementation Status
 
+## ✅ Sprint 2 [S2-BE-05]: Upload Retry + Timeout Handling - COMPLETE
+
+**Status**: COMPLETE - upload timeout guardrails, transient retry semantics, and explicit failure-state API contract implemented
+
+**Latest Update**: Issue #26 (Upload Retry + Timeout Handling) ✅ Complete (March 3, 2026)
+
+### Issue #26 Acceptance Criteria - All Met
+
+| Criterion | Status | Evidence |
+|-----------|--------|----------|
+| Timeout limit set to 10 minutes for upload operation | ✅ | `app/config.py` sets `UPLOAD_TIMEOUT_SECONDS=600`; service enforces timeout via `asyncio.wait_for()` in `app/modules/upload/service.py` |
+| Retry path available for transient failures | ✅ | `app/modules/upload/storage.py` retries transient upload failures with bounded exponential backoff and `UPLOAD_MAX_RETRIES` |
+| Failure state visible in API response contract | ✅ | `app/modules/upload/schemas.py:UploadErrorResponse` includes `failure_state`, `retryable`, `retry_after_seconds`; router returns structured 503 response |
+
+### Implementation Highlights
+
+1. **10-Minute Upload Guardrail**
+   - Increased default upload timeout to 600 seconds (`UPLOAD_TIMEOUT_SECONDS`)
+   - Enforced timeout for file read and storage upload operations in service layer
+
+2. **Transient Retry Semantics**
+   - Added transient-error classification in MinIO adapter
+   - Added bounded exponential backoff between retries
+   - Non-transient failures fail fast without retry loops
+
+3. **API Failure Contract**
+   - Added explicit failure-state fields (`failure_state`, `retryable`, `retry_after_seconds`)
+   - Storage transient failures return HTTP 503 with structured error payload and `Retry-After` header
+
+4. **Test Coverage Updates**
+   - Added timeout test for upload service
+   - Added non-transient no-retry storage adapter test
+   - Updated integration test assertions for structured failure response
+
 ## ✅ Sprint 2 [S2-BE-04]: Integrate MinIO Storage Adapter - COMPLETE
 
 **Status**: COMPLETE - MinIO object storage integration implemented with deterministic key naming and recovery error handling
@@ -49,7 +83,7 @@
      - `MINIO_SECURE`: HTTPS flag (false for dev, true for production)
      - `MINIO_REGION`: AWS region (default: us-east-1)
      - `UPLOAD_MAX_RETRIES`: Retry count (default: 3)
-     - `UPLOAD_TIMEOUT_SECONDS`: Upload timeout (default: 300 seconds)
+   - `UPLOAD_TIMEOUT_SECONDS`: Upload timeout (default: 600 seconds)
 
 5. **Docker Compose MinIO Service** (`docker-compose.yml`)
    - MinIO server on port 9000 (API) and 9001 (Console)
@@ -149,7 +183,7 @@ MINIO_REGION=eu-west-1
 
 ### Performance Metrics
 
-- **Upload time**: <300 seconds (configurable per deployment)
+- **Upload time**: <600 seconds (configurable per deployment)
 - **Retry overhead**: <1 second per retry (DNS lookup + connection)
 - **Key generation**: <1ms (deterministic, no external lookup)
 - **Parallel uploads**: Supported (each creates unique nano_id)
