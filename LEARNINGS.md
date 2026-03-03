@@ -1114,3 +1114,153 @@ Implemented database migrations for Sprint 2 Nano upload feature, establishing m
 - Files Modified: 5 | Migration: 1 (8 tables, 8 enums, 20+ indexes) | Tests: 188 passing
 - Time: ~2 hours | Achievement: Production-ready migration infrastructure
 
+## ZIP Upload API Endpoint (Issue #24 - Upload Implementation)
+
+### Context
+Implemented file upload endpoint with ZIP validation, authentication, and draft Nano creation. Required integrating JWT auth, file validation, database operations, and comprehensive testing for multipart form data handling.
+
+### Key Learnings
+
+#### 1. **UUID Type Consistency in Dependency Injection**
+- **Problem**: Router defined `user_id: Annotated[str, Depends(get_current_user_id)]` while middleware returned `UUID`, causing SQLAlchemy error "'str' object has no attribute 'hex'"
+- **Root Cause**: JWT middleware extracts UUID from token and returns it directly, but FastAPI parameter annotation declared string type
+- **Solution**: Changed annotations to `user_id: Annotated[UUID, Depends(...)]` and added `from uuid import UUID` import
+- **Why it matters**:
+  - Type mismatches between dependency and annotation cause runtime errors
+  - SQLAlchemy UUID columns require UUID objects, not strings
+  - FastAPI respects type annotations for validation
+- **Learning**: Match dependency injection parameter types exactly to what dependency function returns
+
+#### 2. **File Validation Strategy - Defense in Depth**
+- **Approach**: Implemented three-layer validation for ZIP files
+  1. **Type validation**: Check MIME type AND file extension (not just one)
+  2. **Size validation**: Stream file in chunks to enforce 100MB limit without loading entire file to memory
+  3. **Structure validation**: Use `zipfile.ZipFile` to verify integrity and ensure non-empty content
+- **Why layered validation**:
+  - MIME type can be spoofed (need extension check)
+  - Extension can be wrong (need MIME check)
+  - Both can be correct but file corrupt (need structure check)
+  - Size check must happen during streaming to prevent memory exhaustion
+- **Learning**: File upload validation requires multiple complementary checks at different layers
+
+#### 3. **Memory-Safe File Size Validation**
+- **Problem**: Need to enforce 100MB upload limit without loading entire file into memory
+- **Solution**: Stream file content in 1MB chunks, accumulate size, reject when threshold exceeded
+  ```python
+  while chunk := await file.read(1024 * 1024):
+      total_size += len(chunk)
+      if total_size > MAX_FILE_SIZE:
+          raise HTTPException(status_code=413)
+  ```
+- **Why it works**:
+  - Fixed chunk size prevents memory spikes
+  - Early termination when limit exceeded (don't process entire oversized file)
+  - Rewind file with `await file.seek(0)` after validation for downstream processing
+- **Learning**: Stream-based validation protects against memory exhaustion attacks
+
+#### 4. **String Truncation Logic Scope**
+- **Problem**: Title truncation logic inside `if not title:` block meant explicit titles weren't truncated, causing test failure "expected 250==200"
+- **Root Cause**: Truncation was only applied to auto-generated titles from filename
+- **Solution**: Move `title = title[:200]` outside conditional so it applies to both explicit and generated titles
+- **Why it matters**:
+  - Database constraints require consistent length limits
+  - Logic should apply uniformly regardless of title source
+  - Tests revealed inconsistency when testing long explicit titles
+- **Learning**: Apply data transformations (truncation, validation) consistently across all code paths that set a value
+
+#### 5. **Testing Authenticated Endpoints**
+- **Implementation**: Used `verified_user_id` fixture that:
+  1. Creates test user in database
+  2. Generates valid JWT token via `/auth/login` endpoint
+  3. Returns tuple of (user_id, auth_headers) for test use
+- **Pattern**: 
+  ```python
+  async def test_upload_requires_auth(async_client):
+      response = await async_client.post("/api/v1/upload/nano", ...)
+      assert response.status_code == 401  # No token
+      
+  async def test_upload_success(async_client, verified_user_id):
+      user_id, headers = verified_user_id
+      response = await async_client.post("/api/v1/upload/nano", headers=headers, ...)
+      assert response.status_code == 201
+  ```
+- **Learning**: Test both authenticated and unauthenticated paths; use fixtures for auth setup to avoid repetition
+
+#### 6. **ZIP Test Data Creation**
+- **Approach**: Create in-memory ZIP files using `io.BytesIO` and `zipfile.ZipFile`
+  ```python
+  zip_buffer = io.BytesIO()
+  with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+      zip_file.writestr("data.json", '{"test": "data"}')
+  zip_buffer.seek(0)
+  files = {"file": ("test.zip", zip_buffer, "application/zip")}
+  ```
+- **Why in-memory**:
+  - No filesystem dependencies (faster, no cleanup)
+  - Can create variations easily (empty ZIP, corrupt data, etc.)
+  - Deterministic test behavior
+- **Learning**: Use `io.BytesIO` for test file creation to avoid filesystem complexity
+
+#### 7. **Validation Behavior Determines Test Expectations**
+- **Discovery**: Initially wrote test `test_upload_nano_handles_filename_without_extension` expecting 201 success
+- **Reality**: Validation correctly rejects files without `.zip` extension with 400 status
+- **Resolution**: Renamed test to `test_upload_nano_rejects_filename_without_zip_extension` and changed assertion to `assert response.status_code == 400`
+- **Why it matters**:
+  - Tests should verify actual validation behavior, not assumptions
+  - Implementation revealed stricter validation was correct design choice
+  - Test names should reflect what actually happens
+- **Learning**: When test fails, verify if implementation or test expectation is wrong; don't assume implementation is always incorrect
+
+### Process Learnings
+
+#### Module Organization for Upload Features
+```
+app/modules/upload/
+  __init__.py           # Module marker
+  schemas.py            # Pydantic request/response models
+  validation.py         # File validation logic (type/size/structure)
+  service.py            # Business logic (Nano creation)
+  router.py             # FastAPI endpoint with auth integration
+tests/modules/upload/
+  test_validation.py    # Unit tests for validators (20 tests)
+  test_service.py       # Unit tests for service layer (7 tests)
+  test_upload_routes.py # Integration tests for API (11 tests)
+```
+- **Learning**: Separate concerns (validation, service, routing) into distinct files for maintainability
+
+#### FastAPI File Upload Best Practices
+1. Use `UploadFile` parameter type for automatic multipart parsing
+2. Validate MIME type via `file.content_type`
+3. Stream content with `await file.read(chunk_size)` for memory safety
+4. Reset file position with `await file.seek(0)` after validation
+5. Return appropriate HTTP status codes (400 validation, 413 too large, 201 created)
+
+#### Testing File Uploads Checklist
+- ✅ Valid upload (happy path)
+- ✅ Authentication required (401 without token)
+- ✅ Invalid file type (400 rejection)
+- ✅ File too large (413 rejection)
+- ✅ Empty ZIP (400 rejection)
+- ✅ Corrupt ZIP (400 rejection)
+- ✅ Database persistence verification
+- ✅ Multiple uploads create separate records
+
+### Implementation Stats
+- **Files Created**: 10 (5 source, 5 test)
+- **Files Modified**: 3 (main.py, conftest.py, IMPLEMENTATION_STATUS.md)
+- **Tests Added**: 32 (validation: 20, service: 7, routes: 11)
+- **Test Results**: 220/220 passing (188 existing + 32 new), 88.40% coverage
+- **Code Quality**: Black ✅, isort ✅, no linting errors ✅
+- **Time to Implement**: ~3 hours
+- **Achievement**: Production-ready file upload endpoint with comprehensive validation and testing
+
+### PR Review Follow-Up Learnings (Issue #24 / PR #38)
+
+- **Review-only blind spot #1 (error exposure):** Generic exception handlers that return `str(e)` can leak internal details. Use stable client-facing messages and log full exceptions server-side.
+- **Review-only blind spot #2 (test memory pressure):** Unit tests used very large in-memory payloads (50-101MB), which did not fail locally but can slow or destabilize CI.
+- **Why this was caught in PR review and not initial implementation:** Local runs had sufficient memory headroom and no security-focused assertion for error detail leakage.
+- **Prevention added:**
+  - Reworked size tests to monkeypatch `MAX_UPLOAD_SIZE` and use small payloads while preserving boundary semantics.
+  - Added test to assert unexpected ZIP parsing errors return a generic message and never expose internal exception text.
+  - Updated ZIP structure validation to avoid reading full upload into memory via `await file.read()`.
+

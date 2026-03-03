@@ -126,6 +126,7 @@ def app(db_session, mock_redis):
     from app.config import get_settings
     from app.modules.audit.router import get_audit_router
     from app.modules.auth.router import get_auth_router
+    from app.modules.upload.router import get_upload_router
 
     settings = get_settings()
 
@@ -153,6 +154,7 @@ def app(db_session, mock_redis):
     # Include routers
     app.include_router(get_auth_router())
     app.include_router(get_audit_router())
+    app.include_router(get_upload_router())
 
     # Add endpoints
     @app.get("/health")
