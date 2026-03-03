@@ -1293,4 +1293,53 @@ tests/modules/upload/
 - **Observation**: Meilisearch warns when no master key is set and auto-generates a key.
 - **Learning**: Set `MEILI_MASTER_KEY` explicitly (env-driven) even in local Docker to align behavior with production security expectations and avoid runtime drift between environments.
 
+## Docker Configuration & Environment Consistency (Issue #25 - Pre-Implementation Discovery)
+
+### Context
+During implementation of ZIP structure validation (Issue #25), discovered critical Docker configuration issues that prevented service startup. These pitfalls were not caught during normal development because the docker-compose environment was not validated as part of implementation workflow.
+
+### Key Learnings
+
+#### 1. **Image Tag Validity Must Be Verified Early**
+- **Problem**: MinIO image tagged with specific release `minio/minio:RELEASE.2024-12-13T04-27-42Z` was not available (`docker.io/minio/minio:RELEASE.2024-12-13T04-27-42Z: not found`)
+- **Root Cause**: Release tag had expired or wasn't published to Docker Hub; pinned version strategy didn't account for registry availability
+- **Solution**: Changed to `minio/minio:latest` and documented reason in compose file
+- **Learning**: When pinning image versions, always verify availability before committing. Use major version tags (e.g., `v1.6`) instead of specific release tags for better stability. Always test `docker compose pull` during implementation validation.
+
+#### 2. **Persistent Volume Versioning Can Cause Incompatibility**
+- **Problem**: Meilisearch volumes named `meilisearch_data_v1_6_0` contained database from older version (1.36.0) incompatible with current engine (1.6.0), causing restart loops with error: "Your database version (1.36.0) is incompatible with your current engine version (1.6.0)"
+- **Root Cause**: Volume naming strategy included service version suffix, creating orphaned volumes when images were updated
+- **Solution**: 
+  - Renamed volume to generic `meilisearch_data` (no version suffix)
+  - Removed old versioned volumes (`meilisearch_data_v1_6_0`, `minio_data_2024_12_13`, `minio_data_2024_12_18`, `minio_data_latest`)
+  - Added cleanup step to compose validation workflow
+- **Learning**: Never include service version numbers in volume names—this prevents data reuse when services are updated. Use generic names like `service_data` and manage compatibility through migration tooling instead.
+
+#### 3. **Credential Alignment Across Related Services**
+- **Problem**: MinIO server defined credentials as `MINIO_ROOT_USER: minioadmin`, `MINIO_ROOT_PASSWORD: minioadmin`, but MinIO init container used `MINIO_ROOT_PASSWORD: minioadmin123` (different password)
+- **Result**: Init container tried to authenticate to MinIO server and failed: "The request signature we calculated does not match the signature you provided"
+- **Root Cause**: Services were configured independently without validation of cross-service consistency
+- **Solution**: 
+  - Made MinIO server credentials env-driven: `MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}`
+  - Ensured both services used identical environment variables from same source
+  - Added validation rule: "All related services sharing credentials must use identical defaults"
+- **Learning**: When multiple related services use shared credentials (databases, auth servers, object storage), validate they use **identical values** at compose-up time. Create a pre-flight checklist that verifies credential alignment before considering environment valid.
+
+#### 4. **Environment Variable Consistency in Test vs. Runtime**
+- **Problem**: Application configured Redis on port 6379 by default, but docker-compose mapped Redis to port 6380 (mismatch: `"127.0.0.1:6380:6379"`)
+- **Result**: Tests failed with `ConnectionRefusedError` on port 6380 because app tried to connect to 6379
+- **Root Cause**: Port mappings were not documented in config files or .env, causing developers to guess correct values
+- **Solution**:
+  - Fixed mapping to `"127.0.0.1:6379:6379"` (standard Redis port)
+  - Added .env documentation showing REDIS_HOST/REDIS_PORT/REDIS_URL values
+  - Modified `app/redis_client.py` to call `get_settings()` dynamically instead of caching at import time
+  - Added `pytest_configure` hook to load .env early in test lifecycle
+- **Learning**: Document all environment-specific port mappings in `.env.example`. Validate by running tests without manual env var setup—if tests require `export REDIS_URL=...`, the configuration is wrong. Configuration should work automatically from .env.
+
+#### 5. **Environment Validation Should Precede Implementation**
+- **Problem**: These Docker/config issues only surfaced when the implementation was nearly complete and ready for testing
+- **Root Cause**: No early validation step existed in workflow to catch environment issues
+- **Solution**: Added "Environment Validation" section to `nano_implement.prompt.md` to be performed before implementation begins
+- **Learning**: Treat development environment integrity as a **blocking prerequisite**, not a secondary concern. Issues with Docker, credentials, or config should be discovered and fixed before implementation work starts, not discovered mid-implementation.
+
 
