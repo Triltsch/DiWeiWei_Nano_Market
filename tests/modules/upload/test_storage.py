@@ -319,7 +319,10 @@ class TestMinIOStorageIntegration:
         with patch("app.modules.upload.router.MinIOStorageAdapter") as mock_adapter:
             mock_instance = MagicMock()
             mock_adapter.return_value = mock_instance
-            mock_instance.upload_file.side_effect = StorageError("MinIO connection failed")
+            # Create a StorageError with is_retryable=True to simulate transient failure
+            mock_instance.upload_file.side_effect = StorageError(
+                "MinIO connection failed", is_retryable=True
+            )
 
             # Get auth token
             login_response = await async_client.post(

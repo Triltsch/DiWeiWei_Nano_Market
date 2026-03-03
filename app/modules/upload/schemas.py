@@ -6,6 +6,7 @@ This module defines request and response models for the upload API endpoints.
 
 from datetime import datetime
 from enum import Enum
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -44,7 +45,7 @@ class UploadErrorResponse(BaseModel):
 
     detail: str = Field(..., description="Human-readable error message")
     error_code: str = Field(..., description="Machine-readable error code")
-    failure_state: str = Field(
+    failure_state: Literal["failed"] = Field(
         default="failed",
         description="Explicit upload operation state in error responses",
     )

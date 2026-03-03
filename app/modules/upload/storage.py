@@ -16,9 +16,21 @@ from app.config import get_settings
 
 
 class StorageError(Exception):
-    """Raised when storage operations fail"""
+    """Raised when storage operations fail.
 
-    pass
+    Attributes:
+        is_retryable: Whether this error represents a transient failure that should be retried
+    """
+
+    def __init__(self, message: str, is_retryable: bool = False) -> None:
+        """Initialize StorageError with optional retryability flag.
+
+        Args:
+            message: Error message describing the failure
+            is_retryable: Whether this is a transient failure (True) or terminal failure (False)
+        """
+        super().__init__(message)
+        self.is_retryable = is_retryable
 
 
 class MinIOStorageAdapter:
@@ -103,12 +115,16 @@ class MinIOStorageAdapter:
 
                 except Exception as e:
                     if not self._is_transient_error(e):
-                        raise StorageError(f"Non-retryable storage failure: {str(e)}") from e
+                        raise StorageError(
+                            f"Non-retryable storage failure: {str(e)}",
+                            is_retryable=False,
+                        ) from e
 
                     if attempt == self.max_retries - 1:
                         # Last attempt failed, raise error
                         raise StorageError(
-                            f"Failed to upload file after {self.max_retries} attempts: {str(e)}"
+                            f"Failed to upload file after {self.max_retries} attempts: {str(e)}",
+                            is_retryable=True,
                         ) from e
 
                     # Retry on next iteration with bounded backoff

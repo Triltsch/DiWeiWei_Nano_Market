@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.modules.auth.middleware import get_current_user_id
-from app.modules.upload.schemas import UploadErrorResponse, UploadFailureState, UploadResponse
+from app.modules.upload.schemas import UploadErrorResponse, UploadResponse
 from app.modules.upload.service import create_draft_nano
 from app.modules.upload.storage import MinIOStorageAdapter, StorageError
 from app.modules.upload.validation import validate_upload
@@ -188,18 +188,32 @@ def get_upload_router(prefix: str = "/api/v1/upload", tags: list[str] = None) ->
                 storage_adapter=storage_adapter,
             )
         except StorageError as e:
-            # Storage failure - return recoverable error with explicit failure state
-            return JSONResponse(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                headers={"Retry-After": "30"},
-                content=UploadErrorResponse(
-                    detail=f"Object storage temporarily unavailable due to transient failure: {str(e)}",
-                    error_code="UPLOAD_TRANSIENT_FAILURE",
-                    failure_state=UploadFailureState.FAILED.value,
-                    retryable=True,
-                    retry_after_seconds=30,
-                ).model_dump(),
-            )
+            # Storage failure - map retryability to appropriate HTTP status
+            if e.is_retryable:
+                # Transient failure: 503 with Retry-After header and retryable=True
+                return JSONResponse(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    headers={"Retry-After": "30"},
+                    content=UploadErrorResponse(
+                        detail=f"Object storage temporarily unavailable: {str(e)}",
+                        error_code="UPLOAD_TRANSIENT_FAILURE",
+                        failure_state="failed",
+                        retryable=True,
+                        retry_after_seconds=30,
+                    ).model_dump(),
+                )
+            else:
+                # Terminal failure: 500 with retryable=False
+                return JSONResponse(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    content=UploadErrorResponse(
+                        detail=f"Upload failed: {str(e)}",
+                        error_code="UPLOAD_PERMANENT_FAILURE",
+                        failure_state="failed",
+                        retryable=False,
+                        retry_after_seconds=None,
+                    ).model_dump(),
+                )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

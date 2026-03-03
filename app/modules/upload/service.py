@@ -82,10 +82,12 @@ async def create_draft_nano(
         )
     except TimeoutError as e:
         raise StorageError(
-            f"Upload operation exceeded timeout of {timeout_seconds} seconds."
+            f"Upload operation exceeded timeout of {timeout_seconds} seconds.",
+            is_retryable=True,
         ) from e
-    except StorageError as e:
-        raise StorageError(f"Failed to persist file to storage: {str(e)}") from e
+    except StorageError:
+        # Re-raise the original StorageError to preserve retryability metadata
+        raise
 
     # Create new Nano record with storage reference
     nano = Nano(

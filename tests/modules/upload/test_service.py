@@ -175,28 +175,32 @@ class TestCreateDraftNano:
 
     @pytest.mark.asyncio
     async def test_create_nano_upload_timeout_raises_storage_error(self, db_session):
-        """Test that upload operation timeout is surfaced as StorageError."""
+        """Test that upload operation timeout is surfaced as StorageError.
+
+        Uses deterministic mocking to simulate timeout without real delays.
+        """
+        from unittest.mock import patch
+
         creator_id = uuid.uuid4()
-        file = self._create_mock_file("slow.zip")
+        file = self._create_mock_file("timeout.zip")
 
         storage = MagicMock()
         storage.timeout = 1
 
-        def slow_upload_file(nano_id, file_content, filename, content_type=None):
-            time.sleep(1.2)
-            return f"nanos/{nano_id}/content/{filename}"
+        with patch("asyncio.wait_for") as mock_wait_for:
+            # Simulate asyncio.wait_for raising TimeoutError
+            mock_wait_for.side_effect = TimeoutError("Upload operation exceeded timeout")
 
-        storage.upload_file = slow_upload_file
+            with pytest.raises(StorageError) as exc_info:
+                await create_draft_nano(
+                    db=db_session,
+                    creator_id=creator_id,
+                    file=file,
+                    storage_adapter=storage,
+                )
 
-        with pytest.raises(StorageError) as exc_info:
-            await create_draft_nano(
-                db=db_session,
-                creator_id=creator_id,
-                file=file,
-                storage_adapter=storage,
-            )
-
-        assert "timeout" in str(exc_info.value).lower()
+            assert "timeout" in str(exc_info.value).lower()
+            assert exc_info.value.is_retryable is True
 
 
 class TestGetNanoById:
