@@ -1354,4 +1354,81 @@ During implementation of ZIP structure validation (Issue #25), discovered critic
 - **Why This Wasn't Caught Earlier**: Tests ran on host machine where `localhost` correctly resolved to Redis. Docker Compose app container networking wasn't validated during initial implementation.
 - **Learning**: When using `env_file` in Docker Compose, environment variables containing hostnames (`localhost`, IP addresses) may have different meanings inside vs. outside containers. Always override network-sensitive environment variables (database URLs, service endpoints) explicitly in the compose service `environment` section to use Docker service names (`redis`, `postgres`, `minio`). Document environment-specific values clearly in `.env.example` and consider leaving URL-formatted variables unset by default to force explicit configuration per environment.
 
+---
+
+## Sprint 2 - MinIO Storage Integration (Issue #23)
+
+### Implementation Date
+2026-03-03
+
+### Key Learnings
+
+#### 1. **Mock Fixture Design: Callable vs Static Return Values**
+- **Problem**: Test failed with `TypeError: 'str' object is not subscriptable` when mock returned static string but test passed UUID object as parameter
+- **Context**: `test_upload_with_storage_integration` attempted `mock_storage.upload_file(nano_id=verified_user_id)` where `verified_user_id` is a UUID object. Mock was configured with `mock_instance.upload_file.return_value = "mocked-storage-key"` (static string)
+- **Root Cause**: When mock's return_value is a static value, the mock still accepts arguments but ignores them. However, test code expected `upload_file()` to be callable with `nano_id` parameter, not to subscript the UUID
+- **Solution**: Changed mock from static return value to callable function:
+  ```python
+  def mock_upload_file(content: bytes, filename: str, nano_id: UUID):
+      return f"nanos/{nano_id}/content/{filename}"
+  
+  mock_instance.upload_file = mock_upload_file
+  ```
+- **Learning**: When mocking methods that accept parameters used in the mock's logic, use callable functions instead of static return values. This ensures parameter types are validated and mock behavior matches actual implementation signatures. Static return_value is appropriate only when parameters don't affect the outcome.
+
+#### 2. **Object Storage Adapter Pattern for External Dependencies**
+- **Problem**: Need to integrate MinIO object storage without creating tight coupling between business logic and storage implementation
+- **Solution**: Created `MinIOStorageAdapter` as separate module with well-defined interface:
+  - `upload_file()`: Accepts bytes and returns storage key
+  - `delete_file()`: Removes object by key
+  - `get_file_url()`: Generates presigned download URLs
+  - `object_exists()`: Checks existence without download
+- **Benefits**:
+  - Service layer (`create_draft_nano()`) receives storage adapter via dependency injection
+  - Tests can inject mock adapter without MinIO dependency
+  - Storage implementation can be swapped (e.g., S3, Azure Blob) without changing service logic
+  - HTTP error handling (503) isolated to router layer
+- **Learning**: For external dependencies like object storage, databases, or third-party APIs, use the adapter pattern with dependency injection. This enables isolated testing, flexible error handling, and decoupled architecture. Define clear interface boundaries between business logic and infrastructure concerns.
+
+#### 3. **Deterministic Object Key Naming for Idempotency**
+- **Problem**: Need consistent storage paths for uploaded files to support retries and avoid orphaned objects
+- **Solution**: Implemented deterministic key generation using Nano UUID:
+  ```python
+  def _generate_object_key(self, nano_id: UUID, filename: str) -> str:
+      return f"nanos/{nano_id}/content/{filename}"
+  ```
+- **Benefits**:
+  - Repeated uploads with same nano_id overwrite previous file (idempotent)
+  - Storage path directly reflects database relationship (Nano UUID → storage key)
+  - Simplifies cleanup: delete Nano record → delete `nanos/{uuid}/` prefix
+  - Enables bulk operations on Nano-specific objects
+- **Alternative Considered**: Random/timestamped keys would require database tracking of all storage keys and complex cleanup logic
+- **Learning**: For object storage keys, prefer deterministic naming based on domain identifiers (UUIDs, entity IDs) over random keys. This enables idempotent operations, simplifies data lifecycle management, and maintains clear relationships between storage and database records. Use hierarchical path structure (`nanos/{uuid}/content/{filename}`) to support efficient prefix-based operations.
+
+#### 4. **Graceful Degradation with HTTP 503 for Storage Failures**
+- **Problem**: MinIO unavailability should not return generic 500 errors or expose internal details
+- **Solution**: 
+  - Custom `StorageError` exception propagates from storage layer to router
+  - Router catches `StorageError` and returns HTTP 503 with user-friendly message
+  - 503 status indicates temporary unavailability, signaling clients to retry later
+- **Error Handling Strategy**:
+  - Retry logic (3 attempts) in storage adapter for transient failures
+  - If retries exhausted, raise `StorageError` with original exception details
+  - Router translates `StorageError` to HTTP 503: "Object storage temporarily unavailable"
+  - Other exceptions (validation, database) remain separate with appropriate status codes
+- **Learning**: For external service dependencies (storage, payment gateways, email services), implement three-tier error handling: (1) Retry transient failures at the adapter layer, (2) Raise custom exception when retries exhausted, (3) Translate to appropriate HTTP status code at API layer. Use HTTP 503 (Service Unavailable) for temporary infrastructure issues to signal retry-able failures vs HTTP 500 (Internal Server Error) for unrecoverable bugs. This provides graceful degradation and actionable feedback to API consumers.
+
+#### 5. **MinIO Configuration Management via Environment Variables**
+- **Problem**: MinIO requires multiple configuration values (endpoint, credentials, bucket, secure/insecure, region)
+- **Solution**: Added 10 MinIO-related settings to `app/config.py`:
+  - Connection: `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`
+  - Bucket: `MINIO_BUCKET_NAME`, `MINIO_REGION`
+  - Behavior: `MINIO_SECURE` (TLS), `UPLOAD_MAX_RETRIES`, `UPLOAD_TIMEOUT_SECONDS`
+  - Presigned URLs: `MINIO_PRESIGNED_URL_EXPIRY_SECONDS`
+- **Benefits**:
+  - Local development: `MINIO_SECURE=false` with `localhost:9000`
+  - Production: `MINIO_SECURE=true` with TLS endpoint
+  - Tuning: Adjust retry/timeout behavior per environment
+- **Learning**: For services with multiple configuration dimensions (connection, credentials, behavior tuning), create granular environment variables instead of composite connection strings. This provides finer control across environments and simplifies debugging (e.g., toggle TLS separately from endpoint). Document sensible defaults in code and provide `.env.example` with environment-specific values.
+
 

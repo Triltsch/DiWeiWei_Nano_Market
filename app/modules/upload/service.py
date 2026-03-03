@@ -1,7 +1,8 @@
 """
 Service layer for Nano upload operations.
 
-This module handles business logic for creating Nano records in the database.
+This module handles business logic for creating Nano records in the database
+and managing file persistence to MinIO object storage.
 """
 
 import uuid
@@ -13,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Nano, NanoStatus
+from app.modules.upload.storage import MinIOStorageAdapter, StorageError
 
 
 async def create_draft_nano(
@@ -20,22 +22,35 @@ async def create_draft_nano(
     creator_id: UUID,
     file: UploadFile,
     title: Optional[str] = None,
+    storage_adapter: Optional[MinIOStorageAdapter] = None,
 ) -> Nano:
     """
-    Create a new Nano record in draft status.
+    Create a new Nano record in draft status and persist file to MinIO.
+
+    Workflow:
+    1. Read and validate file content
+    2. Upload file to MinIO with deterministic key
+    3. Create Nano record in database linked to storage object
+    4. Return created Nano with file_storage_path set
 
     Args:
         db: Database session
         creator_id: UUID of the user creating the Nano
         file: Uploaded file (for generating title if not provided)
         title: Optional title for the Nano (defaults to filename)
+        storage_adapter: MinIO adapter instance (defaults to new instance)
 
     Returns:
-        Created Nano instance
+        Created Nano instance with file_storage_path populated
 
     Raises:
+        StorageError: If file upload to MinIO fails
         Exception: If database operation fails
     """
+    # Initialize storage adapter if not provided
+    if storage_adapter is None:
+        storage_adapter = MinIOStorageAdapter()
+
     # Generate title from filename if not provided
     if title is None:
         # Remove .zip extension and clean up filename
@@ -45,14 +60,31 @@ async def create_draft_nano(
     # Limit title length to 200 chars
     title = title[:200]
 
-    # Create new Nano record
+    # Create nano_id early for storage key generation
+    nano_id = uuid.uuid4()
+
+    try:
+        # Read file content
+        file_content = await file.read()
+
+        # Upload to MinIO and get storage key
+        storage_key = storage_adapter.upload_file(
+            nano_id=nano_id,
+            file_content=file_content,
+            filename=file.filename or "untitled.zip",
+            content_type=file.content_type or "application/zip",
+        )
+    except StorageError as e:
+        raise StorageError(f"Failed to persist file to storage: {str(e)}") from e
+
+    # Create new Nano record with storage reference
     nano = Nano(
-        id=uuid.uuid4(),
+        id=nano_id,
         creator_id=creator_id,
         title=title,
         status=NanoStatus.DRAFT,
-        # These fields will be updated in future stories when we integrate storage
-        file_storage_path=None,  # Will be set when MinIO integration is complete (S2-BE-04)
+        # MinIO integration: file_storage_path now populated
+        file_storage_path=storage_key,
         description=None,
         duration_minutes=None,
         thumbnail_url=None,
