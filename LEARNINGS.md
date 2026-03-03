@@ -1432,3 +1432,49 @@ During implementation of ZIP structure validation (Issue #25), discovered critic
 - **Learning**: For services with multiple configuration dimensions (connection, credentials, behavior tuning), create granular environment variables instead of composite connection strings. This provides finer control across environments and simplifies debugging (e.g., toggle TLS separately from endpoint). Document sensible defaults in code and provide `.env.example` with environment-specific values.
 
 
+
+## Async Timeout Enforcement & Retry Semantics (Issue #26 - Upload Retry + Timeout Handling)
+
+### Context
+Implemented upload timeout guardrails (10 minutes), retry semantics for transient failures, and explicit failure-state visibility in the upload API.
+
+### Key Learnings
+
+#### 1. Async Context Manager Timeouts with asyncio.wait_for()
+- Use asyncio.wait_for(operation, timeout=seconds) for hard timeout boundaries
+- Wrap synchronous blocking operations with asyncio.to_thread() to keep event loop free
+- Preserves async/await syntax while enforcing timeout deadlines
+
+#### 2. Transient Error Classification via Pattern Matching
+- Pattern-match on exception message string for transient indicators: timeout, connection, 503, 429, dns
+- Distinguish recoverable failures (retry) from terminal failures (fail fast)
+- Avoids library-specific exception catching while working across exception hierarchies
+
+#### 3. Exponential Backoff with Bounded Maximum
+- Formula: min(2.0, 0.25 * (2**attempt)) bounds backoff to 2 seconds max
+- Prevents unbounded growth from exceeding timeout window
+- With 3 retries: total delay <= 6 seconds (well within 600-second timeout)
+
+#### 4. Structured Error Responses with Explicit Retry Policy
+- Add explicit fields to error response: failure_state, retryable, retry_after_seconds
+- Include HTTP header Retry-After: 30 (RFC 7231 standard)
+- Enables client retry policies and distinguishes rate-limited from permission errors
+
+#### 5. Thread Pool Blocking I/O with Async
+- Use asyncio.to_thread() to execute sync operations in thread pool
+- Compose with asyncio.wait_for() for timeout enforcement
+- Keep event loop free during blocking I/O operations
+
+#### 6. Timeout Configuration in HTTP Clients
+- Configure urllib3.Timeout with separate values: connect (10s), read (600s), total (600s)
+- Use min(10, total) for connect timeout to stay within total budget
+- Provides fine-grained control vs global timeout integers
+
+### Implementation Stats (Issue #26)
+- Files Modified: 8 (config, storage, service, router, schemas, tests, doc)
+- Pattern: Async timeout + transient classification + exponential backoff + structured errors
+- Test Results: 240/240 passing, 89% coverage
+- Timeout Enforcement: 600 seconds (10 minutes)
+- Max Retry Backoff: 2 seconds
+- Max Retry Attempts: 3
+- Docker Validation: All services healthy

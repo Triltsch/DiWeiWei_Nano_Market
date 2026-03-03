@@ -5,6 +5,7 @@ This module defines request and response models for the upload API endpoints.
 """
 
 from datetime import datetime
+from enum import Enum
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -36,10 +37,31 @@ class UploadErrorResponse(BaseModel):
     Attributes:
         detail: Error message describing what went wrong
         error_code: Machine-readable error code
+        failure_state: Explicit upload failure state for client workflow handling
+        retryable: Whether retry is recommended for this failure
+        retry_after_seconds: Suggested wait time before retry, if applicable
     """
 
     detail: str = Field(..., description="Human-readable error message")
     error_code: str = Field(..., description="Machine-readable error code")
+    failure_state: str = Field(
+        default="failed",
+        description="Explicit upload operation state in error responses",
+    )
+    retryable: bool = Field(
+        default=False,
+        description="Whether clients should retry this upload request",
+    )
+    retry_after_seconds: int | None = Field(
+        default=None,
+        description="Recommended delay (seconds) before retrying transient failures",
+    )
+
+
+class UploadFailureState(str, Enum):
+    """Allowed failure state values for upload error responses."""
+
+    FAILED = "failed"
 
 
 class ValidationErrorDetail(BaseModel):

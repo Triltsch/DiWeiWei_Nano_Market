@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
     # Upload settings
     UPLOAD_MAX_RETRIES: int = 3
-    UPLOAD_TIMEOUT_SECONDS: int = 300
+    UPLOAD_TIMEOUT_SECONDS: int = 600
 
 
 @lru_cache

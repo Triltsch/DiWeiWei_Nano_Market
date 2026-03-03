@@ -5,13 +5,12 @@ learning content files with deterministic key naming and private access control.
 """
 
 import io
+import time
 from typing import Optional
 from uuid import UUID
 
 from minio import Minio
-from minio.commonconfig import GOVERNANCE
-from minio.retention import Retention
-from minio.versioningconfig import VersioningConfig
+from urllib3 import PoolManager, Timeout
 
 from app.config import get_settings
 
@@ -32,16 +31,23 @@ class MinIOStorageAdapter:
     def __init__(self) -> None:
         """Initialize MinIO client with configuration."""
         settings = get_settings()
+        self.timeout = settings.UPLOAD_TIMEOUT_SECONDS
+        timeout_config = Timeout(
+            total=self.timeout,
+            connect=min(10, self.timeout),
+            read=self.timeout,
+        )
+
         self.client = Minio(
             endpoint=settings.MINIO_ENDPOINT,
             access_key=settings.MINIO_ACCESS_KEY,
             secret_key=settings.MINIO_SECRET_KEY,
             secure=settings.MINIO_SECURE,
             region=settings.MINIO_REGION,
+            http_client=PoolManager(timeout=timeout_config, retries=False),
         )
         self.bucket_name = settings.MINIO_BUCKET_NAME
         self.max_retries = settings.UPLOAD_MAX_RETRIES
-        self.timeout = settings.UPLOAD_TIMEOUT_SECONDS
 
     def upload_file(
         self,
@@ -96,12 +102,17 @@ class MinIOStorageAdapter:
                     raise StorageError(f"Upload verification failed: size mismatch")
 
                 except Exception as e:
+                    if not self._is_transient_error(e):
+                        raise StorageError(f"Non-retryable storage failure: {str(e)}") from e
+
                     if attempt == self.max_retries - 1:
                         # Last attempt failed, raise error
                         raise StorageError(
                             f"Failed to upload file after {self.max_retries} attempts: {str(e)}"
                         ) from e
-                    # Retry on next iteration
+
+                    # Retry on next iteration with bounded backoff
+                    time.sleep(self._retry_backoff_seconds(attempt))
 
         finally:
             file_data.close()
@@ -180,6 +191,33 @@ class MinIOStorageAdapter:
             Object key relative to bucket root
         """
         return f"nanos/{str(nano_id)}/content/{filename}"
+
+    def _is_transient_error(self, error: Exception) -> bool:
+        """Best-effort classification for transient storage failures.
+
+        Args:
+            error: Exception raised during storage operation
+
+        Returns:
+            True when the failure appears transient and retry is appropriate.
+        """
+        transient_indicators = (
+            "timeout",
+            "timed out",
+            "connection",
+            "temporarily unavailable",
+            "service unavailable",
+            "reset",
+            "dns",
+            "503",
+            "429",
+        )
+        message = str(error).lower()
+        return any(indicator in message for indicator in transient_indicators)
+
+    def _retry_backoff_seconds(self, attempt: int) -> float:
+        """Calculate bounded exponential backoff in seconds for upload retries."""
+        return min(2.0, 0.25 * (2**attempt))
 
 
 def get_storage_adapter() -> MinIOStorageAdapter:

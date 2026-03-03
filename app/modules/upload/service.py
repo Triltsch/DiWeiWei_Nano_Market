@@ -5,6 +5,7 @@ This module handles business logic for creating Nano records in the database
 and managing file persistence to MinIO object storage.
 """
 
+import asyncio
 import uuid
 from typing import Optional
 from uuid import UUID
@@ -62,18 +63,27 @@ async def create_draft_nano(
 
     # Create nano_id early for storage key generation
     nano_id = uuid.uuid4()
+    timeout_seconds = max(1, int(getattr(storage_adapter, "timeout", 600)))
 
     try:
         # Read file content
-        file_content = await file.read()
+        file_content = await asyncio.wait_for(file.read(), timeout=timeout_seconds)
 
         # Upload to MinIO and get storage key
-        storage_key = storage_adapter.upload_file(
-            nano_id=nano_id,
-            file_content=file_content,
-            filename=file.filename or "untitled.zip",
-            content_type=file.content_type or "application/zip",
+        storage_key = await asyncio.wait_for(
+            asyncio.to_thread(
+                storage_adapter.upload_file,
+                nano_id=nano_id,
+                file_content=file_content,
+                filename=file.filename or "untitled.zip",
+                content_type=file.content_type or "application/zip",
+            ),
+            timeout=timeout_seconds,
         )
+    except TimeoutError as e:
+        raise StorageError(
+            f"Upload operation exceeded timeout of {timeout_seconds} seconds."
+        ) from e
     except StorageError as e:
         raise StorageError(f"Failed to persist file to storage: {str(e)}") from e
 

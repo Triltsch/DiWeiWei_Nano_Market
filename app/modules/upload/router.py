@@ -9,11 +9,12 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.modules.auth.middleware import get_current_user_id
-from app.modules.upload.schemas import UploadResponse
+from app.modules.upload.schemas import UploadErrorResponse, UploadFailureState, UploadResponse
 from app.modules.upload.service import create_draft_nano
 from app.modules.upload.storage import MinIOStorageAdapter, StorageError
 from app.modules.upload.validation import validate_upload
@@ -47,6 +48,7 @@ def get_upload_router(prefix: str = "/api/v1/upload", tags: list[str] = None) ->
         - Authentication required (Bearer token)
         - File must be in ZIP format
         - Maximum file size: 100 MB
+        - Maximum upload operation duration: 10 minutes
         - ZIP must contain at least one supported file (`.pdf`, `.jpg`, `.png`, `.mp4`, `.webm`)
 
         **Process:**
@@ -129,9 +131,16 @@ def get_upload_router(prefix: str = "/api/v1/upload", tags: list[str] = None) ->
             },
             503: {
                 "description": "Object storage (MinIO) temporarily unavailable",
+                "model": UploadErrorResponse,
                 "content": {
                     "application/json": {
-                        "example": {"detail": "Object storage temporarily unavailable."}
+                        "example": {
+                            "detail": "Object storage temporarily unavailable due to transient failure.",
+                            "error_code": "UPLOAD_TRANSIENT_FAILURE",
+                            "failure_state": "failed",
+                            "retryable": True,
+                            "retry_after_seconds": 30,
+                        }
                     }
                 },
             },
@@ -179,10 +188,17 @@ def get_upload_router(prefix: str = "/api/v1/upload", tags: list[str] = None) ->
                 storage_adapter=storage_adapter,
             )
         except StorageError as e:
-            # Storage failure - return recoverable error
-            raise HTTPException(
+            # Storage failure - return recoverable error with explicit failure state
+            return JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Object storage temporarily unavailable: {str(e)}",
+                headers={"Retry-After": "30"},
+                content=UploadErrorResponse(
+                    detail=f"Object storage temporarily unavailable due to transient failure: {str(e)}",
+                    error_code="UPLOAD_TRANSIENT_FAILURE",
+                    failure_state=UploadFailureState.FAILED.value,
+                    retryable=True,
+                    retry_after_seconds=30,
+                ).model_dump(),
             )
         except Exception as e:
             raise HTTPException(
