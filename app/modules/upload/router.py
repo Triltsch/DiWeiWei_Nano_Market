@@ -45,7 +45,7 @@ def get_upload_router(prefix: str = "/api/v1/upload", tags: list[str] = None) ->
         - Authentication required (Bearer token)
         - File must be in ZIP format
         - Maximum file size: 100 MB
-        - ZIP must contain at least one file
+        - ZIP must contain at least one supported file (`.pdf`, `.jpg`, `.png`, `.mp4`, `.webm`)
 
         **Process:**
         1. File is validated (type, size, structure)
@@ -94,6 +94,12 @@ def get_upload_router(prefix: str = "/api/v1/upload", tags: list[str] = None) ->
                                 "summary": "Empty ZIP file",
                                 "value": {
                                     "detail": "ZIP file is empty. At least one file is required."
+                                },
+                            },
+                            "unsupported_content": {
+                                "summary": "ZIP without supported content",
+                                "value": {
+                                    "detail": "ZIP file does not contain supported content files. Supported file types: .pdf, .jpg, .png, .mp4, .webm."
                                 },
                             },
                         }

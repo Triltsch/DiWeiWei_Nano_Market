@@ -205,7 +205,7 @@ class TestUploadNanoEndpoint:
         # Create a valid ZIP file
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("content.txt", "Learning material")
+            zf.writestr("content.pdf", "Learning material")
 
         zip_buffer.seek(0)
 
@@ -230,6 +230,39 @@ class TestUploadNanoEndpoint:
         assert nano.file_storage_path is None  # Not set yet (MinIO integration pending)
 
     @pytest.mark.asyncio
+    async def test_upload_nano_rejects_zip_without_supported_content(
+        self, async_client, verified_user_id
+    ):
+        """Test that ZIP files without supported internal content types are rejected."""
+        # Get authentication token
+        login_response = await async_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "testuser@example.com",
+                "password": "SecurePassword123!",
+            },
+        )
+        token = login_response.json()["access_token"]
+
+        # Create ZIP with unsupported file types only
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("notes.txt", "Learning material")
+            zf.writestr("metadata.json", "{}")
+
+        zip_buffer.seek(0)
+
+        # Upload ZIP with unsupported content
+        response = await async_client.post(
+            "/api/v1/upload/nano",
+            headers={"Authorization": f"Bearer {token}"},
+            files={"file": ("unsupported.zip", zip_buffer, "application/zip")},
+        )
+
+        assert response.status_code == 400
+        assert "supported content files" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
     async def test_upload_nano_rejects_filename_without_zip_extension(
         self, async_client, verified_user_id
     ):
@@ -247,7 +280,7 @@ class TestUploadNanoEndpoint:
         # Create a valid ZIP file
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("content.txt", "Learning material")
+            zf.writestr("content.pdf", "Learning material")
 
         zip_buffer.seek(0)
 
@@ -283,7 +316,7 @@ class TestUploadNanoEndpoint:
         # Upload first file
         zip_buffer1 = io.BytesIO()
         with zipfile.ZipFile(zip_buffer1, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("module1.txt", "Content 1")
+            zf.writestr("module1.pdf", "Content 1")
         zip_buffer1.seek(0)
 
         response1 = await async_client.post(
@@ -297,7 +330,7 @@ class TestUploadNanoEndpoint:
         # Upload second file
         zip_buffer2 = io.BytesIO()
         with zipfile.ZipFile(zip_buffer2, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("module2.txt", "Content 2")
+            zf.writestr("module2.png", "Content 2")
         zip_buffer2.seek(0)
 
         response2 = await async_client.post(
