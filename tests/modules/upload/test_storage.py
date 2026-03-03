@@ -4,9 +4,9 @@ Tests for MinIO storage adapter.
 This module tests the MinIO storage adapter and integration with upload workflow.
 """
 
-import io
+import os
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -349,3 +349,42 @@ class TestMinIOStorageIntegration:
             assert data["failure_state"] == "failed"
             assert data["retryable"] is True
             assert data["retry_after_seconds"] == 30
+
+
+class TestRealMinIOStorageIntegration:
+    """
+    Optional real MinIO integration tests.
+
+    These tests are disabled by default and only run when
+    RUN_REAL_MINIO_TESTS=1 is set in the environment.
+    """
+
+    @pytest.mark.integration
+    @pytest.mark.skipif(
+        os.getenv("RUN_REAL_MINIO_TESTS") != "1",
+        reason="Set RUN_REAL_MINIO_TESTS=1 to run real MinIO integration tests.",
+    )
+    def test_real_minio_upload_roundtrip(self):
+        """Test upload/existence/url/delete flow against a real MinIO instance."""
+        adapter = MinIOStorageAdapter()
+        nano_id = uuid.uuid4()
+        filename = f"integration-{uuid.uuid4()}.zip"
+        file_content = b"PK\x03\x04real-minio-test-content"
+
+        object_key = adapter.upload_file(
+            nano_id=nano_id,
+            file_content=file_content,
+            filename=filename,
+            content_type="application/zip",
+        )
+
+        try:
+            assert object_key.startswith(f"nanos/{nano_id}/content/")
+            assert adapter.object_exists(object_key) is True
+
+            presigned_url = adapter.get_file_url(object_key, expires_in_days=1)
+            assert presigned_url
+            assert object_key in presigned_url
+        finally:
+            adapter.delete_file(object_key)
+            assert adapter.object_exists(object_key) is False
