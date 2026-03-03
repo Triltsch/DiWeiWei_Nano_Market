@@ -423,7 +423,7 @@ This typically occurs when Docker volumes contain data from incompatible image v
 docker-compose down  # Stop all services
 
 # Remove only problematic volumes (PostgreSQL & Redis data preserved)
-docker volume rm diwei_dev_minio_data_2023_12_23 diwei_dev_meilisearch_data_v1_6_0 # if using named volumes
+docker volume rm diwei_dev_minio_data_2024_12_13 diwei_dev_meilisearch_data_v1_6_0 # if using named volumes
 
 # Or remove via compose (all volumes):
 docker-compose down -v
@@ -473,7 +473,7 @@ curl http://localhost:7700/health              # Meilisearch health
 - MinIO and Meilisearch database formats change between major versions
 - Older images cannot read newer data formats (downgrade incompatibility)
 - Solution: Version-specific volume names prevent silent format conflicts
-  - `minio_data_latest` - reflects current MinIO version (auto-updates with latest tag)
+  - `minio_data_2024_12_13` - versioned by image release date; volume persists when image changes, so updating the image tag requires updating the volume name to prevent format conflicts
   - `meilisearch_data_v1_6_0` - versioned by engine version
 
 **Future Prevention:**
