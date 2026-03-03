@@ -1,1038 +1,174 @@
 # DiWeiWei Nano-Marktplatz
 
-A modern, scalable marketplace platform for nano-learning units (Nano-Lerneinheiten) with user authentication, JWT-based security, and comprehensive testing.
+Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und umfassenden Tests.
 
-## 📋 Project Overview
+## 📊 Aktueller Stand
 
-DiWeiWei is a decentralized nano-learning marketplace where creators can share bite-sized learning units with consumers. The project is built with production-ready architecture from day one, implementing security best practices and comprehensive testing.
+**Fertiggestellte Stories**: 1.1, 1.3, 1.4, 1.5, 7.2, 7.3 ✅
+- ✅ User Registration & Login mit Email-Verifizierung
+- ✅ Password Hashing (Bcrypt, OWASP-konform)
+- ✅ Email Verification Flow (JWT-basiert)
+- ✅ Audit Logging Framework (40+ Event-Typen)
+- ✅ ZIP Upload API (Nano-Lerneinheiten hochladen)
+- ✅ Nano Upload Domain Model mit Alembic Migrations
 
-**Current Status**: Stories 1.1, 1.3, 1.4, 1.5 ✅ Complete
-- 187/187 tests passing (100% pass rate)
-- 86.73% code coverage (exceeds 70% requirement)
-- All acceptance criteria met for completed stories
-- Production-ready auth module with audit logging
+**Qualität**:
+- 221/221 Tests bestanden (100%)
+- 87.82% Code Coverage (Ziel: >70%)
+- Black/isort Code-Formatierung
+- PostgreSQL + SQLite Support
 
 ## 🚀 Quick Start
 
-### Prerequisites
-
+### Voraussetzungen
 - Python 3.13.1+
-- pip or pip3
-- PostgreSQL 13+ (for production; SQLite used for testing)
+- Docker & Docker Compose (für lokale Services)
 
-### Setup & Installation
+### Installation & Start
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Triltsch/DiWeiWei_Nano_Market.git
-   cd DiWeiWei_Nano_Market
-   ```
-
-2. **Create virtual environment**
-   ```bash
-   python -m venv .venv
-   ```
-
-3. **Activate virtual environment**
-   
-   **On Windows (PowerShell):**
-   ```powershell
-   .\.venv\Scripts\Activate.ps1
-   ```
-   
-   **On macOS/Linux:**
-   ```bash
-   source .venv/bin/activate
-   ```
-
-4. **Install dependencies**
-   ```bash
-   pip install -r pyproject.toml
-   # or
-   pip install -e .
-   ```
-
-5. **Configure environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
-
-### Database Configuration
-
-The application supports multiple database configurations for different scenarios:
-
-#### Development (Default Local PostgreSQL)
-For development with a local PostgreSQL database on standard port 5432:
 ```bash
-# In .env
-DATABASE_URL="postgresql://user:password@localhost:5432/diwei_nano_market"
-```
+# 1. Repository klonen
+git clone https://github.com/Triltsch/DiWeiWei_Nano_Market.git
+cd DiWeiWei_Nano_Market
 
-#### Docker Compose (Integration Testing)
-When running PostgreSQL via Docker Compose on port 5433:
-```bash
-# In .env
-TEST_DB_URL="postgresql+asyncpg://testuser:testpassword@localhost:5433/diweiwei_test"
-```
+# 2. Virtual Environment erstellen und aktivieren
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1  # Windows
+# source .venv/bin/activate    # macOS/Linux
 
-Or set it as environment variable before running the app:
+# 3. Dependencies installieren
+pip install -e .
 
-**Windows (PowerShell):**
-```powershell
-$env:TEST_DB_URL = "postgresql+asyncpg://testuser:testpassword@localhost:5433/diweiwei_test"
+# 4. Umgebungsvariablen konfigurieren
+cp .env.example .env
+# .env editieren und SECRET_KEY, DATABASE_URL etc. anpassen
+
+# 5. Docker Services starten (PostgreSQL, Redis, MinIO, Meilisearch)
+docker-compose up -d
+
+# 6. Datenbank initialisieren
+python scripts/init_db.py
+
+# 7. Anwendung starten
 python -m uvicorn app.main:app --reload
 ```
 
-**macOS/Linux:**
-```bash
-export TEST_DB_URL="postgresql+asyncpg://testuser:testpassword@localhost:5433/diweiwei_test"
-python -m uvicorn app.main:app --reload
-```
+**API Dokumentation**: http://localhost:8000/docs
 
-#### Production
-For production deployments, set DATABASE_URL with your production database:
-```bash
-# In .env or production secrets
-DATABASE_URL="postgresql://user:password@your-prod-host:5432/diweiwei_production"
-ENV="production"
-SECRET_KEY="your-strong-secret-key-here"
-```
-
-**Configuration Priority:**
-1. `TEST_DB_URL` (Docker Compose, if set)
-2. `DATABASE_URL` (Production/Development, if set)
-3. Default based on ENV (sqlite for tests, localhost:5432 for others)
-
-### Database Initialization
-
-After configuring your database connection, you must initialize the database schema before running the application.
-
-#### Option 1: Using Initialization Script (Recommended)
-
-Simple Python script that creates all necessary tables:
+### Tests ausführen
 
 ```bash
-# From project root directory
-python scripts/init_db.py
+# Unit Tests (SQLite)
+pytest tests/ -v
 
-# Expected output:
-# ✅ Database schema created successfully!
-# Tables created:
-#   - users
-#   - audit_logs (future)
-```
-
-#### Option 2: Alembic Migrations
-
-When migrations are available, use Alembic for version-controlled schema changes:
-
-```bash
-# Display current database version
-alembic current
-
-# Run all pending migrations
-alembic upgrade head
-
-# Verify tables were created
-psql -h localhost -p 5433 -U testuser -d diweiwei_test -c "\dt"
-```
-
-#### Option 3: Manual Schema Creation
-
-Direct SQLAlchemy table creation (advanced):
-
-```bash
-python -c "
-import asyncio
-from app.database import engine
-from app.models import Base
-
-async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        print('✅ Database schema created successfully!')
-
-asyncio.run(init_db())
-"
-```
-
-#### Option 4: Docker Compose PostgreSQL (Reset &amp; Reinitialize)
-
-To completely reset the Docker Compose test database and start fresh:
-
-```bash
-# Stop and remove the container and its data
-docker-compose -f docker-compose.test.yml down -v
-
-# Start fresh PostgreSQL container
-docker-compose -f docker-compose.test.yml up -d
-
-# Initialize schema using Option 1 above
-python scripts/init_db.py
-```
-
-**Verification:**
-```bash
-# Check if tables exist and have data (after running tests or registering users)
-docker-compose -f docker-compose.test.yml exec postgres \
-  psql -U testuser -d diweiwei_test -c "SELECT COUNT(*) FROM users;"
-```
-
-### Running the Application
-
-**Development server with auto-reload:**
-```bash
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-**Production server:**
-```bash
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-The API will be available at `http://localhost:8000`
-
-### Access API Documentation
-
-- **Interactive Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-- **Health Check**: http://localhost:8000/health
-
-## 🐳 Docker Setup
-
-Docker is required to run integration tests with PostgreSQL. Follow the steps below to install and verify Docker on your system.
-
-### Installation
-
-#### Windows
-
-1. **Download Docker Desktop**
-   - Visit [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop)
-   - Download the installer for your system (Intel or Apple Silicon)
-
-2. **Install Docker Desktop**
-   - Run the installer and follow the installation wizard
-   - Ensure "Install required Windows components for WSL 2 backend" is checked
-   - Complete the installation and restart your computer
-
-3. **Verify Installation**
-   ```powershell
-   docker --version
-   docker run hello-world
-   ```
-
-#### macOS
-
-1. **Download Docker Desktop**
-   - Visit [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop)
-   - Download for Intel or Apple Silicon
-
-2. **Install Docker Desktop**
-   - Drag the Docker.app to the Applications folder
-   - Launch Docker from Applications
-
-3. **Verify Installation**
-   ```bash
-   docker --version
-   docker run hello-world
-   ```
-
-#### Linux (Ubuntu/Debian)
-
-```bash
-# Update package manager
-sudo apt-get update
-
-# Install Docker
-sudo apt-get install -y docker.io docker-compose
-
-# Add current user to docker group (logout and login required)
-sudo usermod -aG docker $USER
-
-# Verify installation
-docker --version
-docker-compose --version
-docker run hello-world
-```
-
-### Verify Docker & Docker Compose
-
-```bash
-# Check Docker installation
-docker --version
-# Expected output: Docker version X.X.X
-
-# Check Docker Compose installation
-docker-compose --version
-# Expected output: Docker Compose version X.X.X
-
-# Test Docker is running
-docker ps
-# Should show a list of containers (empty if no containers are running)
-```
-
-### Start Docker Daemon
-
-- **Windows/macOS**: Docker Desktop runs automatically after installation. Launch it from your applications menu if it's not running.
-- **Linux**: Start Docker service manually if needed:
-  ```bash
-  sudo systemctl start docker
-  sudo systemctl status docker  # Verify it's running
-  ```
-
-### Project Docker Compose Setup
-
-This project includes two Docker Compose configurations:
-
-1. **`docker-compose.yml`** - Complete local development environment (recommended)
-2. **`docker-compose.test.yml`** - Minimal PostgreSQL + Redis environment for CI testing
-
-#### Development Environment with docker-compose.yml (Recommended)
-
-The main `docker-compose.yml` provides a complete local development stack with all required services:
-
-**Services Included:**
-- **PostgreSQL 13** - Primary database (port 5432, bound to localhost only)
-- **Redis 7** - Caching layer (port 6380, bound to localhost only)
-- **MinIO (latest)** - S3-compatible object storage (port 9000, console 9001, bound to localhost only)
-- **Meilisearch v1.6.0** - Full-text search engine (port 7700, bound to localhost only)
-- **FastAPI Backend** - Application server (port 8000, bound to localhost only)
-
-**Quick Start:**
-
-```bash
-# Start all services in background
-docker-compose up -d
-
-# Check service status (wait for all to show "healthy")
-docker-compose ps
-
-# View application logs
-docker-compose logs -f app
-
-# Stop all services
-docker-compose down
-
-# Remove all services and volumes (clean reset)
-docker-compose down -v
-```
-
-**Access Services:**
-
-| Service | URL | Purpose |
-|---------|-----|---------|
-| FastAPI Backend | http://localhost:8000 | REST API |
-| Swagger UI | http://localhost:8000/docs | API Documentation |
-| PostgreSQL | localhost:5432 | Database |
-| Redis | localhost:6380 | Cache/Sessions |
-| MinIO Console | http://localhost:9001 | Object Storage UI (`MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`) |
-| Meilisearch Dashboard | http://localhost:7700 | Search UI |
-
-**Environment Variables:**
-Core service credentials/endpoints are sourced from `.env` (see `.env.example`) with safe Docker defaults if not set.
-
-```bash
-# Optional: Override Docker Compose service defaults (Story 7.2/7.3)
-# These have defaults in docker-compose.yml; customize as needed:
-POSTGRES_USER=diwei_user
-POSTGRES_PASSWORD=diwei_password
-POSTGRES_DB=diwei_nano_market
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=minioadmin123
-MINIO_BUCKET_NAME=nanos
-
-# Required: Database connection for the FastAPI app
-# When using compose Postgres, build from the POSTGRES_* values above:
-DATABASE_URL=postgresql+asyncpg://diwei_user:diwei_password@localhost:5433/diwei_nano_market
-# For testing (uses different container/port in docker-compose.test.yml):
-TEST_DB_URL=postgresql+asyncpg://test_user:test_password@localhost:5434/test_db
-```
-
-- **PostgreSQL**: `POSTGRES_USER` / `POSTGRES_PASSWORD` on `POSTGRES_DB` (configures container)
-- **Redis**: No authentication (localhost-only)
-- **MinIO**: `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`, bucket `MINIO_BUCKET_NAME`
-- **Meilisearch**: `MEILI_MASTER_KEY` (required for searches API, min 16 bytes in production)
-- **FastAPI app**: Uses `DATABASE_URL` (built from `POSTGRES_*` vars when using compose services)
-
-**⚠️ Security Notes:**
-- **Development**: Default credentials are acceptable for local work
-- **Production**: 
-  - Generate strong random tokens for `SECRET_KEY`, `MEILI_MASTER_KEY`, `MINIO_ROOT_PASSWORD`
-  - Use separate `.env` file (do NOT commit to git)
-  - Rotate credentials regularly
-  - Enable HTTPS/TLS for all services
-
-**Health & Persistence Validation:**
-
-```bash
-# Health checks (postgres/minio should be "healthy")
-docker-compose ps
-
-# Verify MinIO bucket initialization
-docker-compose logs minio_init
-
-# Restart without removing volumes; data should persist
-docker-compose down
-docker-compose up -d
-```
-
-**Troubleshooting Development Environment:**
-
-```bash
-# View logs for specific service
-docker-compose logs postgres
-docker-compose logs -f app  # Follow logs in real-time
-
-# Port 8000 already in use
-docker ps | grep 8000
-docker stop <container-id>
-
-# Port conflicts (change port mapping in docker-compose.yml)
-# Example: Change "- '5432:5432'" to "- '5433:5432'" in postgres section
-
-# Database not initialized
-# The FastAPI container waits for PostgreSQL health check
-# If initialization fails, check logs:
-docker-compose logs app
-
-# Rebuild application image after code changes
-docker-compose build app
-docker-compose up -d app
-
-# Clean reset (removes all data)
-docker-compose down -v
-docker-compose up -d  # Starts fresh
-```
-
-**MinIO / Meilisearch Version Incompatibility Recovery:**
-
-If `meilisearch` or `minio` fail to start with version incompatibility errors:
-
-```
-Error: Your database version (1.36.0) is incompatible with your current engine version (1.6.0).
-ERROR Unable to initialize backend: decodeXLHeaders: Unknown xl header version 3
-```
-
-This typically occurs when Docker volumes contain data from incompatible image versions (e.g., newer data format with older engine).
-
-**Solution - Safe Volume Reset:**
-
-```bash
-# Option A: Remove only persisted MinIO/Meilisearch volumes (fastest recovery)
-docker-compose down  # Stop all services
-
-# Remove only problematic volumes (PostgreSQL & Redis data preserved)
-docker volume rm diwei_dev_minio_data_2024_12_13 diwei_dev_meilisearch_data_v1_6_0 # if using named volumes
-
-# Or remove via compose (all volumes):
-docker-compose down -v
-
-# Restart services - volumes will be recreated fresh
-docker-compose up -d
-
-# Verify all services are healthy
-docker-compose ps  # All should show "healthy" or "Up"
-```
-
-**Option B: Cleanup and Full Reset (nuclear option):**
-
-```bash
-# Stop and remove all containers/volumes for this project
-docker-compose down -v
-
-# Additionally remove orphan containers (if any)
-docker system prune
-
-# Start fresh
-docker-compose up -d
-
-# Verify health
-docker-compose ps
-```
-
-**Verify Recovery:**
-
-```bash
-# Check logs for clean startup (no errors)
-docker-compose logs minio
-docker-compose logs meilisearch
-
-# Both should show:
-# - minio: "Console available at http://0.0.0.0:9001"
-# - meilisearch: (successful startup, no errors)
-
-# Test service availability
-curl http://localhost:9000/minio/health/live  # MinIO health
-curl http://localhost:7700/health              # Meilisearch health
-```
-
-**Why This Happens:**
-
-- Docker volumes persist data between container restarts
-- MinIO and Meilisearch database formats change between major versions
-- Older images cannot read newer data formats (downgrade incompatibility)
-- Solution: Version-specific volume names prevent silent format conflicts
-  - `minio_data_2024_12_13` - versioned by image release date; volume persists when image changes, so updating the image tag requires updating the volume name to prevent format conflicts
-  - `meilisearch_data_v1_6_0` - versioned by engine version
-
-**Future Prevention:**
-
-When upgrading image versions in `docker-compose.yml`:
-1. Update service image tag (e.g., `meilisearch:v1.7.0`)
-2. Update corresponding volume name (e.g., `meilisearch_data_v1_7_0`)
-3. Old volume data can be safely removed or archived
-
-#### Docker Compose for Integration Testing (docker-compose.test.yml)
-
-This project includes a `docker-compose.test.yml` file for running PostgreSQL integration tests. The configuration provides an isolated test database environment.
-
-#### Project Docker Images
-
-The project uses:
-- **PostgreSQL 13 Alpine**: Lightweight PostgreSQL image optimized for testing
-  - Container name: `diweiwei_test_db`
-  - Port: `5433` (mapped to PostgreSQL's default `5432`)
-  - Credentials: `testuser` / `testpassword`
-  - Database: `diweiwei_test`
-
-#### Quick Start with Docker Compose (Testing)
-
-```bash
-# Start PostgreSQL test container in the background
-docker-compose -f docker-compose.test.yml up -d
-
-# Check container status (wait for "healthy" state)
-docker-compose -f docker-compose.test.yml ps
-
-# View logs (useful for debugging startup)
-docker-compose -f docker-compose.test.yml logs postgres
-
-# Stop the container
-docker-compose -f docker-compose.test.yml down
-
-# Remove container and volumes (clean reset)
-docker-compose -f docker-compose.test.yml down -v
-```
-
-#### Monitor Container Health
-
-```bash
-# Check if PostgreSQL is ready
-docker-compose -f docker-compose.test.yml ps
-
-# Look for: "postgres ... Up (healthy)"
-# Container takes 5-25 seconds to be fully ready
-```
-
-#### Connect to PostgreSQL for Manual Testing
-
-```bash
-# Enter PostgreSQL shell (requires psql client)
-psql -h localhost -p 5433 -U testuser -d diweiwei_test
-
-# Or use docker exec to run psql inside container
-docker-compose -f docker-compose.test.yml exec postgres \
-  psql -U testuser -d diweiwei_test -c "SELECT version();"
-```
-
-#### Troubleshooting Docker Compose
-
-```bash
-# Port 5433 already in use
-# Option 1: Stop conflicting service
-docker ps | grep 5433
-docker stop <container-id>
-
-# Option 2: Use different port by editing docker-compose.test.yml
-# Change "5433:5432" to "5434:5432"
-
-# Container fails to start
-docker-compose -f docker-compose.test.yml logs postgres
-
-# Clean up all Docker artifacts (careful!)
-docker-compose -f docker-compose.test.yml down -v
-docker system prune -a
-```
-
-## 🧪 Testing
-
-### Unit Tests (SQLite)
-
-Run the fast unit tests using in-memory SQLite:
-
-```bash
-# Run all unit tests with coverage
-pytest tests/ -v --cov=app --cov-report=html
-
-# Run unit tests only (skip integration tests)
-pytest tests/ -m "not integration" -v
-
-# Run authentication tests only
-pytest tests/modules/auth/ -v
-
-# Run specific test
-pytest tests/modules/auth/test_auth_service.py::test_register_user_success -v
-
-# Generate HTML coverage report
+# Mit Coverage Report
 pytest tests/ --cov=app --cov-report=html
-# Open htmlcov/index.html in browser
 ```
 
-### Integration Tests (PostgreSQL)
+## 📋 Implementierte Features
 
-Integration tests validate real database interactions with PostgreSQL. They require Docker Compose and a running PostgreSQL container.
+### Authentifizierung & Sicherheit
+- **User Registration**: Email-Validierung, Passwort-Stärke-Prüfung
+- **Login**: JWT-basiert (Access + Refresh Token)
+- **Email Verification**: Pflicht vor erstem Login (JWT-Token, 24h gültig)
+- **Account Lockout**: 3 Fehlversuche → 60 Min. Sperre
+- **Password Hashing**: Bcrypt (Cost: 12)
+- **Audit Logging**: Alle Auth-Events mit IP, User-Agent, Timestamps
 
-**Prerequisites:**
-- Docker and Docker Compose installed and running
-- See [Project Docker Compose Setup](#project-docker-compose-setup) section above
+### Nano Upload (Stories 7.2, 7.3)
+- **ZIP Upload API**: `POST /api/v1/uploads/zip`
+  - Authentifizierung erforderlich
+  - Max. 50 MB Dateigröße
+  - Validierung: ZIP-Format, index.html erforderlich
+  - Async Upload mit Hash-Berechnung
+- **Domain Model**: `NanoUpload` mit Alembic Migrations
+  - Status Tracking (uploaded, processing, published, failed)
+  - Versioning Support
+  - File Hashing (SHA256)
 
-**Complete Workflow:**
+## 🐳 Docker Services
+
+**docker-compose.yml** - Vollständige Entwicklungsumgebung:
+- PostgreSQL 13 (Port 5432)
+- Redis 7 (Port 6380)
+- MinIO (Port 9000/9001)
+- Meilisearch v1.6.0 (Port 7700)
+- FastAPI App (Port 8000)
 
 ```bash
-# 1. Start PostgreSQL test container (in the project directory)
-docker-compose -f docker-compose.test.yml up -d
+# Services starten
+docker-compose up -d
 
-# 2. Wait for PostgreSQL to be ready (look for "healthy" status)
-docker-compose -f docker-compose.test.yml ps
+# Status prüfen (alle sollten "healthy" sein)
+docker-compose ps
 
-# 3. Run integration tests with PostgreSQL
-TEST_DB_URL=postgresql+asyncpg://testuser:testpassword@localhost:5433/diweiwei_test \
-  pytest tests/ -m integration -v
-
-# 4. Stop the container when done
-docker-compose -f docker-compose.test.yml down
+# Services stoppen
+docker-compose down
 ```
 
-**Integration Test Coverage:**
-- Full registration and login flow with real DB constraints
-- Email verification enforcement
-- Account lockout mechanism validation
-- Email and username uniqueness constraints
-- Real PostgreSQL dialect behavior validation
+**Zugriff**:
+- API: http://localhost:8000
+- Swagger: http://localhost:8000/docs
+- MinIO Console: http://localhost:9001 (minioadmin/minioadmin123)
+- Meilisearch: http://localhost:7700
 
-**Combined Testing (Unit + Integration):**
+**Umgebungsvariablen**: Siehe `.env.example` für alle Konfigurationsoptionen.
 
-```bash
-# Start PostgreSQL container
-docker-compose -f docker-compose.test.yml up -d
+## 📚 Wichtige API Endpoints
 
-# Run all tests (unit + integration)
-TEST_DB_URL=postgresql+asyncpg://testuser:testpassword@localhost:5433/diweiwei_test \
-  pytest tests/ -v --cov=app --cov-report=html
+**Vollständige API-Dokumentation**: http://localhost:8000/docs
 
-# View coverage report
-open htmlcov/index.html  # macOS
-xdg-open htmlcov/index.html  # Linux
-start htmlcov/index.html  # Windows
+### Authentifizierung
+- `POST /api/v1/auth/register` - User Registration
+- `POST /api/v1/auth/login` - Login (JWT Access + Refresh Token)
+- `POST /api/v1/auth/verify-email` - Email verifizieren
+- `POST /api/v1/auth/refresh-token` - Token erneuern
+- `POST /api/v1/auth/logout` - Logout
 
-# Stop PostgreSQL container
-docker-compose -f docker-compose.test.yml down
-```
+### Uploads
+- `POST /api/v1/uploads/zip` - ZIP-Datei hochladen (authentifiziert, max. 50 MB)
 
-### Test Results
+### Audit
+- `GET /api/v1/audit/logs` - Audit Logs abrufen (Admin)
+- `GET /api/v1/audit/suspicious` - Verdächtige Aktivitäten (Admin)
 
-**Current Status**: 187/187 tests passing | 86.73% code coverage
+## 🛠️ Technologie-Stack
 
-## 📚 API Endpoints
-
-### Authentication
-
-#### Register User
-```http
-POST /api/v1/auth/register
-
-{
-  "email": "user@example.com",
-  "username": "testuser",
-  "password": "SecurePass123!",
-  "first_name": "Test",
-  "preferred_language": "de"
-}
-
-Response: 201 Created
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "username": "testuser",
-  "email_verified": false,
-  "created_at": "2026-02-27T10:00:00+00:00",
-  ...
-}
-
-Possible error response when database is unavailable:
-
-Response: 503 Service Unavailable
-{
-  "detail": "Service temporarily unavailable. Please try again later."
-}
-```
-
-#### Login
-```http
-POST /api/v1/auth/login
-
-{
-  "email": "user@example.com",
-  "password": "SecurePass123!"
-}
-
-Response: 200 OK
-{
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "token_type": "bearer",
-  "expires_in": 900
-}
-```
-
-#### Refresh Token
-```http
-POST /api/v1/auth/refresh-token
-
-{
-  "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-}
-
-Response: 200 OK
-{
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "token_type": "bearer",
-  "expires_in": 900
-}
-```
-
-#### Verify Email
-```http
-POST /api/v1/auth/verify-email
-
-{
-  "token": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-}
-
-Response: 200 OK
-{
-  "message": "Email verified successfully. You can now login.",
-  "email": "user@example.com"
-}
-
-Error: 401 Unauthorized
-{
-  "detail": "Invalid or expired email verification token"
-}
-```
-
-#### Resend Verification Email
-```http
-POST /api/v1/auth/resend-verification-email
-
-{
-  "email": "user@example.com"
-}
-
-Response: 200 OK
-{
-  "message": "(MVP) Verification token generated. Copy this token to verify your email: eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "email": "user@example.com"
-}
-
-Error: 401 Unauthorized
-{
-  "detail": "Email already verified"
-}
-```
-
-### Email Verification Flow
-
-The system implements JWT-based email verification for enhanced security:
-
-**Registration → Verification → Login Flow:**
-1. User registers with `POST /api/v1/auth/register` 
-2. User receives unverified status (`email_verified: false`)
-3. User cannot login until email is verified (receives 403 Forbidden)
-4. User requests verification token via `POST /api/v1/auth/resend-verification-email`
-5. User verifies email with `POST /api/v1/auth/verify-email` using token
-6. After verification, user can successfully login
-
-**Token Details:**
-- **Type**: JWT (JSON Web Token)
-- **Expiration**: 24 hours (configurable via `EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS`)
-- **Format**: Same algorithm (HS256) as access/refresh tokens
-- **Payload**: Contains user_id and email
-
-**MVP Status:** 
-In the current MVP implementation, the verification token is returned in the API response (for manual testing). 
-In production, the token would be sent via email with a verification link.
-
-### Health Check
-
-```http
-GET /health
-
-Response: 200 OK
-{
-  "status": "ok",
-  "version": "0.1.0"
-}
-```
-
-## 📁 Project Structure
-
-```
-DiWeiWei_Nano_Market/
-├── app/                          # Main application package
-│   ├── __init__.py
-│   ├── main.py                   # FastAPI application factory
-│   ├── config.py                 # Pydantic settings
-│   ├── database.py               # SQLAlchemy async session
-│   ├── models/
-│   │   └── __init__.py          # SQLAlchemy ORM models (User entity)
-│   ├── modules/
-│   │   ├── auth/                # Authentication module
-│   │   │   ├── router.py        # FastAPI routes
-│   │   │   ├── service.py       # Business logic
-│   │   │   ├── password.py      # Password hashing
-│   │   │   ├── tokens.py        # JWT token management
-│   │   │   └── validators.py    # Custom validators
-│   │   └── users/               # User management (future)
-│   └── schemas/
-│       └── __init__.py          # Pydantic request/response models
-├── tests/                         # Test suite
-│   ├── conftest.py              # Pytest fixtures
-│   └── modules/auth/
-│       ├── test_auth_service.py # Service layer tests (20)
-│       └── test_auth_routes.py  # Route layer tests (17)
-├── doc/                           # Project documentation
-│   └── planning/                 # Planning & requirements
-├── pyproject.toml                # Project configuration & dependencies
-├── .env.example                  # Environment configuration template
-├── .gitignore                    # Git ignore rules
-├── LEARNINGS.md                  # Architecture decisions & insights
-├── IMPLEMENTATION_STATUS.md      # Detailed implementation docs
-└── README.md                     # This file
-```
-
-## 🔐 Security Features
-
-### Password Security
-- **Hashing**: Bcrypt (primary) with PBKDF2-HMAC-SHA256 fallback
-- **Strength Validation**: 8+ chars, uppercase, digit, special character
-- **Salt**: Unique salt per password (bcrypt default)
-
-### Account Security
-- **Account Lockout**: 3 failed login attempts → 60 minute lockout
-- **Email Verification**: Required before login
-- **Session Management**: Short-lived access tokens (15 min) + long-lived refresh tokens (7 days)
-
-### Configuration Security
-- **Environment Variables**: Secrets and configuration are primarily managed via `.env`
-- **Production Requirement**: `SECRET_KEY` must be set explicitly in production
-- **TLS Ready**: Infrastructure prepared for HTTPS enforcement
-
-## 🛠️ Technology Stack
-
-| Component | Technology | Version |
-|-----------|-----------|---------|
+| Komponente | Technologie | Version |
+|------------|-------------|---------|
 | Framework | FastAPI | 0.133.1 |
 | Database ORM | SQLAlchemy | 2.0.47 |
-| Data Validation | Pydantic | 2.12.5 |
-| Authentication | JWT (python-jose) | 3.3.0 |
-| Password Hashing | passlib + bcrypt | 1.7.4 |
-| Database (Prod) | PostgreSQL + asyncpg | 13+ |
-| Database (Test) | SQLite + aiosqlite | - |
+| Validation | Pydantic | 2.12.5 |
+| Auth | JWT (python-jose) | 3.3.0 |
+| Password | passlib + bcrypt | 1.7.4 |
+| DB (Prod) | PostgreSQL | 13+ |
+| DB (Test) | SQLite | - |
 | Testing | pytest | 9.0.2 |
-| Code Quality | black, isort | Latest |
+| Objektspeicher | MinIO | 2024-12-13 |
+| Suchmaschine | Meilisearch | 1.6.0 |
 
-## 📖 Documentation
+## 📖 Weitere Dokumentation
 
-- **[IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md)** - Detailed implementation documentation, architecture decisions, and test analysis
-- **[LEARNINGS.md](./LEARNINGS.md)** - Key learnings from prototype analysis and implementation decisions
-- **[doc/planning/](./doc/planning/)** - Project planning, requirements, and architecture documents
+- **[IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md)** - Detaillierte Implementierungsdokumentation
+- **[LEARNINGS.md](./LEARNINGS.md)** - Architektur-Entscheidungen und Erkenntnisse
+- **[doc/planning/](./doc/planning/)** - Projektplanung und Requirements
 
-## 🎯 Current Implementation Status
+## 🔒 Sicherheitsfeatures
 
-### Story 1.1: User Registration & Login ✅ **COMPLETE**
+- **Password Hashing**: Bcrypt (Cost: 12, OWASP-konform)
+- **Account Lockout**: 3 Fehlversuche → 60 Min Sperre
+- **Email Verification**: Pflicht vor Login (JWT, 24h gültig)
+- **Session Management**: Access Token (15 Min) + Refresh Token (7 Tage)
+- **Audit Logging**: Alle Security-Events mit IP, User-Agent, Timestamps
 
-**Features Implemented:**
-- ✅ User registration with email validation
-- ✅ Email verification enforcement with JWT tokens
-- ✅ Secure JWT-based authentication
-- ✅ Account lockout mechanism (3 failed attempts)
-- ✅ Token refresh functionality
-- ✅ Logout with token revocation
+## 🔜 Nächste Schritte
 
-### Story 1.3: Password Hashing Implementation ✅ **COMPLETE**
-
-**Features Implemented:**
-- ✅ Bcrypt hashing (cost factor 12, exceeds OWASP minimum)
-- ✅ Password strength validation (8+ chars, mixed case, digit, special char)
-- ✅ Constant-time comparison for security
-- ✅ Password strength API endpoint
-- ✅ No plain-text password storage or logging
-
-### Story 1.4: Email Verification ✅ **COMPLETE**
-
-**Features Implemented:**
-- ✅ Email verification tokens via JWT
-- ✅ Verification endpoint (`POST /api/v1/auth/verify-email`)
-- ✅ Resend verification email endpoint
-- ✅ 24-hour token expiration
-- ✅ Email verification required before login
-- ✅ Integration with registration flow
-
-### Story 1.5: Audit Logging Framework ✅ **COMPLETE**
-
-**Features Implemented:**
-- ✅ AuditLog model with 40+ action types
-- ✅ AuditLogger service with querying and filtering
-- ✅ Admin API endpoints for audit log access
-- ✅ Suspicious activity detection (threshold-based)
-- ✅ 90-day retention policy with cleanup
-- ✅ IP address and user agent capture
-- ✅ Full auth integration (all endpoints logged)
-- ✅ Cross-dialect JSON storage (SQLite + PostgreSQL)
-
-**Quality Metrics:**
-- **Total Tests**: 187/187 passing (100%)
-- **Code Coverage**: 86.73% (exceeds 70% requirement)
-- **Auth Module Tests**: 172 comprehensive tests
-- **Audit Module Tests**: 15 service, route, and integration tests
-- **All Checks**: Black formatting ✅, isort imports ✅
-
-**Logged Events:**
-- Registration (USER_REGISTERED)
-- Login success/failure with reasons
-- Email verification (EMAIL_VERIFIED)
-- Logout (LOGOUT)
-- Token refresh (TOKEN_REFRESH)
-- Account lockout (ACCOUNT_LOCKED)
-
-### Implementation Progress
-
-| Story | Scope | Status | Tests | Coverage |
-|-------|-------|--------|-------|----------|
-| 1.1 | User Registration & Login | ✅ Complete | 63 | 87% |
-| 1.3 | Password Hashing | ✅ Complete | 27 | 90% |
-| 1.4 | Email Verification | ✅ Complete | 18 | 100% |
-| 1.5 | Audit Logging Framework | ✅ Complete | 15 | 87% |
-| **Total** | **Auth Module** | **✅ Complete** | **187** | **86.73%** |
-
-## 🔜 Next Steps
-
-### Story 1.2: User Profile Management (Planned)
-- User profile CRUD operations
-- Personal information management
-- Profile preferences
-- Avatar upload/management
-
-### Story 1.6: GDPR Compliance (Planned)
-- Data export functionality
-- Right to deletion implementation
-- Consent management
-- Data retention policies
-
-### Future Stories
-- Story 2.x: Nano Unit Management (upload, organize, publish)
-- Story 3.x: Marketplace & Discovery (search, filtering, recommendations)
-- Story 4.x: Chat & Communication (messaging, notifications)
-- Story 5.x: Reviews & Ratings (quality assurance, community trust)
-
-## 🚨 Troubleshooting
-
-### Virtual Environment Not Activating
-```powershell
-# Set execution policy (Windows only)
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-### Database Connection Error
-- Ensure PostgreSQL is running (for production)
-- Update `DATABASE_URL` in `.env`
-- For development, tests use in-memory SQLite automatically
-
-### Database Schema Error: "relation \"users\" does not exist"
-
-**Error:**
-```
-asyncpg.exceptions.UndefinedTableError: relation "users" does not exist
-```
-
-**Solution:**
-1. Initialize the database schema (see [Database Initialization](#database-initialization) section)
-2. Run Alembic migrations: `alembic upgrade head`
-3. Or manually create schema: See Database Initialization → Option 2
-
-### Database Connection to Docker Compose Fails
-
-**Error:**
-```
-OSError: Multiple exceptions: [Errno 10061] Connect call failed ('127.0.0.1', 5432)
-```
-
-**Likely causes:**
-- Using wrong port (5432 instead of 5433 for Docker Compose)
-- PostgreSQL container not running
-- Wrong connection credentials
-
-**Solutions:**
-1. Set `TEST_DB_URL` with correct port 5433
-2. Verify Docker container is running: `docker-compose -f docker-compose.test.yml ps`
-3. Check credentials match docker-compose.test.yml
-4. See [Database Configuration](#database-configuration) section
-
-### Bcrypt Version Warning
-
-**Warning:**
-```
-(trapped) error reading bcrypt version
-AttributeError: module 'bcrypt' has no attribute '__about__'
-```
-
-**Impact**: Warning only - non-blocking, application continues to work normally
-
-**Workaround**: Upgrade bcrypt and passlib to compatible versions (future fix planned)
-
-### Port Already in Use
-```bash
-# Use a different port
-python -m uvicorn app.main:app --reload --port 8001
-```
-
-### Import Errors
-```bash
-# Reinstall dependencies
-pip install -e . --force-reinstall
-```
-
-## 📝 Development Workflow
-
-1. **Create feature branch**: `git checkout -b feature/description`
-2. **Make changes** and **add tests**
-3. **Run tests**: `pytest tests/ -v`
-4. **Format code**: `black app/ tests/`
-5. **Organize imports**: `isort app/ tests/`
-6. **Commit**: `git commit -m "feature: description"`
-7. **Push**: `git push origin feature/description`
-8. **Create Pull Request** on GitHub
-
-## 📄 License
-
-This project is part of the DiWeiWei initiative for decentralized nano-learning marketplace experimentation.
-
-## 👥 Contributors
-
-- Development Team (2026)
-
-## ❓ Questions & Support
-
-For questions, issues, or suggestions:
-1. Check [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) for technical details
-2. Review [LEARNINGS.md](./LEARNINGS.md) for architecture decisions
-3. Open an issue on GitHub with detailed information
-4. Create a discussion in the GitHub repository
+### Geplante Stories
+- **Story 1.2**: User Profile Management (CRUD, Avatar Upload)
+- **Story 1.6**: GDPR Compliance (Datenexport, Löschung, Consent)
+- **Story 2.x**: Nano Unit Management (Publizieren, Versionierung)
+- **Story 3.x**: Marketplace & Discovery (Suche, Empfehlungen)
 
 ---
 
-**Last Updated**: February 27, 2026
-**Current Branch**: Story 1.1 Complete - Ready for Merge
+**Letzte Aktualisierung**: März 2026
