@@ -1264,3 +1264,33 @@ tests/modules/upload/
   - Added test to assert unexpected ZIP parsing errors return a generic message and never expose internal exception text.
   - Updated ZIP structure validation to avoid reading full upload into memory via `await file.read()`.
 
+### Docker Runtime Compatibility Learnings (Issue #39)
+
+#### 1. Persisted Volume Format vs. Image Version
+- **Problem**: Local Docker startup failed with persisted MinIO/Meilisearch volumes created by incompatible engine versions.
+- **Symptoms**:
+  - Meilisearch: database version mismatch (`1.36.0` vs engine `1.6.0`)
+  - MinIO: `decodeXLHeaders: Unknown xl header version 3`
+- **Learning**: Volume data formats are not downgrade-safe across all versions. Pinning service images without volume version strategy causes recurring local startup failures.
+
+#### 2. Versioned Volume Names Reduce Hidden Drift
+- **Approach**: Use explicit service-specific volume names tied to image/engine strategy (e.g., `meilisearch_data_v1_6_0`).
+- **Learning**: Explicit volume naming makes data lifecycle and migration intent visible, avoiding accidental reuse of incompatible persisted state.
+
+#### 3. Health Check Tooling Must Match Image Contents
+- **Problem**: Health checks can fail when relying on tools not present in minimal images.
+- **Learning**: Validate health command availability per image and prefer stable, image-compatible checks. A passing service process can still appear unhealthy if the health probe itself is invalid.
+
+#### 4. Auxiliary Client Images Can Break on CLI Changes
+- **Problem**: `minio/mc:latest` changed command behavior; `mc config host add` failed and required `mc alias set`.
+- **Learning**: Initialization containers should use current CLI syntax and be reviewed when using floating tags.
+
+#### 5. Compose Spec Evolution
+- **Observation**: Compose warns that top-level `version` is obsolete and ignored.
+- **Learning**: Remove obsolete keys to keep config future-compatible and reduce operator confusion during incident handling.
+
+#### 6. Meilisearch Master Key in Development
+- **Observation**: Meilisearch warns when no master key is set and auto-generates a key.
+- **Learning**: Set `MEILI_MASTER_KEY` explicitly (env-driven) even in local Docker to align behavior with production security expectations and avoid runtime drift between environments.
+
+

@@ -295,8 +295,8 @@ The main `docker-compose.yml` provides a complete local development stack with a
 **Services Included:**
 - **PostgreSQL 13** - Primary database (port 5432, bound to localhost only)
 - **Redis 7** - Caching layer (port 6380, bound to localhost only)
-- **MinIO** - S3-compatible object storage (port 9000, console 9001, bound to localhost only)
-- **Meilisearch** - Full-text search engine (port 7700, bound to localhost only)
+- **MinIO (latest)** - S3-compatible object storage (port 9000, console 9001, bound to localhost only)
+- **Meilisearch v1.6.0** - Full-text search engine (port 7700, bound to localhost only)
 - **FastAPI Backend** - Application server (port 8000, bound to localhost only)
 
 **Quick Start:**
@@ -352,7 +352,16 @@ TEST_DB_URL=postgresql+asyncpg://test_user:test_password@localhost:5434/test_db
 - **PostgreSQL**: `POSTGRES_USER` / `POSTGRES_PASSWORD` on `POSTGRES_DB` (configures container)
 - **Redis**: No authentication (localhost-only)
 - **MinIO**: `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`, bucket `MINIO_BUCKET_NAME`
+- **Meilisearch**: `MEILI_MASTER_KEY` (required for searches API, min 16 bytes in production)
 - **FastAPI app**: Uses `DATABASE_URL` (built from `POSTGRES_*` vars when using compose services)
+
+**⚠️ Security Notes:**
+- **Development**: Default credentials are acceptable for local work
+- **Production**: 
+  - Generate strong random tokens for `SECRET_KEY`, `MEILI_MASTER_KEY`, `MINIO_ROOT_PASSWORD`
+  - Use separate `.env` file (do NOT commit to git)
+  - Rotate credentials regularly
+  - Enable HTTPS/TLS for all services
 
 **Health & Persistence Validation:**
 
@@ -395,6 +404,84 @@ docker-compose up -d app
 docker-compose down -v
 docker-compose up -d  # Starts fresh
 ```
+
+**MinIO / Meilisearch Version Incompatibility Recovery:**
+
+If `meilisearch` or `minio` fail to start with version incompatibility errors:
+
+```
+Error: Your database version (1.36.0) is incompatible with your current engine version (1.6.0).
+ERROR Unable to initialize backend: decodeXLHeaders: Unknown xl header version 3
+```
+
+This typically occurs when Docker volumes contain data from incompatible image versions (e.g., newer data format with older engine).
+
+**Solution - Safe Volume Reset:**
+
+```bash
+# Option A: Remove only persisted MinIO/Meilisearch volumes (fastest recovery)
+docker-compose down  # Stop all services
+
+# Remove only problematic volumes (PostgreSQL & Redis data preserved)
+docker volume rm diwei_dev_minio_data_2023_12_23 diwei_dev_meilisearch_data_v1_6_0 # if using named volumes
+
+# Or remove via compose (all volumes):
+docker-compose down -v
+
+# Restart services - volumes will be recreated fresh
+docker-compose up -d
+
+# Verify all services are healthy
+docker-compose ps  # All should show "healthy" or "Up"
+```
+
+**Option B: Cleanup and Full Reset (nuclear option):**
+
+```bash
+# Stop and remove all containers/volumes for this project
+docker-compose down -v
+
+# Additionally remove orphan containers (if any)
+docker system prune
+
+# Start fresh
+docker-compose up -d
+
+# Verify health
+docker-compose ps
+```
+
+**Verify Recovery:**
+
+```bash
+# Check logs for clean startup (no errors)
+docker-compose logs minio
+docker-compose logs meilisearch
+
+# Both should show:
+# - minio: "Console available at http://0.0.0.0:9001"
+# - meilisearch: (successful startup, no errors)
+
+# Test service availability
+curl http://localhost:9000/minio/health/live  # MinIO health
+curl http://localhost:7700/health              # Meilisearch health
+```
+
+**Why This Happens:**
+
+- Docker volumes persist data between container restarts
+- MinIO and Meilisearch database formats change between major versions
+- Older images cannot read newer data formats (downgrade incompatibility)
+- Solution: Version-specific volume names prevent silent format conflicts
+  - `minio_data_latest` - reflects current MinIO version (auto-updates with latest tag)
+  - `meilisearch_data_v1_6_0` - versioned by engine version
+
+**Future Prevention:**
+
+When upgrading image versions in `docker-compose.yml`:
+1. Update service image tag (e.g., `meilisearch:v1.7.0`)
+2. Update corresponding volume name (e.g., `meilisearch_data_v1_7_0`)
+3. Old volume data can be safely removed or archived
 
 #### Docker Compose for Integration Testing (docker-compose.test.yml)
 
