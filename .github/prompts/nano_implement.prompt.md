@@ -23,6 +23,20 @@ Perform the necessary steps in the following order:
 
 - Read the `LEARNINGS.md` file in the project root to get important learnings from prior implementations rounds.
 
+
+
+## Implementation
+
+- Perform your implementation tasks, following the best practices.
+- For new features or solved bugs, add tests or test cases matching the structure of the existings tests. Be thorough, but do not cover every detail with a test. Make a reasonable decision what is necessary for being tested.
+
+## Validation
+
+- Run checks via the VSCode `Checks` task.
+- Fix all errors and warnings reported by the checks. Repeat until all checks pass.
+- Run tests via the VSCode `Test` tasks.
+- Fix any failing tests including all warnings. Repeat until all tests pass.
+
 ## Environment Validation
 
 - **Verify development environment integrity:**
@@ -46,18 +60,6 @@ Perform the necessary steps in the following order:
   - Ensure tests pass both with and without manual environment variable setup
   - Verify that configuration loading happens at the right time in the test lifecycle
   - Check for any environment-dependent test flakiness or port conflicts
-
-## Implementation
-
-- Perform your implementation tasks, following the best practices.
-- For new features or solved bugs, add tests or test cases matching the structure of the existings tests. Be thorough, but do not cover every detail with a test. Make a reasonable decision what is necessary for being tested.
-
-## Validation
-
-- Run checks via the VSCode `Checks` task.
-- Fix all errors and warnings reported by the checks. Repeat until all checks pass.
-- Run tests via the VSCode `Test` tasks.
-- Fix any failing tests including all warnings. Repeat until all tests pass.
 
 ## Adapt documentation
 

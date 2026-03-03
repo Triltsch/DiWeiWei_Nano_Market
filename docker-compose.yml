@@ -110,7 +110,8 @@ services:
     container_name: diwei_dev_app
     env_file: .env
     environment:
-      # Override for Docker Compose
+      # Override for Docker Compose (use Redis service name, not localhost)
+      REDIS_URL: "redis://redis:6379/0"
       REDIS_HOST: "redis"
       REDIS_PORT: "6379"
     ports:

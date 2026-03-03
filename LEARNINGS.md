@@ -1342,4 +1342,16 @@ During implementation of ZIP structure validation (Issue #25), discovered critic
 - **Solution**: Added "Environment Validation" section to `nano_implement.prompt.md` to be performed before implementation begins
 - **Learning**: Treat development environment integrity as a **blocking prerequisite**, not a secondary concern. Issues with Docker, credentials, or config should be discovered and fixed before implementation work starts, not discovered mid-implementation.
 
+#### 6. **Docker Compose Environment Variables vs Host Machine Localhost**
+- **Problem**: Setting `REDIS_URL=redis://localhost:6379/0` in `.env` file worked for local tests but broke Docker Compose app container
+- **Root Cause**: When Docker Compose loads `.env` via `env_file: .env`, the app container interprets `localhost` as the container's own localhost (container network isolation), not the `redis` service accessible via Docker network service name
+- **Manifestation**: Container would fail to connect to Redis with connection refused error, even though Redis service was healthy
+- **Solution**:
+  - Documented in `.env.example` that REDIS_URL should differ between local development (`redis://localhost:6379/0`) and Docker Compose (`redis://redis:6379/0`)
+  - Recommended leaving REDIS_URL unset in `.env` and using REDIS_HOST/REDIS_PORT/REDIS_DB fallback instead
+  - Added explicit `REDIS_URL` override in `docker-compose.yml` app service environment to use service name: `REDIS_URL: "redis://redis:6379/0"`
+  - This ensures Docker Compose always uses correct service name regardless of `.env` contents
+- **Why This Wasn't Caught Earlier**: Tests ran on host machine where `localhost` correctly resolved to Redis. Docker Compose app container networking wasn't validated during initial implementation.
+- **Learning**: When using `env_file` in Docker Compose, environment variables containing hostnames (`localhost`, IP addresses) may have different meanings inside vs. outside containers. Always override network-sensitive environment variables (database URLs, service endpoints) explicitly in the compose service `environment` section to use Docker service names (`redis`, `postgres`, `minio`). Document environment-specific values clearly in `.env.example` and consider leaving URL-formatted variables unset by default to force explicit configuration per environment.
+
 
