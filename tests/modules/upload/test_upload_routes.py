@@ -227,7 +227,10 @@ class TestUploadNanoEndpoint:
         assert nano.creator_id == verified_user_id
         assert nano.status == NanoStatus.DRAFT
         assert nano.title == "test_module"
-        assert nano.file_storage_path is None  # Not set yet (MinIO integration pending)
+        # file_storage_path is now populated by MinIO integration
+        assert nano.file_storage_path is not None
+        assert "nanos/" in nano.file_storage_path
+        assert "test_module.zip" in nano.file_storage_path
 
     @pytest.mark.asyncio
     async def test_upload_nano_rejects_zip_without_supported_content(

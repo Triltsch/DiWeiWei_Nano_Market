@@ -299,8 +299,9 @@ def mock_minio_storage(monkeypatch):
 
     mock_adapter_class.return_value = mock_instance
 
-    # Patch the MinIOStorageAdapter in the router module
+    # Patch the MinIOStorageAdapter in both router and service modules
     monkeypatch.setattr("app.modules.upload.router.MinIOStorageAdapter", mock_adapter_class)
+    monkeypatch.setattr("app.modules.upload.service.MinIOStorageAdapter", mock_adapter_class)
 
     return mock_instance
 

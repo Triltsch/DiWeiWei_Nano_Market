@@ -5,7 +5,7 @@ This module tests the business logic for creating Nano records.
 """
 
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import UploadFile
@@ -21,27 +21,57 @@ class TestCreateDraftNano:
     Tests Nano record creation with various scenarios.
     """
 
+    def _create_mock_file(self, filename: str = "test.zip") -> MagicMock:
+        """
+        Helper to create a properly mocked UploadFile.
+
+        Returns mock with read() method returning bytes.
+        """
+        file = MagicMock(spec=UploadFile)
+        file.filename = filename
+        file.content_type = "application/zip"
+        # Mock async read() to return bytes
+        file.read = AsyncMock(return_value=b"fake zip content")
+        return file
+
+    def _create_mock_storage(self) -> MagicMock:
+        """
+        Helper to create a mocked MinIOStorageAdapter.
+
+        Returns mock with upload_file() returning deterministic storage key.
+        """
+        storage = MagicMock()
+
+        def mock_upload_file(nano_id, file_content, filename, content_type=None):
+            return f"nanos/{nano_id}/content/{filename}"
+
+        storage.upload_file = mock_upload_file
+        return storage
+
     @pytest.mark.asyncio
     async def test_create_nano_with_explicit_title(self, db_session):
         """Test creating a Nano with an explicitly provided title."""
         creator_id = uuid.uuid4()
         title = "My Custom Learning Module"
 
-        file = MagicMock(spec=UploadFile)
-        file.filename = "uploaded.zip"
+        file = self._create_mock_file("uploaded.zip")
+        storage = self._create_mock_storage()
 
         nano = await create_draft_nano(
             db=db_session,
             creator_id=creator_id,
             file=file,
             title=title,
+            storage_adapter=storage,
         )
 
         assert nano.id is not None
         assert nano.creator_id == creator_id
         assert nano.title == title
         assert nano.status == NanoStatus.DRAFT
-        assert nano.file_storage_path is None  # Not set yet (MinIO integration pending)
+        # file_storage_path is now populated by MinIO integration
+        assert nano.file_storage_path is not None
+        assert nano.file_storage_path.startswith("nanos/")
         assert nano.description is None
         assert nano.duration_minutes is None
         assert nano.uploaded_at is not None
@@ -51,13 +81,14 @@ class TestCreateDraftNano:
         """Test creating a Nano with title auto-generated from filename."""
         creator_id = uuid.uuid4()
 
-        file = MagicMock(spec=UploadFile)
-        file.filename = "my-learning-module.zip"
+        file = self._create_mock_file("my-learning-module.zip")
+        storage = self._create_mock_storage()
 
         nano = await create_draft_nano(
             db=db_session,
             creator_id=creator_id,
             file=file,
+            storage_adapter=storage,
         )
 
         assert nano.title == "my-learning-module"
@@ -68,13 +99,14 @@ class TestCreateDraftNano:
         """Test that .zip extension is removed when generating title."""
         creator_id = uuid.uuid4()
 
-        file = MagicMock(spec=UploadFile)
-        file.filename = "Python_Basics.zip"
+        file = self._create_mock_file("Python_Basics.zip")
+        storage = self._create_mock_storage()
 
         nano = await create_draft_nano(
             db=db_session,
             creator_id=creator_id,
             file=file,
+            storage_adapter=storage,
         )
 
         assert nano.title == "Python_Basics"
@@ -84,13 +116,14 @@ class TestCreateDraftNano:
         """Test that a default title is used when filename is not provided."""
         creator_id = uuid.uuid4()
 
-        file = MagicMock(spec=UploadFile)
-        file.filename = None
+        file = self._create_mock_file(None)
+        storage = self._create_mock_storage()
 
         nano = await create_draft_nano(
             db=db_session,
             creator_id=creator_id,
             file=file,
+            storage_adapter=storage,
         )
 
         assert nano.title == "untitled"
@@ -102,14 +135,15 @@ class TestCreateDraftNano:
         creator_id = uuid.uuid4()
         long_title = "A" * 250  # 250 characters
 
-        file = MagicMock(spec=UploadFile)
-        file.filename = "test.zip"
+        file = self._create_mock_file("test.zip")
+        storage = self._create_mock_storage()
 
         nano = await create_draft_nano(
             db=db_session,
             creator_id=creator_id,
             file=file,
             title=long_title,
+            storage_adapter=storage,
         )
 
         assert len(nano.title) == 200
@@ -120,14 +154,15 @@ class TestCreateDraftNano:
         """Test that created Nano is actually persisted to the database."""
         creator_id = uuid.uuid4()
 
-        file = MagicMock(spec=UploadFile)
-        file.filename = "test.zip"
+        file = self._create_mock_file("test.zip")
+        storage = self._create_mock_storage()
 
         nano = await create_draft_nano(
             db=db_session,
             creator_id=creator_id,
             file=file,
             title="Test Nano",
+            storage_adapter=storage,
         )
 
         # Verify we can retrieve it
@@ -144,13 +179,40 @@ class TestGetNanoById:
     Tests Nano record retrieval.
     """
 
+    def _create_mock_file(self, filename: str = "test.zip") -> MagicMock:
+        """
+        Helper to create a properly mocked UploadFile.
+
+        Returns mock with read() method returning bytes.
+        """
+        file = MagicMock(spec=UploadFile)
+        file.filename = filename
+        file.content_type = "application/zip"
+        # Mock async read() to return bytes
+        file.read = AsyncMock(return_value=b"fake zip content")
+        return file
+
+    def _create_mock_storage(self) -> MagicMock:
+        """
+        Helper to create a mocked MinIOStorageAdapter.
+
+        Returns mock with upload_file() returning deterministic storage key.
+        """
+        storage = MagicMock()
+
+        def mock_upload_file(nano_id, file_content, filename, content_type=None):
+            return f"nanos/{nano_id}/content/{filename}"
+
+        storage.upload_file = mock_upload_file
+        return storage
+
     @pytest.mark.asyncio
     async def test_get_existing_nano(self, db_session):
         """Test retrieving an existing Nano by ID."""
         creator_id = uuid.uuid4()
 
-        file = MagicMock(spec=UploadFile)
-        file.filename = "test.zip"
+        file = self._create_mock_file("test.zip")
+        storage = self._create_mock_storage()
 
         # Create a Nano
         nano = await create_draft_nano(
@@ -158,6 +220,7 @@ class TestGetNanoById:
             creator_id=creator_id,
             file=file,
             title="Retrievable Nano",
+            storage_adapter=storage,
         )
 
         # Retrieve it
