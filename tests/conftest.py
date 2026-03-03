@@ -149,8 +149,8 @@ async def db_session(test_db_engine):
 
 
 @pytest.fixture
-def app(db_session, mock_redis):
-    """Create test FastAPI app with mocked database and Redis"""
+def app(db_session, mock_redis, mock_minio_storage):
+    """Create test FastAPI app with mocked database, Redis, and MinIO storage"""
     from contextlib import asynccontextmanager
 
     from fastapi.middleware.cors import CORSMiddleware
@@ -277,6 +277,32 @@ def mock_redis(monkeypatch):
     monkeypatch.setattr("app.redis_client.close_redis", mock_close_redis)
 
     return mock_client
+
+
+@pytest.fixture
+def mock_minio_storage(monkeypatch):
+    """Mock MinIO storage adapter for tests to avoid requiring MinIO server"""
+    from unittest.mock import MagicMock
+
+    # Create mock adapter that simulates successful uploads
+    mock_adapter_class = MagicMock()
+    mock_instance = MagicMock()
+
+    # Mock upload_file to return a storage key
+    def mock_upload_file(nano_id, file_content, filename, content_type="application/zip"):
+        return f"nanos/{str(nano_id)}/content/{filename}"
+
+    mock_instance.upload_file = mock_upload_file
+    mock_instance.delete_file = MagicMock()
+    mock_instance.get_file_url = MagicMock(return_value="http://minio:9000/file-url")
+    mock_instance.object_exists = MagicMock(return_value=True)
+
+    mock_adapter_class.return_value = mock_instance
+
+    # Patch the MinIOStorageAdapter in the router module
+    monkeypatch.setattr("app.modules.upload.router.MinIOStorageAdapter", mock_adapter_class)
+
+    return mock_instance
 
 
 @pytest.fixture

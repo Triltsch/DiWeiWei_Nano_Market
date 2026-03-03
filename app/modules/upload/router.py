@@ -1,7 +1,8 @@
 """
 Router for Nano upload endpoints.
 
-This module provides API endpoints for uploading Nano ZIP files.
+This module provides API endpoints for uploading Nano ZIP files with
+persistent storage in MinIO object storage.
 """
 
 from typing import Annotated
@@ -14,6 +15,7 @@ from app.database import get_db
 from app.modules.auth.middleware import get_current_user_id
 from app.modules.upload.schemas import UploadResponse
 from app.modules.upload.service import create_draft_nano
+from app.modules.upload.storage import MinIOStorageAdapter, StorageError
 from app.modules.upload.validation import validate_upload
 
 
@@ -39,7 +41,7 @@ def get_upload_router(prefix: str = "/api/v1/upload", tags: list[str] = None) ->
         status_code=status.HTTP_201_CREATED,
         summary="Upload a Nano ZIP file",
         description="""
-        Upload a ZIP file to create a new Nano in draft status.
+        Upload a ZIP file to create a new Nano in draft status with MinIO storage.
 
         **Requirements:**
         - Authentication required (Bearer token)
@@ -49,13 +51,18 @@ def get_upload_router(prefix: str = "/api/v1/upload", tags: list[str] = None) ->
 
         **Process:**
         1. File is validated (type, size, structure)
-        2. Nano record created with status "draft"
-        3. Upload identifier returned for metadata completion
+        2. File is uploaded to MinIO object storage (private ACL)
+        3. Nano record created with storage reference
+        4. Upload identifier returned for metadata completion
+
+        **Storage:**
+        - Files stored in MinIO bucket with deterministic path: `nanos/{nano_id}/content/{filename}`
+        - Private access control enforced
+        - Metadata links object key to Nano record
 
         **Next Steps:**
         After successful upload, use the returned `nano_id` to:
-        - Add metadata (title, description, etc.) - Story 2.2
-        - Upload to object storage (MinIO) - Story 7.3 (S2-BE-04)
+        - Add metadata (title, description, duration, etc.) - Story 2.2
         - Publish the Nano - Story 2.4
         """,
         responses={
@@ -120,6 +127,14 @@ def get_upload_router(prefix: str = "/api/v1/upload", tags: list[str] = None) ->
                     }
                 },
             },
+            503: {
+                "description": "Object storage (MinIO) temporarily unavailable",
+                "content": {
+                    "application/json": {
+                        "example": {"detail": "Object storage temporarily unavailable."}
+                    }
+                },
+            },
         },
     )
     async def upload_nano(
@@ -128,11 +143,13 @@ def get_upload_router(prefix: str = "/api/v1/upload", tags: list[str] = None) ->
         user_id: Annotated[UUID, Depends(get_current_user_id)],
     ) -> UploadResponse:
         """
-        Upload a ZIP file and create a draft Nano record.
+        Upload a ZIP file and create a draft Nano record with object storage.
 
-        This endpoint handles the initial upload phase of the Nano creation workflow.
-        The uploaded file is validated but not yet stored in object storage (MinIO).
-        Storage integration will be completed in Story S2-BE-04.
+        This endpoint handles the complete upload workflow:
+        1. Validates file type, size, and structure
+        2. Uploads file to MinIO object storage (private ACL)
+        3. Creates Nano record with file_storage_path reference
+        4. Returns nano_id and status for next steps
 
         Args:
             file: Uploaded ZIP file
@@ -143,7 +160,7 @@ def get_upload_router(prefix: str = "/api/v1/upload", tags: list[str] = None) ->
             UploadResponse with nano_id and status information
 
         Raises:
-            HTTPException: For validation failures or database errors
+            HTTPException: For validation failures, storage errors, or database errors
         """
         # Validate uploaded file
         try:
@@ -152,17 +169,25 @@ def get_upload_router(prefix: str = "/api/v1/upload", tags: list[str] = None) ->
             # Re-raise validation errors as-is
             raise
 
-        # Create draft Nano record
+        # Create draft Nano record with MinIO storage integration
         try:
+            storage_adapter = MinIOStorageAdapter()
             nano = await create_draft_nano(
                 db=db,
                 creator_id=user_id,
                 file=file,
+                storage_adapter=storage_adapter,
+            )
+        except StorageError as e:
+            # Storage failure - return recoverable error
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Object storage temporarily unavailable: {str(e)}",
             )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to create Nano record: {str(e)}",
+                detail="Failed to create Nano record. Please try again.",
             )
 
         # Return success response
@@ -171,7 +196,7 @@ def get_upload_router(prefix: str = "/api/v1/upload", tags: list[str] = None) ->
             status=nano.status.value,
             title=nano.title,
             uploaded_at=nano.uploaded_at,
-            message="Upload successful. Nano created in draft status.",
+            message="Upload successful. Nano created in draft status and persisted to storage.",
         )
 
     return router

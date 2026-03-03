@@ -51,6 +51,18 @@ class Settings(BaseSettings):
     # Session settings
     SESSION_TIMEOUT_MINUTES: int = 30
 
+    # MinIO settings
+    MINIO_ENDPOINT: str = "localhost:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_BUCKET_NAME: str = "nanos"
+    MINIO_SECURE: bool = False  # Use HTTPS in production
+    MINIO_REGION: str = "us-east-1"
+
+    # Upload settings
+    UPLOAD_MAX_RETRIES: int = 3
+    UPLOAD_TIMEOUT_SECONDS: int = 300
+
 
 @lru_cache
 def get_settings() -> Settings:
