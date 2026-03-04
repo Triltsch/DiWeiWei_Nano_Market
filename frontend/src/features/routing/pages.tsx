@@ -100,9 +100,20 @@ export function AdminPage(): JSX.Element {
 
 export function NotFoundPage(): JSX.Element {
   return (
-    <PlaceholderPage
-      title="Page Not Found"
-      description="The requested route does not exist. Use navigation to return to known routes."
-    />
+    <PageLayout>
+      <section className="card-elevated space-y-4">
+        <div className="space-y-2">
+          <h1 className="text-primary-600">Page Not Found</h1>
+          <p className="text-base text-neutral-600">
+            The requested route does not exist. Use navigation to return to known routes.
+          </p>
+        </div>
+        <div>
+          <Link to="/" className="btn-outline">
+            Back to Home
+          </Link>
+        </div>
+      </section>
+    </PageLayout>
   );
 }

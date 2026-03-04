@@ -1641,4 +1641,9 @@ Implemented the React Router v6 baseline with placeholder MVP routes and fallbac
 - **Why it matters**: Infrastructure may be healthy while task falsely reports failure.
 - **Learning**: Keep task-level health probes aligned with compose/env defaults to avoid false negatives in CI/dev workflows.
 
+#### 5. **404 fallback copy should include a concrete action**
+- **Problem observed**: A not-found page message suggested returning to known routes but provided no direct navigation path.
+- **Fix**: Added explicit CTA link (`Back to Home`) to `/` in the fallback page.
+- **Learning**: When UX text instructs user action, include a matching interactive element to avoid dead-end screens and review feedback.
+
 
