@@ -1478,3 +1478,49 @@ Implemented upload timeout guardrails (10 minutes), retry semantics for transien
 - Max Retry Backoff: 2 seconds
 - Max Retry Attempts: 3
 - Docker Validation: All services healthy
+
+
+## Comprehensive Upload & Storage Testing (Issue #28 - S2-BE-06)
+
+### Context
+Implemented complete test suite for upload endpoint, ZIP validation, DB persistence, and MinIO integration covering all acceptance criteria while maintaining CI safety with optional real MinIO testing.
+
+### Key Learnings
+
+#### 1. **Multi-Layer Test Organization for Complex Workflows**
+- Organized tests into logical layers: validation (21 tests), service layer (9 tests), storage (19 tests), API endpoints (10 tests), real MinIO optional (1 gated test)
+- Each layer has clear responsibility, enabling targeted test runs and maintainability
+- Clear documentation of system architecture through test organization
+
+#### 2. **CI-Safe Default with Optional Real Integration Testing**
+- Pattern: Default mock-based tests (CI-safe) with @pytest.mark.skipif(os.getenv("RUN_REAL_MINIO_TESTS") != "1") for optional real tests
+- Execution: pytest tests/ (240 passed, 1 skipped) vs RUN_REAL_MINIO_TESTS=1 pytest ... (enables real MinIO)
+- Documented in README with clear activation instructions
+
+#### 3. **Mock Adapter Pattern for External Services**
+- Use conftest.py fixture to patch adapter at module import level
+- Preserve service contracts (return types, exceptions)
+- Deterministic behavior enables fast, network-independent testing
+
+#### 4. **Acceptance Criteria to Test Mapping**
+- Criterion 1 (upload handlers): 10 endpoint tests
+- Criterion 2 (ZIP edge cases): 8 structure tests
+- Criterion 3 (DB persistence): Explicit file_storage_path verification
+- Criterion 4 (MinIO CI-safe + optional): 19 mocked + 1 real (gated) test
+- Systematic mapping ensures complete coverage
+
+#### 5. **Environment Integrity Validation**
+- Process: docker pull → compose up → health check → config audit → compose down
+- Validations: credential consistency, port uniqueness, image tag resolvability, health checks
+- All checks passed for current setup
+
+### Implementation Stats (Issue #28)
+- Files Modified: 3 (test_storage.py, README.md, LEARNINGS.md)
+- Tests: 240 passed, 1 skipped, 89.08% coverage
+- Acceptance Criteria: 4/4 met
+- Quality: Black/isort compliant
+- Docker: All services healthy
+
+### PR Review Follow-up (Issue #28)
+- Optional real-integration tests should use best-effort cleanup in `finally` blocks so cleanup failures do not mask the primary assertion failure.
+- Manual implementation stats in documentation can drift after late edits; include a final pre-push consistency check against `git diff --name-only` to keep file counts accurate.

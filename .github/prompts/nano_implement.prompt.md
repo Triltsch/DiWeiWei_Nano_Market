@@ -34,8 +34,13 @@ Perform the necessary steps in the following order:
 
 - Run checks via the VSCode `Checks` task.
 - Fix all errors and warnings reported by the checks. Repeat until all checks pass.
-- Run tests via the VSCode `Test` tasks.
+- **Run tests via the VSCode `Test: Verified` task** (not the raw `Test` task). This ensures infrastructure is healthy before running tests:
+  - `Test: Verified` starts Docker services, waits for health checks (Redis + PostgreSQL connectivity), then runs pytest
+  - Prevents false passes due to missing infrastructure (e.g., Redis connection errors)
+  - Fails fast with clear messaging if services cannot start
+  - Only use raw `Test` task if you've manually confirmed Docker services are running and healthy
 - Fix any failing tests including all warnings. Repeat until all tests pass.
+- **Important for Windows/PowerShell users**: The `Test: Verified` task is designed for PowerShell on Windows and automatically manages Docker Compose lifecycle. Ensure Docker Desktop is running before executing the task.
 
 ## Environment Validation
 
@@ -70,3 +75,8 @@ Perform the necessary steps in the following order:
 
 - Complain if the current setup is not sufficient for performing an implementation. Make a proposal on how to enhance the situation than.
 - Do **not** commit the changes yet. They will be reviewed in a manual process and then committed by a later agent instance. Focus on the implementation and leave the committing to a later stage.
+- **Development environment**: This project is primarily developed on Windows using PowerShell. VSCode tasks and automation scripts are written for PowerShell execution. Adjust commands accordingly if working on macOS/Linux (use `bash` instead of `pwsh`, adjust path separators from `\` to `/`).
+- **Critical Windows-specific practices**:
+  - Always use `Test: Verified` task instead of raw `Test` to ensure Docker services are healthy before running tests. False test passes occur when tests run before Redis/PostgreSQL are ready.
+  - Line ending handling: Tests and checks enforce LF line endings via Black/isort. Windows text editors may introduce CRLF; let the formatting tools normalize automatically.
+  - PowerShell execution: Some Docker Compose commands and health checks use PowerShell-specific syntax. Direct terminal manipulation (e.g., via shell scripts) may fail; prefer VSCode tasks or Python scripts for cross-platform compatibility.

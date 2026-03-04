@@ -37,8 +37,14 @@ Given a pull request, perform the necessary steps in the following order:
 
 ## Check and tests
 
-- Run all checks. Fix all warnings and errors before proceeding to the next step.
-- Run all tests. Fix all warnings and errors before proceeding to the next step.
+- Run checks. Fix all warnings and errors before proceeding to the next step.
+- **Run tests via the VSCode `Test: Verified` task** (not the raw `Test` task). This ensures infrastructure is healthy before running tests:
+  - `Test: Verified` starts Docker services, waits for health checks (Redis + PostgreSQL connectivity), then runs pytest
+  - Prevents false passes due to missing infrastructure (e.g., Redis connection errors masked by truncated output)
+  - Fails fast with clear messaging if services cannot start
+  - Only use raw `Test` task if you've manually confirmed Docker services are running and healthy
+- Fix all warnings and errors before proceeding to the next step.
+- **Important for Windows/PowerShell users**: The `Test: Verified` task is designed for PowerShell on Windows and automatically manages Docker Compose lifecycle. Ensure Docker Desktop is running before executing the task.
 
 ## Commit and push
 
@@ -51,3 +57,11 @@ Given a pull request, perform the necessary steps in the following order:
 - List the exact review comments implemented (with links when available).
 - If any review comment could not be fetched automatically, state which fallback source was used.
 - If no comments were found after full discovery, explicitly state which discovery steps were executed.
+
+# Hints
+
+- **Development environment**: This project is primarily developed on Windows using PowerShell. VSCode tasks and automation scripts are written for PowerShell execution. Adjust commands accordingly if working on macOS/Linux (use `bash` instead of `pwsh`, adjust path separators from `\` to `/`).
+- **Critical Windows-specific practices**:
+  - Always use `Test: Verified` task instead of raw `Test` to ensure Docker services are healthy before running tests. False test passes occur when tests run before Redis/PostgreSQL are ready (infrastructure readiness is mandatory, not optional).
+  - Line ending handling: Tests and checks enforce LF line endings via Black/isort. Windows text editors may introduce CRLF; let the formatting tools normalize automatically.
+  - PowerShell execution: Some Docker Compose commands and health checks use PowerShell-specific syntax. Direct terminal manipulation (e.g., via shell scripts) may fail; prefer VSCode tasks or Python scripts for cross-platform compatibility.

@@ -58,11 +58,15 @@ python -m uvicorn app.main:app --reload
 ### Tests ausführen
 
 ```bash
-# Unit Tests (SQLite)
+# Standard: CI-safe Tests (SQLite/PostgreSQL + gemocktes MinIO)
 pytest tests/ -v
 
 # Mit Coverage Report
 pytest tests/ --cov=app --cov-report=html
+
+# Optional: echte MinIO-Integrationstests aktivieren
+# (setzt laufendes MinIO via docker-compose voraus)
+RUN_REAL_MINIO_TESTS=1 pytest tests/modules/upload/test_storage.py -k real_minio -v
 ```
 
 ## 📋 Implementierte Features
