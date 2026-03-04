@@ -1,24 +1,55 @@
-:root {
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  color: #1f2937;
-  background-color: #f9fafb;
+/**
+ * Baseline Style Entrypoint for DiWeiWei Nano-Marktplatz Frontend
+ *
+ * Integrates Tailwind CSS utility framework with custom design tokens.
+ * All component styling uses Tailwind classes defined in tailwind.config.ts.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply font-sans bg-neutral-50 text-neutral-800;
+  }
+
+  h1 {
+    @apply text-4xl font-bold mb-2;
+  }
+
+  h2 {
+    @apply text-3xl font-bold mb-2;
+  }
+
+  h3 {
+    @apply text-2xl font-semibold mb-2;
+  }
+
+  a {
+    @apply text-primary-500 font-medium hover:text-primary-600;
+  }
 }
 
-* {
-  box-sizing: border-box;
-}
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-primary-500 text-white rounded-lg font-medium hover:bg-primary-600;
+  }
 
-body {
-  margin: 0;
-  min-height: 100vh;
-}
+  .btn-outline {
+    @apply px-4 py-2 border-2 border-primary-500 text-primary-500 rounded-lg font-medium hover:bg-primary-50;
+  }
 
-h1 {
-  margin: 0 0 0.5rem;
-  font-size: 2rem;
-}
+  .card-elevated {
+    @apply rounded-lg border border-neutral-200 bg-white shadow-md p-6;
+  }
 
-p {
-  margin: 0;
-  line-height: 1.5;
+  .container-main {
+    @apply w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6;
+  }
 }
