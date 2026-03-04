@@ -1551,3 +1551,59 @@ Implemented 8 Copilot AI review suggestions for the frontend bootstrap PR, focus
 - **TypeScript composite projects can emit artifacts unexpectedly**: When `composite: true` is set without `noEmit: true`, `tsc -b` will generate `.d.ts` declaration files and `.tsbuildinfo` even if the intent is typecheck-only. Always add `noEmit: true` for non-library projects.
 - **Copilot AI review comments should be treated like human reviews**: They provide actionable inline suggestions with rationale. Implement systematically using the `mcp_github_pull_request_read` tool's `get_review_comments` method to discover all threads.
 - **Frontend-only changes don't require backend Docker infrastructure for validation**: When changes are isolated to frontend config (tsconfig, vite.config, package.json), validate with `npm run typecheck` and `npm run build` instead of waiting for Redis/PostgreSQL to start.
+
+---
+
+## Tailwind CSS v3 Setup & Design Token Management (Issue #31 - S2-FE-02)
+
+### Context
+Implemented Tailwind CSS + design tokens for DiWeiWei frontend. Encountered version compatibility issues and learned differences between Tailwind CSS v3 and v4 PostCSS plugins.
+
+### Key Learnings
+
+#### 1. **Tailwind CSS v3 vs v4 PostCSS Plugin Differences**
+- **Problem Initially**: Installed `@tailwindcss/postcss` (v4 beta plugin) which requires different CSS syntax (`@import "tailwindcss"` instead of `@tailwind` directives)
+- **Solution**: Use **Tailwind CSS v3** for stable production: `npm install -D tailwindcss@3`
+- **Why it matters**: v3 uses traditional @tailwind directives; v4 beta has breaking changes; v3 is production-tested; mismatches cause "Cannot apply unknown utility class" errors
+- **Learning**: Use v3 for production Tailwind until v4 reaches stable release. Check npm registry version tags before installing.
+
+#### 2. **PostCSS Config File Extensions for ES Modules**
+- **Problem**: Created `postcss.config.js` with TypeScript types, but got "Unexpected token" error because `package.json` has `"type": "module"`
+- **Solution**: Rename to `postcss.config.cjs` (CommonJS) when project uses ES modules
+- **Why it matters**: Node.js treats .js as ES modules; PostCSS needs CommonJS; mismatch causes immediate SyntaxError
+- **Learning**: Use .cjs extension for CommonJS tools in ES module projects. Runtime compatibility>TypeScript type safety.
+
+#### 3. **Design Token Scope: Config vs Runtime Constants**
+- **Problem**: Created extensive custom tokens in config that weren't available as CSS utilities
+- **Solution**: Separate concerns: Config for utilities (colors, fontSize); tokens.ts for programmatic access
+- **Why it matters**: Tailwind only generates utilities from config theme; JS code needs imported constants; over-config inflates bundle
+- **Learning**: Tailwind config generates CSS; for JS/TS token access, always maintain separate tokens.ts mirror.
+
+#### 4. **Base Styles Best Practice**
+- **Problem**: Adding many element defaults in `@layer base` felt repetitive
+- **Solution**: Use base sparingly for resets/defaults, @layer components for classes, inline utilities for unique styling
+- **Why it matters**: Base has high priority; utility-first means override at component level; debuggability
+- **Learning**: Reserve @layer base for global defaults. Use @layer components for reusable classes.
+
+#### 5. **Color Palette Incremental Testing**
+- **Problem**: Created 66 colors (6 groups × 11 shades); build failed with "unknown utility class"
+- **Solution**: Start minimal (neutral, primary, secondary); add semantic colors gradually with testing
+- **Why it matters**: Comprehensive systems need stability; catches issues early; team feedback loop
+- **Learning**: Design systems benefit from incremental addition with validation. Don't deploy entire system at once.
+
+#### 6. **Component Utilities via @layer components**
+- **Achievement**: Created reusable classes (.btn-primary, .card-elevated, .container-main) using @layer components
+- **Pattern**: Low specificity allows utilities to override; self-documenting; reduces JSX repetition
+- **Learning**: @layer components bridges utility-first and DRY code. Use for frequently repeated combinations.
+
+#### 7. **Build Performance: CSS Size & Gzipping**
+- **Result**: Generated CSS 8.49 kB (2.23 kB gzipped) for 66 colors + utilities
+- **Why it matters**: Reasonable size; 73% compression validates CSS is repetitive utility rules; unused utilities tree-shaken
+- **Learning**: Comprehensive Tailwind doesn't bloat production if configured correctly. Gzip metrics validate approach.
+
+### Implementation Stats
+- Files Created: 3 | Files Modified: 4
+- Build Time: ~3 sec | CSS: 8.49 kB → 2.23 kB (gzip)
+- Design Tokens: 66 colors + 8 font sizes + utilities
+- Component Classes: 6 primary utilities
+
