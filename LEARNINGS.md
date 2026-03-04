@@ -1536,3 +1536,18 @@ Implemented the first frontend workspace for the project using React 18 + Vite +
 - Use `npm run build` (`tsc -b && vite build`) as the strongest bootstrap health check because it validates both TS project references and bundling.
 - Maintain separation of concerns from day one: `src/app`, `src/features`, `src/shared` improves scalability for Story 8.x follow-up issues.
 - Backend validation tasks can remain unchanged while frontend is added, but frontend-specific checks should be run explicitly in `frontend/`.
+
+## Copilot PR Review Follow-Up (PR #45 - S2-FE-01)
+
+### Context
+Implemented 8 Copilot AI review suggestions for the frontend bootstrap PR, focusing on configuration cleanup, security hardening, and TypeScript build artifact management.
+
+### Key Learnings
+- **TypeScript build artifacts (`*.tsbuildinfo`) should never be committed**: These are machine/version-specific incremental build cache files. Add to `.gitignore` and configure `tsBuildInfoFile` to write to `node_modules/.cache/` to keep the repo clean.
+- **`process.env` in vite.config.ts requires `@types/node`**: When using Node.js globals like `process.env` for configuration (e.g., conditional dev server host), install `@types/node` as a devDependency to satisfy TypeScript in project references (`tsconfig.node.json`).
+- **Vite dev server `host: true` exposes to all network interfaces (0.0.0.0)**: This is a security risk by default. Use `host: process.env.VITE_DEV_SERVER_HOST ?? "localhost"` to bind to localhost unless explicitly configured for LAN access.
+- **Project references require `tsc -b` for proper typechecking**: When `tsconfig.json` uses `references` instead of `include`, the `typecheck` script must use `tsc -b --noEmit` (not `tsc --noEmit`) to check all referenced projects.
+- **Duplicate config files create confusion**: Having both `vite.config.ts` and `vite.config.js` leads to unpredictable behavior. Delete the generated `.js` file when using TypeScript config as the source of truth.
+- **TypeScript composite projects can emit artifacts unexpectedly**: When `composite: true` is set without `noEmit: true`, `tsc -b` will generate `.d.ts` declaration files and `.tsbuildinfo` even if the intent is typecheck-only. Always add `noEmit: true` for non-library projects.
+- **Copilot AI review comments should be treated like human reviews**: They provide actionable inline suggestions with rationale. Implement systematically using the `mcp_github_pull_request_read` tool's `get_review_comments` method to discover all threads.
+- **Frontend-only changes don't require backend Docker infrastructure for validation**: When changes are isolated to frontend config (tsconfig, vite.config, package.json), validate with `npm run typecheck` and `npm run build` instead of waiting for Redis/PostgreSQL to start.
