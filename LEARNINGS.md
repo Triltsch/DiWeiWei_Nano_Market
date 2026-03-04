@@ -1524,3 +1524,15 @@ Implemented complete test suite for upload endpoint, ZIP validation, DB persiste
 ### PR Review Follow-up (Issue #28)
 - Optional real-integration tests should use best-effort cleanup in `finally` blocks so cleanup failures do not mask the primary assertion failure.
 - Manual implementation stats in documentation can drift after late edits; include a final pre-push consistency check against `git diff --name-only` to keep file counts accurate.
+
+## Frontend Bootstrap Baseline (Issue #32 - S2-FE-01)
+
+### Context
+Implemented the first frontend workspace for the project using React 18 + Vite + strict TypeScript and aligned repository documentation for Windows/PowerShell-first development.
+
+### Key Learnings
+- Keep frontend bootstrap minimal for the first issue: app shell + strict TS + feature-folder skeleton is enough to unblock parallel FE stories.
+- Validate `npm run dev` with a short smoke run and accept automatic port fallback (`5173` to `5174`) to avoid false failures when local ports are busy.
+- Use `npm run build` (`tsc -b && vite build`) as the strongest bootstrap health check because it validates both TS project references and bundling.
+- Maintain separation of concerns from day one: `src/app`, `src/features`, `src/shared` improves scalability for Story 8.x follow-up issues.
+- Backend validation tasks can remain unchanged while frontend is added, but frontend-specific checks should be run explicitly in `frontend/`.

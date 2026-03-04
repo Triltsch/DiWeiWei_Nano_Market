@@ -55,6 +55,21 @@ python -m uvicorn app.main:app --reload
 
 **API Dokumentation**: http://localhost:8000/docs
 
+### Frontend starten (Story 8.1 Baseline)
+
+```bash
+# Frontend Workspace wechseln
+cd frontend
+
+# Dependencies installieren
+npm install
+
+# Dev Server starten (Vite)
+npm run dev
+```
+
+Frontend Dev Server: http://localhost:5173
+
 ### Tests ausführen
 
 ```bash
@@ -150,6 +165,7 @@ docker-compose down
 | Testing | pytest | 9.0.2 |
 | Objektspeicher | MinIO | 2024-12-13 |
 | Suchmaschine | Meilisearch | 1.6.0 |
+| Frontend | React + Vite + TypeScript | React 18 / Vite 5 |
 
 ## 📖 Weitere Dokumentation
 
