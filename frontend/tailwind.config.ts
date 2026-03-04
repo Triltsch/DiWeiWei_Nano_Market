@@ -13,8 +13,10 @@ const config: Config = {
     colors: {
       // Core colors
       white: "#ffffff",
+      black: "#000000",
       transparent: "transparent",
       current: "currentColor",
+      inherit: "inherit",
 
       // Neutral grays - used for text, backgrounds, borders
       neutral: {

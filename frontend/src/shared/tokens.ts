@@ -1,13 +1,14 @@
 /**
  * Design Tokens - DiWeiWei Nano-Marktplatz Frontend
  *
- * Centralized constants for design tokens used in components.
- * These tokens mirror the Tailwind configuration for consistent styling across
- * JavaScript/TypeScript code that needs programmatic access to design values.
+ * Centralized design-token constants used in components and frontend logic.
+ *
+ * This module is aligned with the Tailwind theme's semantic palette and font
+ * families while also exposing additional runtime token groupings for app code.
  *
  * Usage:
  * ```tsx
- * import { colors, typography, spacing } from '@shared/tokens'
+ * import { colors, typography, spacing } from "../shared/tokens"
  * 
  * const buttonColor = colors.primary[500]
  * const headingSize = typography.sizes.h2
@@ -119,8 +120,8 @@ export const colors = {
  */
 export const typography = {
   fontFamily: {
-    sans: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
-    mono: 'Fira Code, Courier New, monospace',
+    sans: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    mono: "Fira Code, Courier New, monospace",
   },
   sizes: {
     h1: { size: "2rem", weight: 700, lineHeight: 1.2 },

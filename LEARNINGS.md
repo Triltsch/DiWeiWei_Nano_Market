@@ -1607,3 +1607,9 @@ Implemented Tailwind CSS + design tokens for DiWeiWei frontend. Encountered vers
 - Design Tokens: 66 colors + 8 font sizes + utilities
 - Component Classes: 6 primary utilities
 
+#### 8. **Why PR Review Found Issues Not Caught Initially**
+- **Gap**: Initial validation focused on build success (`npm run typecheck`, `npm run build`) and did not include a checklist for config-level safety and documentation correctness.
+- **What review caught**: Missing explicit `font-sans` on `body`, inaccurate usage example import path, broad terminal auto-approve commands, and incomplete Tailwind base color keys.
+- **Prevention**: Add a lightweight pre-PR checklist for (1) docs/examples runnable correctness, (2) security-sensitive workspace config changes, and (3) theme/config compatibility keys that can impact downstream utilities.
+- **Learning**: Build-green is necessary but not sufficient; include a small review-ready checklist for non-runtime quality gates.
+
