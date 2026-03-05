@@ -1613,3 +1613,168 @@ Implemented Tailwind CSS + design tokens for DiWeiWei frontend. Encountered vers
 - **Prevention**: Add a lightweight pre-PR checklist for (1) docs/examples runnable correctness, (2) security-sensitive workspace config changes, and (3) theme/config compatibility keys that can impact downstream utilities.
 - **Learning**: Build-green is necessary but not sufficient; include a small review-ready checklist for non-runtime quality gates.
 
+---
+
+## Sprint 2 Frontend: Centralized HTTP Client Configuration (Issue #34 - S2-FE-04)
+
+### Context
+Implemented centralized Axios HTTP client with environment-based configuration and JWT token injection for Sprint 2 frontend work. Prepared infrastructure for token refresh implementation in Sprint 3.
+
+### Key Learnings
+
+#### 1. **Environment-First API Configuration in Vite Projects**
+- Use `import.meta.env.VITE_*` for public API variables (accessible in browser)
+- Provide sensible defaults: `VITE_API_BASE_URL ?? "http://localhost:8000"`
+- Test configuration availability during development mode with validation function
+- **Why it matters**:
+  - Public vs private environment variables prevent secret leakage
+  - Defaults enable development without `.env.local` file
+  - Validation catches misconfiguration early (development mode warning)
+- **Learning**: Vite's `import.meta.env` system requires explicit VITE_ prefix by design. Document this pattern prominently to prevent developers from trying to access private environment variables from client code.
+
+#### 2. **Token Storage Pattern: localStorage with Structured Object**
+- Store tokens as JSON object in localStorage: `{ accessToken, refreshToken, expiresIn }`
+- Use consistent key name: `auth_tokens` to enable easy lookup across app
+- Gracefully handle JSON parsing errors (corrupted localStorage) without breaking requests
+- **Pattern**:
+  ```typescript
+  const storedTokens = localStorage.getItem("auth_tokens")
+  if (storedTokens) {
+    try {
+      const tokens = JSON.parse(storedTokens)
+      if (tokens.accessToken) {
+        // Inject bearer token
+      }
+    } catch (error) {
+      // Silently ignore corrupted data
+    }
+  }
+  ```
+- **Learning**: Assume localStorage can be corrupted or manipulated. Defensive parsing prevents crashes but doesn't validate token integrity (that's the server's job during verification).
+
+#### 3. **Request Interceptor: Transparent Token Injection**
+- Inject `Authorization: Bearer {token}` header automatically for every request
+- No manual header management needed in component code
+- Interceptor runs before request sent (no async operation delay)
+- **Benefits**:
+  - Single point of token injection (DRY principle)
+  - Consistent behavior across entire application
+  - Components stay focused on business logic, not auth infrastructure
+- **Pattern**: Interceptor should be silent (no logging in production) and return original config unchanged if no token exists (allows public endpoints)
+
+#### 4. **Response Interceptor: Error Handling Preparation**
+- Handle 401 (Unauthorized) specially: clear tokens and dispatch event for app-level redirect
+- Pass other errors through for app-specific handling
+- Design with clear placeholder for Sprint 3 token refresh logic
+- **Current Sprint 2 Behavior**:
+  - On 401: Remove tokens, dispatch `auth:unauthorized` custom event
+  - App listens for event and redirects to login page
+  - No automatic retry (that's Sprint 3)
+- **Sprint 3 Preparation**:
+  - Comments document token refresh flow
+  - Placeholder shows exactly where refresh logic goes
+  - Structure supports async token refresh with original request retry
+- **Learning**: Plan for future enhancements (token refresh) in initial interceptor design. Use comments to document where logic will go so future implementers understand architectural assumptions. This prevents inconsistent error handling patterns later.
+
+#### 5. **Development Logging: Conditional Console Output**
+- Use `if (import.meta.env.DEV)` for development-only logging
+- Log request method/URL and response status
+- Enable debugging without production log spam
+- **Pattern**:
+  ```typescript
+  if (import.meta.env.DEV) {
+    console.debug(`[API] ${method} ${url}`, data)
+  }
+  ```
+- **Learning**: Production code should not include debug logs. Use environment checks to keep logging only in development. Format logs consistently with clear prefixes `[API]` to enable searching in console.
+
+#### 6. **Error Messages: User-Friendly vs Technical**
+- 401 errors get explicit message: "Unauthorized request - 401"
+- Error details logged in development mode only
+- No leakage of exception messages to end users
+- **Why it matters**:
+  - User-friendly errors reduce support burden
+  - Technical details (backend stack traces) never leak to client
+  - Log levels determine what operators see vs what users see
+- **Learning**: Distinguish between user-facing error messages and technical logs. Users see "Unauthorized, please login". Operators see "401 Unauthorized: user_id not found in token claims". Never expose technical details to users.
+
+#### 7. **Axios Singleton Pattern for Consistent Configuration**
+- Create single `httpClient` instance configured at module load
+- Export singleton for use throughout application
+- Configuration applied once, reducing overhead and ensuring consistency
+- **Pattern**:
+  ```typescript
+  const httpClient = axios.create({
+    baseURL: API_CONFIG.BASE_URL,
+    timeout: API_CONFIG.REQUEST_TIMEOUT,
+  })
+  setupInterceptors(httpClient)
+  export const httpClient // Re-exported from all modules
+  ```
+- **Learning**: HTTP client is infrastructure singleton similar to database connections. Create once at startup, reuse everywhere. Dependency injection at the HTTP client level (importing from `shared/api`) is simpler than passing through function parameters.
+
+#### 8. **Testing HTTP Client Without Running Server**
+- Client configuration tests verify environment loading and default values
+- Interceptor tests mock request/response to verify logic without network
+- Integration tests use real server (in E2E phase)
+- **Test Pattern**:
+  - Token injection: Mock axios interceptor, verify Authorization header added
+  - 401 handling: Mock error response, verify tokens cleared
+  - Missing token: Verify request proceeds without Authorization header
+- **Learning**: Unit tests for HTTP client can verify configuration and interceptor logic without network. Full end-to-end tests require real backend.
+
+#### 9. **Documentation: Examples vs Auto-Generated Docs**
+- Auto-generated docs (Swagger/OpenAPI) document backend API contract
+- HTTP client library requires separate documentation with usage examples
+- Include both "quick start" (most common use case) and detailed reference
+- **Pattern**:
+  ```typescript
+  // Quick start
+  const user = await httpClient.get("/api/v1/auth/me")
+  
+  // With error handling
+  try {
+    await httpClient.post("/api/v1/auth/login", { email, password })
+  } catch (error) {
+    if (error.response?.status === 401) {
+      // Handle unauthorized
+    }
+  }
+  ```
+- **Learning**: Library documentation should teach usage patterns, not just document functions. Include examples for common patterns (authenticated requests, error handling, token storage).
+
+#### 10. **Configuration Validation as Documentation**
+- Configuration validation exists in code comments showing expected variables
+- Warnings in development catch missing/invalid configuration
+- Validation doesn't block startup (sensible defaults exist)
+- **Function**: `validateApiConfig()` checks for common mistakes:
+  - Missing VITE_API_BASE_URL → suggests http://localhost:8000
+  - Very low REQUEST_TIMEOUT → suggests it's probably misconfigured
+- **Learning**: Validation is more useful as development assistant than as hard errors. Warn users about suspicious values but allow sensible defaults to work. Help developers self-diagnose instead of requiring documentation lookups.
+
+#### 11. **Sprint Structure: Small Infrastructure Features**
+- S2-FE-04 (this issue): HTTP client configuration (1 PT)
+- S2-FE-05 (next): React Query client setup
+- S2-FE-06 (future): Token refresh implementation
+- Architecture built in layers: (1) Transport (HTTP client), (2) State management (React Query), (3) Auth flow (token refresh)
+- **Learning**: Multi-sprint frontend work benefits from layered architecture. Start with transport layer (HTTP client), add caching layer (React Query), then add auth orchestration (token refresh). This enables testing each layer independently and swapping implementations later.
+
+#### 12. **Why Configuration Issues Didn't Block Implementation**
+- Vite development server has sensible defaults (http://localhost:5173 for frontend, assumes http://localhost:8000 for backend API)
+- No production build/deployment was required for this feature
+- Tests passed without running actual API server (unit tests only)
+- **What would catch issues**: Running frontend against real backend + running tests in mounted Docker volume
+- **Prevention**: Next sprint should include baseline E2E test that starts both frontend + backend and validates communication
+
+### Implementation Metrics
+- **Files Created**: 7 (config, httpClient, interceptors, index, examples, README, test)
+- **Configuration**: Vite environment variables + .env.example
+- **Dependencies Added**: axios@^1.7.0
+- **Documentation**: Comprehensive README with token flow diagrams
+- **Test Coverage**: Unit tests for configuration, interceptors, error handling
+- **Acceptance Criteria**: All 3 met (base URL from env, token injection, error handling prepared)
+
+### Key Achievement
+Established frontend infrastructure for Sprint 2+ frontend work. Provided solid foundation for React Query (S2-FE-05) and token refresh (S2-FE-06) in future sprints. Documented token flow clearly to enable Sprint 3 implementation without rework.
+
+
