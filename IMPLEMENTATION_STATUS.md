@@ -1,5 +1,165 @@
 # Implementation Status
 
+## ✅ Sprint 2 [S2-FE-04]: Configure Axios Client + JWT Injection Hook Points - COMPLETE
+
+**Status**: COMPLETE - Centralized HTTP client with environment configuration and JWT token injection
+
+**Latest Update**: Issue #34 (Axios Client Configuration) ✅ Complete (March 5, 2026)
+
+### Issue #34 Acceptance Criteria - All Met
+
+| Criterion | Status | Evidence |
+|-----------|--------|----------|
+| Base URL loaded from environment | ✅ | `frontend/src/shared/api/config.ts` loads `VITE_API_BASE_URL` from environment (default: http://localhost:8000) |
+| Request interceptor supports access-token injection | ✅ | `frontend/src/shared/api/interceptors.ts:setupRequestInterceptor()` injects Bearer token from localStorage into Authorization header |
+| Error handling path prepared for auth refresh in Sprint 3 | ✅ | `frontend/src/shared/api/interceptors.ts:setupResponseInterceptor()` handles 401 responses with placeholder for Sprint 3 token refresh logic |
+
+### Implementation Highlights
+
+1. **Centralized Axios HTTP Client** (`frontend/src/shared/api/`)
+   - **httpClient.ts**: Main singleton instance configured with environment settings
+   - **config.ts**: Environment-based configuration (`VITE_API_BASE_URL`, `VITE_API_REQUEST_TIMEOUT`)
+   - **interceptors.ts**: Request/response interceptors for token injection and error handling
+   - **index.ts**: Module exports for easy importing
+
+2. **Request Interceptor - JWT Token Injection**
+   - Reads access token from localStorage under key `auth_tokens`
+   - Automatically injects `Authorization: Bearer <token>` header for all requests
+   - Gracefully handles missing or corrupted localStorage data
+   - Development logging for request debugging
+
+3. **Response Interceptor - Error Handling**
+   - **401 Status**: Clears tokens from localStorage and dispatches `auth:unauthorized` event
+   - **Other Errors**: Passes through for app-specific error handling
+   - **Placeholder for Sprint 3**: Token refresh logic preparation with detailed comments
+   - Development logging for response debugging
+
+4. **Environment Configuration**
+   - `frontend/.env.example`: Template with all configurable options
+   - Vite environment variables: `VITE_API_BASE_URL`, `VITE_API_REQUEST_TIMEOUT`
+   - Development defaults: localhost:8000, 30-second timeout
+   - Production-ready configuration documentation
+
+5. **Package Dependencies**
+   - Added `axios@^1.7.0` to `frontend/package.json`
+   - Supports all HTTP methods (GET, POST, PATCH, DELETE, etc.)
+   - TypeScript types included in package
+
+6. **Documentation & Examples**
+   - **frontend/src/shared/api/README.md**: Comprehensive usage guide
+   - **frontend/src/shared/api/examples.tsx**: React component examples
+   - Token flow documentation with diagrams
+   - API endpoint reference
+
+### Key Features
+
+1. **Environment-First Configuration**
+   ```javascript
+   API_CONFIG = {
+     BASE_URL: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
+     REQUEST_TIMEOUT: import.meta.env.VITE_API_REQUEST_TIMEOUT ?? 30000,
+     VERSION: "v1"
+   }
+   ```
+
+2. **Automatic Token Injection**
+   - Request interceptor retrieves token from localStorage
+   - Injects into `Authorization` header as `Bearer {token}`
+   - Works transparently for all authenticated endpoints
+   - No manual header management needed in components
+
+3. **Error Handling Preparation**
+   - 401 responses automatically clear tokens
+   - Dispatch custom event for app-level handling
+   - Placeholder for Sprint 3 refresh token logic
+   - Structured error propagation
+
+4. **Development-Friendly Logging**
+   ```javascript
+   [API] POST /api/v1/auth/login
+   [API] Response 200: {access_token: "...", ...}
+   [API] Unauthorized request - 401
+   [API] Error 401: Unauthorized
+   ```
+
+### Usage Example
+
+```typescript
+import { httpClient } from "@/shared/api"
+
+// Token automatically injected for authenticated requests
+async function getCurrentUser() {
+  try {
+    const response = await httpClient.get("/api/v1/auth/me")
+    return response.data
+  } catch (error) {
+    console.error("Failed to fetch user:", error)
+  }
+}
+
+// Login and store tokens
+async function login(email: string, password: string) {
+  const response = await httpClient.post("/api/v1/auth/login", {
+    email,
+    password,
+  })
+  
+  localStorage.setItem("auth_tokens", JSON.stringify({
+    accessToken: response.data.access_token,
+    refreshToken: response.data.refresh_token,
+    expiresIn: response.data.expires_in,
+  }))
+  
+  return response.data
+}
+```
+
+### Code Quality
+
+- ✅ Fully typed with TypeScript strict mode
+- ✅ Comprehensive documentation with examples
+- ✅ Environment configuration validation in development mode
+- ✅ Graceful error handling for edge cases
+- ✅ No external dependencies beyond Axios
+
+### Test Coverage
+
+- **Test File**: `frontend/src/shared/api/httpClient.test.ts`
+- Tests for configuration loading, token injection, error handling
+- Note: Frontend test infrastructure (Vitest/Jest) setup pending
+
+### Sprint 3 Preparation
+
+The following is prepared for Sprint 3 implementation:
+- Token refresh endpoint path: POST /api/v1/auth/refresh-token
+- Placeholder logic with clear comments in `setupResponseInterceptor()`
+- Retry original request after token refresh
+- Update localStorage with new token
+
+### Files Created
+
+```
+frontend/
+├── .env.example                           # Environment template
+├── package.json                           # Added axios dependency
+└── src/shared/api/
+    ├── config.ts                          # Environment configuration
+    ├── interceptors.ts                    # Request/response interceptors
+    ├── httpClient.ts                      # Main client instance
+    ├── httpClient.test.ts                 # Unit tests
+    ├── index.ts                           # Module exports
+    ├── README.md                          # Usage documentation
+    └── examples.tsx                       # React component examples
+```
+
+### Next Steps (Sprint 3)
+
+- S2-FE-05: React Query client configuration
+- S2-FE-06: Token refresh token flow implementation
+- S2-FE-07: Authentication UI components (login, register, etc.)
+
+---
+
 ## ✅ Sprint 2 [S2-BE-05]: Upload Retry + Timeout Handling - COMPLETE
 
 **Status**: COMPLETE - upload timeout guardrails, transient retry semantics, and explicit failure-state API contract implemented
