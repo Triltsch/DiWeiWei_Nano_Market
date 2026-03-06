@@ -85,7 +85,8 @@ export function setupResponseInterceptor(instance: AxiosInstance): void {
       return response;
     },
     async (error: AxiosError) => {
-      const originalRequest = error.config;
+      // Reserved for token refresh/retry logic (Sprint 3)
+      const _originalRequest = error.config;
 
       // Handle 401 Unauthorized errors
       if (error.response?.status === 401) {

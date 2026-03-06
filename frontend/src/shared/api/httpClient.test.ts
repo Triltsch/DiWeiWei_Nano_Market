@@ -5,8 +5,9 @@
  * environment loading, and interceptor functionality.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { httpClient, API_CONFIG } from "./httpClient";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { httpClient } from "./httpClient";
+import { API_CONFIG } from "./config";
 
 describe("HTTP Client - API Configuration", () => {
   /**
@@ -68,8 +69,9 @@ describe("HTTP Client - Request Interceptor (Token Injection)", () => {
       }
     });
 
-    // Note: This is a simplified test. Full integration tests would mock
-    // actual HTTP requests and verify the Authorization header is present.
+    // Verify the token was injected into Authorization header
+    expect(capturedConfig).not.toBeNull();
+    expect(capturedConfig.headers.Authorization).toBe(`Bearer ${mockToken}`);
   });
 
   /**
@@ -134,24 +136,23 @@ describe("HTTP Client - Response Interceptor (Error Handling)", () => {
     expect(localStorage.getItem("auth_tokens")).not.toBeNull();
 
     // Mock 401 response
-    const error = new Error("Unauthorized");
+    const error = new Error("Unauthorized") as Error & { response?: { status: number } };
     error.response = { status: 401 };
 
-    // When response interceptor handles 401
+    // When response interceptor handles 401, it should reject and clear tokens
     let tokenCleared = false;
-    httpClient.interceptors.response.handlers.forEach((handler) => {
-      if (handler.rejected) {
-        try {
-          handler.rejected(error);
-        } catch (e) {
-          // Expected to reject promise
-          tokenCleared = localStorage.getItem("auth_tokens") === null;
-        }
-      }
-    });
+    const handlers = httpClient.interceptors.response.handlers;
 
-    // Note: Full integration test would verify token refresh request
-    // and retry logic (Sprint 3 implementation)
+    for (const handler of handlers) {
+      if (handler.rejected) {
+        // Ensure the interceptor rejects as expected
+        await expect(handler.rejected(error)).rejects.toBeInstanceOf(Error);
+        // After the interceptor runs, tokens should be cleared
+        tokenCleared = localStorage.getItem("auth_tokens") === null;
+      }
+    }
+
+    expect(tokenCleared).toBe(true);
   });
 
   /**

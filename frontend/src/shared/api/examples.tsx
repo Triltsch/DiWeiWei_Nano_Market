@@ -24,7 +24,7 @@ export function useAuthExample() {
     setError(null);
 
     try {
-      // Login request - token is automatically injected by interceptor
+      // Login request - this call obtains tokens; interceptor injects a token only if one already exists
       const response = await httpClient.post("/api/v1/auth/login", {
         email,
         password,

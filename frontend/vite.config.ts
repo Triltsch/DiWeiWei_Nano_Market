@@ -6,5 +6,10 @@ export default defineConfig({
   server: {
     host: process.env.VITE_DEV_SERVER_HOST ?? "localhost",
     port: 5173
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: [],
   }
 });

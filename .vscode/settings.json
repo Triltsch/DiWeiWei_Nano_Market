@@ -31,7 +31,6 @@
         "git checkout": true,
         "git clean": true,
         ".\\.venv\\Scripts\\python.exe": true,
-        ".venv\\Scripts\\python.exe": true,
-        "&": true
+        ".venv\\Scripts\\python.exe": true
     }
 }

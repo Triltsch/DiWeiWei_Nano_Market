@@ -1,5 +1,100 @@
 # Learnings - DiWeiWei Nano-Marktplatz Projekt
 
+## Frontend HTTP Client Review (Issue #34 - PR #48 Review Implementation)
+
+### Context
+After implementing the centralized Axios HTTP client for frontend (Issue #34, PR #48), received 9 Copilot AI review comments identifying critical issues with test reliability, documentation format, type safety, and configuration validation logic.
+
+### Key Learnings
+
+#### 1. **Import Hygiene - Export Locations Matter**
+- **Problem**: Test imported `API_CONFIG` from `./httpClient` but that module doesn't export it - `API_CONFIG` is only exported from `./config`
+- **Why it failed silently during implementation**: No TypeScript compilation without `npm install`, so import error wasn't caught
+- **Solution**: Split imports: `import { httpClient } from "./httpClient"` and `import { API_CONFIG } from "./config"`
+- **Learning**: Always import from the actual exporting module, not from re-export barrels unless intended. TypeScript catches this but only when dependencies are installed.
+
+#### 2. **Async Test Assertions - Don't Skip await**
+- **Problem**: Test called `handler.rejected(error)` in try/catch, expecting synchronous throw. But it returns a rejected Promise, so catch block never executes
+- **Result**: Test always passed even if token clearing logic was completely broken
+- **Solution**: Use `await expect(handler.rejected(error)).rejects.toBeInstanceOf(Error)` to properly handle async rejections
+- **Learning**: Axios interceptors are async - test them with proper async handling or tests become false positives
+
+#### 3. **Markdown Files Should Be Markdown, Not JS Comments**
+- **Problem**: README.md wrapped in `/** ... */` JS comment syntax, rendering as literal text in Markdown viewers (GitHub, VS Code)
+- **Root Cause**: Likely copy-pasted from a JSDoc comment template and never converted
+- **Fix**: Remove all `/**`, `*/`, and leading ` * ` markers - write pure Markdown
+- **Learning**: `.md` files are consumed by markdown renderers, not compilers. They should never contain language-specific comment syntax
+
+#### 4. **Test Dependencies Must Match Test Runtime**
+- **Problem**: Test file imported from `vitest` but package.json had no vitest dependency, and vite.config.ts had no test configuration
+- **Why tests seemed to work during implementation**: Tests were never actually executed - just written
+- **Solution**: 
+  - Added `vitest@^3.0.0` and `@vitest/coverage-v8@^3.0.0` to devDependencies
+  - Added `jsdom@^26.0.0` for DOM simulation
+  - Added `test` section to vite.config.ts with `environment: "jsdom"`
+  - Added `"test": "vitest"` script to package.json
+- **Learning**: Frontend tests require explicit test runner setup. Unlike backend pytest (auto-discovered), Vite needs configuration.
+
+#### 5. **Test Assertions Must Assert**
+- **Problem**: "should inject access token" test ran interceptor, captured config, but never asserted the Authorization header value
+- **Result**: Test always passed regardless of whether token injection worked
+- **Fix**: Added `expect(capturedConfig.headers.Authorization).toBe(\`Bearer ${mockToken}\`)`
+- **Learning**: Every test variable should have a corresponding assertion. If you capture a value, verify it. "Simplified test" comments often mean incomplete tests.
+
+#### 6. **Unused Variables as Future Placeholders - Signal Intent**
+- **Problem**: `const originalRequest = error.config;` defined but unused, causing TypeScript/linter warning
+- **Context**: Variable is reserved for Sprint 3 token refresh logic
+- **Solution**: Prefix with underscore: `const _originalRequest = error.config;` and add comment explaining it's for Sprint 3
+- **Learning**: Use underscore prefix for intentionally-unused variables that document future implementation points. Keeps linters happy while preserving architectural intent.
+
+#### 7. **Validation Logic Must Actually Validate**
+- **Problem**: `validateApiConfig()` checked `if (!API_CONFIG.BASE_URL)` but this is always falsy because the config uses `??` default: `import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"`
+- **Result**: Dead code - validation never triggers
+- **Fix**: Check the source environment variable instead: `if (!import.meta.env.VITE_API_BASE_URL)` with warning (not error)
+- **Why warning not error**: Defaults are intentional - we want to warn developers they're using defaults, not block execution
+- **Learning**: When validating configuration with defaults, validate the input source, not the post-default value
+
+#### 8. **Comment Clarity - Avoid Misleading Implications**
+- **Problem**: Comment said "token is automatically injected by interceptor" on login request, implying token injection happens for this call
+- **Reality**: Login acquires tokens - no token exists yet to inject. Interceptor checks for token and finds none.
+- **Fix**: "This call obtains tokens; interceptor injects a token only if one already exists"
+- **Learning**: Comments should describe what actually happens in this execution, not just what the interceptor generally does. Context matters.
+
+#### 9. **VSCode Security - Scope Auto-Approval Narrowly**
+- **Problem**: `.vscode/settings.json` had `"&": true` in terminal auto-approve list, whitelisting shell command chaining operator
+- **Risk**: Allows arbitrary command chains to execute without confirmation via Copilot terminal tool
+- **Fix**: Remove broad permission, keep only specific safe commands (`.venv\\Scripts\\python.exe`)
+- **Learning**: Terminal auto-approval settings should list specific safe executables, never generic shell operators (`&`, `|`, `;`, etc.)
+
+### Implementation Impact Analysis
+
+**Why These Issues Were Caught in PR Review, Not Implementation:**
+1. **No npm install during implementation** - TypeScript compilation didn't run, so import errors invisible
+2. **Tests never executed** - Written but not run against actual test runner
+3. **Focus on feature completion** - Concentrated on acceptance criteria, not exhaustive validation
+4. **Single-author review gap** - No peer review before Copilot PR review
+
+**Process Improvements Needed:**
+- Run `npm install` immediately after updating package.json
+- Execute tests locally before pushing (add to pre-push hook?)
+- Run TypeScript compilation (`npm run typecheck`) as part of local validation
+- Treat Copilot PR review as first-pass peer review, not final check
+
+### Technical Debt Addressed
+
+✅ Test reliability improved - async assertions, proper mocking
+✅ Documentation readability fixed - pure Markdown
+✅ Configuration validation now functional
+✅ Security tightened - removed broad terminal permissions
+✅ Type safety improved - proper imports, no unused variables
+
+**Remaining Known Issues:**
+- Tests still require `npm install` to run (dependency installation not automated in workflow yet)
+- Frontend test execution not integrated into main test suite (separate command)
+- Pre-commit hooks not yet configured to enforce formatting/typechecks
+
+
+
 ## PR Review Process & Type Safety (Issue #4 - Review Implementation)
 
 ### Context
