@@ -31,10 +31,10 @@ export const queryClient = new QueryClient({
       staleTime: 1000 * 60,           // 1 minute - data fresh duration
       gcTime: 1000 * 60 * 5,          // 5 minutes - cache retention
       retry: 1,                       // Retry failed queries once
-      retryDelay: Math.pow(2, attempt) * 1000,  // Exponential backoff
+      retryDelay: (attempt) => Math.pow(2, attempt) * 1000,  // Exponential backoff
     },
-  }
-})
+  },
+});
 ```
 
 **Why these defaults?**
@@ -161,13 +161,13 @@ root/
 
 ### Production
 
-- `@tanstack/react-query@^4.0.0` - Server state management
+- `@tanstack/react-query` - Server state management
 
 ### Development
 
-- `@testing-library/react@^14.0.0` - Component and hook testing utilities
-- `@testing-library/jest-dom@^6.0.0` - DOM custom matchers
-- `@testing-library/user-event@^14.0.0` - User interaction simulation (for future use)
+- `@testing-library/react` - Component and hook testing utilities
+- `@testing-library/jest-dom` - DOM custom matchers
+- `@testing-library/user-event` - User interaction simulation (for future use)
 
 ## Migration Guide (If Calling from Components)
 

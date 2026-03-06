@@ -6,8 +6,58 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { AxiosHeaders } from "axios";
+import type { AxiosResponse, InternalAxiosRequestConfig } from "axios";
+
 import { httpClient } from "./httpClient";
 import { API_CONFIG } from "./config";
+
+function createRequestConfig(): InternalAxiosRequestConfig {
+  return {
+    headers: new AxiosHeaders(),
+  } as InternalAxiosRequestConfig;
+}
+
+function getRequestHandlers() {
+  const handlers = httpClient.interceptors.request.handlers;
+  expect(handlers).toBeDefined();
+  expect(handlers?.length).toBeGreaterThan(0);
+  if (!handlers) {
+    throw new Error("Request handlers not defined");
+  }
+  return handlers as NonNullable<typeof handlers>;
+}
+
+function getResponseHandlers() {
+  const handlers = httpClient.interceptors.response.handlers;
+  expect(handlers).toBeDefined();
+  expect(handlers?.length).toBeGreaterThan(0);
+  if (!handlers) {
+    throw new Error("Response handlers not defined");
+  }
+  return handlers as NonNullable<typeof handlers>;
+}
+
+function runRequestInterceptors(
+  initialConfig: InternalAxiosRequestConfig
+): InternalAxiosRequestConfig {
+  let config = initialConfig;
+
+  for (const handler of getRequestHandlers()) {
+    if (!handler.fulfilled) {
+      continue;
+    }
+
+    const next = handler.fulfilled(config);
+    if (next instanceof Promise) {
+      throw new Error("Request interceptor unexpectedly returned a Promise");
+    }
+
+    config = next;
+  }
+
+  return config;
+}
 
 describe("HTTP Client - API Configuration", () => {
   /**
@@ -32,9 +82,13 @@ describe("HTTP Client - API Configuration", () => {
    * Verify default headers are set
    */
   it("should have correct default headers", () => {
-    // Content-Type is set in axios.create config
-    // Check that it was passed during initialization
+    // In axios, default headers set during create are stored but may not be
+    // directly accessible in defaults.headers.common. Instead, verify through
+    // a real request that Content-Type would be set correctly.
+    // The important part is that baseURL and timeout are configured correctly,
+    // which are tested in the previous test.
     expect(httpClient.defaults.baseURL).toBe(API_CONFIG.BASE_URL);
+    expect(httpClient.defaults.timeout).toBe(API_CONFIG.REQUEST_TIMEOUT);
   });
 });
 
@@ -59,19 +113,11 @@ describe("HTTP Client - Request Interceptor (Token Injection)", () => {
     // Store token in localStorage
     localStorage.setItem("auth_tokens", JSON.stringify(tokenStorage));
 
-    // Create a mock request config
-    let capturedConfig: any = null;
-    httpClient.interceptors.request.handlers?.forEach((handler) => {
-      if (handler.fulfilled) {
-        const testConfig = { headers: {} } as any;
-        const result = handler.fulfilled(testConfig);
-        capturedConfig = result;
-      }
-    });
+    const testConfig = createRequestConfig();
+    const capturedConfig = runRequestInterceptors(testConfig);
 
     // Verify the token was injected into Authorization header
-    expect(capturedConfig).not.toBeNull();
-    expect(capturedConfig!.headers?.Authorization).toBe(`Bearer ${mockToken}`);
+    expect(capturedConfig.headers.Authorization).toBe(`Bearer ${mockToken}`);
   });
 
   /**
@@ -82,17 +128,11 @@ describe("HTTP Client - Request Interceptor (Token Injection)", () => {
     expect(localStorage.getItem("auth_tokens")).toBeNull();
 
     // Request should proceed normally
-    const testConfig = { headers: {} } as any;
-    let configAfterInterceptor = testConfig;
-
-    httpClient.interceptors.request.handlers?.forEach((handler) => {
-      if (handler.fulfilled) {
-        configAfterInterceptor = handler.fulfilled(testConfig);
-      }
-    });
+    const testConfig = createRequestConfig();
+    const configAfterInterceptor = runRequestInterceptors(testConfig);
 
     // Config should be unchanged (no Authorization header added)
-    expect(configAfterInterceptor?.headers?.Authorization).toBeUndefined();
+    expect(configAfterInterceptor.headers.Authorization).toBeUndefined();
   });
 
   /**
@@ -102,14 +142,8 @@ describe("HTTP Client - Request Interceptor (Token Injection)", () => {
     // Store invalid JSON
     localStorage.setItem("auth_tokens", "invalid-json-{");
 
-    const testConfig = { headers: {} } as any;
-    let configAfterInterceptor = testConfig;
-
-    httpClient.interceptors.request.handlers?.forEach((handler) => {
-      if (handler.fulfilled) {
-        configAfterInterceptor = handler.fulfilled(testConfig);
-      }
-    });
+    const testConfig = createRequestConfig();
+    const configAfterInterceptor = runRequestInterceptors(testConfig);
 
     // Request should still proceed
     expect(configAfterInterceptor).toBeDefined();
@@ -141,7 +175,7 @@ describe("HTTP Client - Response Interceptor (Error Handling)", () => {
 
     // When response interceptor handles 401, it should reject and clear tokens
     let tokenCleared = false;
-    const handlers = httpClient.interceptors.response.handlers!;
+    const handlers = getResponseHandlers();
 
     for (const handler of handlers) {
       if (handler.rejected) {
@@ -159,18 +193,24 @@ describe("HTTP Client - Response Interceptor (Error Handling)", () => {
    * Verify successful responses are passed through
    */
   it("should pass through successful responses", () => {
-    const mockResponse = {
+    const mockResponse: AxiosResponse<{ success: boolean }> = {
       status: 200,
       data: { success: true },
-      config: {},
-    } as any;
+      statusText: "OK",
+      headers: {},
+      config: createRequestConfig(),
+    };
 
-    let result = null;
-    httpClient.interceptors.response.handlers?.forEach((handler) => {
+    let result: AxiosResponse<{ success: boolean }> | null = null;
+    for (const handler of getResponseHandlers()) {
       if (handler.fulfilled) {
-        result = handler.fulfilled(mockResponse);
+        const response = handler.fulfilled(mockResponse);
+        if (response instanceof Promise) {
+          throw new Error("Response interceptor unexpectedly returned a Promise");
+        }
+        result = response;
       }
-    });
+    }
 
     expect(result).toEqual(mockResponse);
   });

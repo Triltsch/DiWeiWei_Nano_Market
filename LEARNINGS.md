@@ -1,5 +1,43 @@
 # Learnings - DiWeiWei Nano-Marktplatz Projekt
 
+## Frontend React Query Provider Review (Issue #35 - PR #49 Review Implementation)
+
+### Context
+After implementing React Query provider integration for Sprint 2, Copilot PR review reported 9 inline comments across tests and docs. Most findings were not functional bugs in production code, but quality gaps in test realism, strict typing, and documentation accuracy.
+
+### Why these issues surfaced in PR review (and not initial implementation)
+- **Shallow test coverage**: Hook tests only checked that a function existed instead of validating React Query behavior (`enabled: false`, `refetch` path).
+- **Type safety drift in tests**: Temporary `any` casts were introduced to quickly satisfy interceptor test compilation, reducing strict-mode safety.
+- **Documentation drift**: Markdown snippets were hand-written and not validated against real source code/config shape, causing stale/outdated examples.
+
+### Actions taken
+
+#### Test improvements:
+1. **Refactored HTTP client test helpers** - Added proper type narrowing in `getRequestHandlers()`/`getResponseHandlers()` to avoid optional-chaining false positives and ensure assertions catch missing interceptors.
+2. **Converted hook test to behavioral** - Replaced shallow symbol existence checks with `renderHook` + `QueryClientProvider` wrapper, executing actual hook lifecycle with mocked `httpClient.get`.
+3. **Updated header validation test** - Simplified test to focus on testable configuration (baseURL/timeout) rather than checking axios internal header structure which isn't reliably exposed.
+
+#### Documentation fixes:
+1. **Fixed retryDelay snippet** - Corrected `(attempt)` parameter in exponential backoff example to match implementation.
+2. **Updated Dependencies section** - Removed version numbers that were out of sync with actual package.json (React Query v5, Testing Library v16 vs. outdated v4/v14 in docs).
+3. **Corrected QueryClient config example** - Fixed "To adjust defaults" snippet to show proper `defaultOptions.queries` nesting instead of flat structure.
+
+#### Test typing improvements:
+1. **Removed unused imports** - Cleaned up `expect` import from vitest.setup.ts (already available globally via @testing-library/jest-dom).
+2. **Removed stub directive** - Removed unnecessary `eslint-disable` comment on `void error.config` in interceptors.ts.
+
+### Test Results
+- **All 11 frontend tests passing** (9 httpClient + 2 useUserProfile)
+- **TypeScript strict mode (no errors)**
+- **100% on reviewed file fixes**
+
+### Process improvement
+- For each new hook, require at least one behavioral test that verifies query lifecycle (disabled/enabled/refetch/error path), not only symbol existence.
+- Avoid `any` in tests; use concrete library types even in mocks to keep strict-mode guarantees.
+- Treat docs code blocks as executable contracts: copy from implementation or validate examples during review.
+- When documenting config objects with nesting, run examples through real implementations first to catch structural mismatches.
+
+
 ## Frontend HTTP Client Review (Issue #34 - PR #48 Review Implementation)
 
 ### Context

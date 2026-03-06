@@ -39,11 +39,21 @@ export const queryClient = createQueryClient();
 To adjust defaults, edit `queryClient.ts`:
 
 ```typescript
-queryClient: {
-  staleTime: 1000 * 60,           // Change fresh data duration
-  gcTime: 1000 * 60 * 5,           // Change cache retention
-  retry: 2,                        // Increase retry attempts
-  retryDelay: (attempt) => ...    // Customize retry timing
+import { QueryClient } from "@tanstack/react-query";
+
+export function createQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 1000 * 60, // Change fresh data duration
+        gcTime: 1000 * 60 * 5, // Change cache retention
+        retry: 2, // Increase retry attempts
+        retryDelay: (attempt) => {
+          return Math.min(1000 * 2 ** attempt, 30000);
+        },
+      },
+    },
+  });
 }
 ```
 
