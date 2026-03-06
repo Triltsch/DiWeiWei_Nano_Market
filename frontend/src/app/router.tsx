@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 
 import {
   AdminPage,
@@ -18,25 +18,25 @@ import { ProtectedRouteLayout } from "../features/routing/ProtectedRouteLayout";
  *
  * Provides the Sprint 2 base route map and keeps the route hierarchy
  * ready for auth-guard enforcement in Sprint 3.
+ *
+ * Note: BrowserRouter wrapper is provided by AppProviders in main.tsx
  */
 export function AppRouter(): JSX.Element {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/search" element={<SearchPage />} />
-        <Route path="/nano/:id" element={<NanoDetailsPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/search" element={<SearchPage />} />
+      <Route path="/nano/:id" element={<NanoDetailsPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
 
-        <Route element={<ProtectedRouteLayout />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/admin" element={<AdminPage />} />
-        </Route>
+      <Route element={<ProtectedRouteLayout />}>
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/admin" element={<AdminPage />} />
+      </Route>
 
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-    </BrowserRouter>
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
   );
 }

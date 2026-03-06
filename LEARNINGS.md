@@ -1902,4 +1902,36 @@ Implemented the React Router v6 baseline with placeholder MVP routes and fallbac
 - **Fix**: Added explicit CTA link (`Back to Home`) to `/` in the fallback page.
 - **Learning**: When UX text instructs user action, include a matching interactive element to avoid dead-end screens and review feedback.
 
+## React Query Provider Composition & Frontend Tooling (Issue #35 - S2-FE-05)
+
+### Context
+Implemented React Query client/provider composition in the frontend root and added a sample query path for smoke validation, while stabilizing TypeScript/Vitest integration in a mixed frontend/backend repository.
+
+### Key Learnings
+
+#### 1. **Vitest config typing requires `vitest/config` when using `test` in Vite config**
+- **Problem**: TypeScript reported `test` as unknown when `defineConfig` was imported from `vite`.
+- **Fix**: Import `defineConfig` from `vitest/config` in `frontend/vite.config.ts`.
+- **Learning**: For co-located Vite + Vitest config, use the Vitest-typed config entrypoint to avoid TS overload errors.
+
+#### 2. **Provider ownership should be centralized to prevent router duplication**
+- **Problem**: `BrowserRouter` existed in router module and was added again at provider layer.
+- **Fix**: Move router ownership to `AppProviders` and keep `AppRouter` focused on route definitions only.
+- **Learning**: Centralized provider composition prevents duplicated context providers and keeps app bootstrap logic predictable.
+
+#### 3. **Axios interceptor handler internals need defensive typing in tests**
+- **Problem**: Direct assertions on `interceptors.*.handlers` caused strict TypeScript errors (`possibly undefined`, `InternalAxiosRequestConfig` mismatch).
+- **Fix**: Use optional chaining/non-null assertions where appropriate and cast mock configs carefully in tests.
+- **Learning**: Interceptor internals are implementation-detail-heavy; tests should balance strict typing with targeted assertions.
+
+#### 4. **On Windows PowerShell, avoid Unix utilities (`head`, `tail`) in scripted checks**
+- **Problem**: `head`/`tail` commands failed in PowerShell during verification steps.
+- **Fix**: Run direct commands or use PowerShell-native alternatives when output filtering is needed.
+- **Learning**: Cross-shell command assumptions can hide validation output and slow down debugging.
+
+#### 5. **README drift is easy after frontend feature additions unless root docs are updated immediately**
+- **Problem**: Root README did not reflect newly completed frontend story scope and tooling.
+- **Fix**: Updated top-level status, frontend feature summary, and test/build commands to match implementation state.
+- **Learning**: Treat root README as release-facing documentation and update it in the same implementation cycle as feature code.
+
 

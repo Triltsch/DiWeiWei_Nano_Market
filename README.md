@@ -4,17 +4,21 @@ Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und 
 
 ## 📊 Aktueller Stand
 
-**Fertiggestellte Stories**: 1.1, 1.3, 1.4, 1.5, 7.2, 7.3 ✅
+**Fertiggestellte Stories**: 1.1, 1.3, 1.4, 1.5, 7.2, 7.3, 8.1 ✅
 - ✅ User Registration & Login mit Email-Verifizierung
 - ✅ Password Hashing (Bcrypt, OWASP-konform)
 - ✅ Email Verification Flow (JWT-basiert)
 - ✅ Audit Logging Framework (40+ Event-Typen)
 - ✅ ZIP Upload API (Nano-Lerneinheiten hochladen)
 - ✅ Nano Upload Domain Model mit Alembic Migrations
+- ✅ Frontend Foundation (React 18 + Vite + Tailwind + Router)
+- ✅ Zentraler Axios HTTP-Client mit JWT-Injection (S2-FE-04)
+- ✅ React Query + App Provider Composition inkl. Sample Query Hook (S2-FE-05)
 
 **Qualität**:
 - 221/221 Tests bestanden (100%)
 - 87.82% Code Coverage (Ziel: >70%)
+- Frontend: Vitest Test-Setup aktiv (`npm test`)
 - Black/isort Code-Formatierung
 - PostgreSQL + SQLite Support
 
@@ -55,7 +59,7 @@ python -m uvicorn app.main:app --reload
 
 **API Dokumentation**: http://localhost:8000/docs
 
-### Frontend starten (Story 8.1 Baseline)
+### Frontend starten (Story 8.1)
 
 ```bash
 # Frontend Workspace wechseln
@@ -66,6 +70,10 @@ npm install
 
 # Dev Server starten (Vite)
 npm run dev
+
+# Optional: Typprüfung und Frontend-Tests
+npm run typecheck
+npm test
 ```
 
 Frontend Dev Server: http://localhost:5173
@@ -82,6 +90,14 @@ pytest tests/ --cov=app --cov-report=html
 # Optional: echte MinIO-Integrationstests aktivieren
 # (setzt laufendes MinIO via docker-compose voraus)
 RUN_REAL_MINIO_TESTS=1 pytest tests/modules/upload/test_storage.py -k real_minio -v
+
+# Frontend Tests (Vitest)
+cd frontend
+npm test
+
+# Frontend Build + Typecheck
+npm run typecheck
+npm run build
 ```
 
 ## 📋 Implementierte Features
@@ -104,6 +120,13 @@ RUN_REAL_MINIO_TESTS=1 pytest tests/modules/upload/test_storage.py -k real_minio
   - Status Tracking (uploaded, processing, published, failed)
   - Versioning Support
   - File Hashing (SHA256)
+
+### Frontend Foundation (Story 8.1)
+- **Routing Skeleton** mit Basis-Routen (`/`, `/search`, `/nano/:id`, `/login`, `/register`, `/dashboard`, `/profile`, `/admin`)
+- **API-Client Layer** mit zentralem Axios-Client und vorbereiteten Auth-Interceptor-Hookpoints
+- **React Query Setup** mit globalem `QueryClient` und sinnvollen Defaults (stale/gc/retry)
+- **Provider Composition** über `AppProviders` im App-Root (`QueryClientProvider` + `BrowserRouter`)
+- **Smoke Query Path** über `useUserProfile` Hook als Referenz für künftige Data-Fetching-Flows
 
 ## 🐳 Docker Services
 
@@ -162,10 +185,10 @@ docker-compose down
 | Password | passlib + bcrypt | 1.7.4 |
 | DB (Prod) | PostgreSQL | 13+ |
 | DB (Test) | SQLite | - |
-| Testing | pytest | 9.0.2 |
+| Testing | pytest + Vitest | pytest 9.0.2 / vitest 3.x |
 | Objektspeicher | MinIO | 2024-12-13 |
 | Suchmaschine | Meilisearch | 1.6.0 |
-| Frontend | React + Vite + TypeScript | React 18 / Vite 5 |
+| Frontend | React + Vite + TypeScript + React Query | React 18 / Vite 5 / TanStack Query 5 |
 
 ## 📖 Weitere Dokumentation
 

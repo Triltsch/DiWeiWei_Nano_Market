@@ -86,7 +86,9 @@ export function setupResponseInterceptor(instance: AxiosInstance): void {
     },
     async (error: AxiosError) => {
       // Reserved for token refresh/retry logic (Sprint 3)
-      const _originalRequest = error.config;
+      // Note: error.config will be used for token refresh in Sprint 3
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      void error.config;
 
       // Handle 401 Unauthorized errors
       if (error.response?.status === 401) {
