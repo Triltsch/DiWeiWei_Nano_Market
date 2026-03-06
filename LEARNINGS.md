@@ -1776,5 +1776,35 @@ Implemented centralized Axios HTTP client with environment-based configuration a
 
 ### Key Achievement
 Established frontend infrastructure for Sprint 2+ frontend work. Provided solid foundation for React Query (S2-FE-05) and token refresh (S2-FE-06) in future sprints. Documented token flow clearly to enable Sprint 3 implementation without rework.
+## Router Skeleton & Validation Reliability (Issue #30 - S2-FE-03)
+
+### Context
+Implemented the React Router v6 baseline with placeholder MVP routes and fallback handling, while validating the mixed frontend/backend task workflow on Windows PowerShell.
+
+### Key Learnings
+
+#### 1. **Group future-protected routes early to avoid route churn**
+- **Approach**: Added a dedicated `ProtectedRouteLayout` with `Outlet` and nested `/dashboard`, `/profile`, `/admin` under it.
+- **Why it matters**: Sprint 3 auth checks can be added in one place without rewriting the route map or changing public paths.
+- **Learning**: Introduce route hierarchy scaffolding before auth logic to reduce refactor risk.
+
+#### 2. **Keep fallback behavior explicit in the first router iteration**
+- **Approach**: Added a wildcard `*` route with a dedicated placeholder page.
+- **Why it matters**: Unknown URLs are handled deterministically and acceptance criteria are testable.
+- **Learning**: Include explicit fallback routes from day one; do not rely on implicit default behavior.
+
+#### 3. **Frontend-only feature work still needs minimal runtime checks**
+- **Observation**: `npm run typecheck` + `npm run build` validated TypeScript and bundling quickly, but project policy still required `Checks` and verified backend-aware test execution.
+- **Learning**: Use layered validation: fast frontend checks first, then repository-wide checks required by workflow.
+
+#### 4. **Health-check credentials in automation must match compose defaults**
+- **Problem observed**: `Test: Verified` can fail if PostgreSQL probe credentials drift from `docker-compose.yml` defaults.
+- **Why it matters**: Infrastructure may be healthy while task falsely reports failure.
+- **Learning**: Keep task-level health probes aligned with compose/env defaults to avoid false negatives in CI/dev workflows.
+
+#### 5. **404 fallback copy should include a concrete action**
+- **Problem observed**: A not-found page message suggested returning to known routes but provided no direct navigation path.
+- **Fix**: Added explicit CTA link (`Back to Home`) to `/` in the fallback page.
+- **Learning**: When UX text instructs user action, include a matching interactive element to avoid dead-end screens and review feedback.
 
 
