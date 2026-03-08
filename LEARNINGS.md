@@ -1,5 +1,65 @@
 # Learnings - DiWeiWei Nano-Marktplatz Projekt
 
+## Sprint 2 Developer Documentation & Migration Workflow (Issue #29)
+
+### Context
+Created comprehensive developer setup documentation (600+ lines) covering PostgreSQL, MinIO, Redis, Meilisearch setup with troubleshooting guide. Enhanced DATABASE_MIGRATIONS.md with Sprint 2 migration context. Updated README with documentation hierarchy.
+
+### Key Learnings
+
+#### 1. **Documentation Structure Requires Clear Hierarchy**
+- **Problem**: Prior to this issue, documentation was scattered (README Quick Start, DATABASE_MIGRATIONS.md, planning docs) without clear onboarding path
+- **Solution**: Created DEVELOPER_SETUP.md as the comprehensive entry point, with README pointing to it for "full setup details"
+- **Learning**: Large projects need a documentation funnel: Quick Start (README) → Comprehensive Guide (DEVELOPER_SETUP) → Specialized Docs (feature-specific). Each level serves different audience needs: quick reference vs. deep exploration vs. troubleshooting.
+
+#### 2. **Troubleshooting Docs Pay for Themselves**
+- **Observation**: 8 common setup failures documented from LEARNINGS.md (Redis connection refused, MinIO bucket not created, enum type conflicts, etc.)
+- **Value**: Each issue includes symptoms, root causes, and solutions—saving 15-30 minutes per developer encounter
+- **Learning**: Extract production issues from learnings into structured troubleshooting sections. Include command-line diagnostics (e.g., `docker compose ps`, `netstat`) so developers can self-diagnose. The more painful the setup issue was initially, the more valuable it is to document.
+
+#### 3. **Cross-Reference Documentation for Maintenance**
+- **Pattern**: DATABASE_MIGRATIONS.md now references DEVELOPER_SETUP.md for "setup context" and vice versa for "migration mechanics"
+- **Benefit**: Avoids duplication while keeping each doc focused on its primary purpose
+- **Learning**: When adding new documentation, add bi-directional references to related docs. This creates a navigable knowledge graph instead of isolated documents. Use phrases like "See [doc] for [specific context]" rather than repeating content.
+
+#### 4. **Environment-Specific Configuration Needs Explicit Documentation**
+- **Problem**: `.env` settings work differently in local development (localhost) vs. Docker Compose (service names like `redis`, `postgres`)
+- **Solution**: Documented both scenarios explicitly with "Environment-Specific Configuration" section showing when to use `localhost` vs. service names
+- **Learning**: Configuration that varies by environment (local, Docker, CI, production) must be documented with explicit examples for each context. Don't assume developers will figure out service name resolution in Docker networks.
+
+#### 5. **Tests Fail Silently Without Infrastructure**
+- **Observation**: Running tests without Docker services produced Redis connection failures, but only after Redis calls (not at test start)
+- **Impact**: 8 tests failed with connection refused errors when Redis wasn't running
+- **Solution**: Documented "Test: Verified" task in DEVELOPER_SETUP.md which starts Docker before tests
+- **Learning**: Integration tests have infrastructure dependencies that aren't obvious from test names. Document the "safe" test execution path (with infrastructure checks) prominently, and explain why the raw `pytest` command can produce false failures.
+
+#### 6. **Migration Documentation Needs Domain Context**
+- **Addition**: Added "Sprint 2 Migration Context" section to DATABASE_MIGRATIONS.md explaining:
+  - What the migration enables (ZIP upload workflow)
+  - Schema integration points (MinIO storage_key, user foreign key)
+  - Status workflow (draft → processing → published)
+- **Learning**: Migration docs shouldn't just explain Alembic commands—they should explain why migrations exist, what domain problems they solve, and how schema elements connect to feature implementation. This helps developers understand the "why" behind schema choices.
+
+#### 7. **Documentation Maintenance Burden**
+- **Observation**: This documentation pass required synthesizing content from 4+ existing files (README, DATABASE_MIGRATIONS, LEARNINGS, planning docs)
+- **Risk**: Documentation can become stale if not regularly updated during feature development
+- **Mitigation**: Added "Last Updated" timestamp and "Maintainer" field to DEVELOPER_SETUP.md
+- **Learning**: Large onboarding docs are high-value but high-maintenance. Add update timestamps to signal freshness. Consider periodic "docs review" tasks in sprint planning, especially after major infrastructure changes (new services, config changes, deployment shifts).
+
+### Implementation Stats
+- **Files Created**: 1 (DEVELOPER_SETUP.md, 600+ lines)
+- **Files Enhanced**: 2 (DATABASE_MIGRATIONS.md, README.md)
+- **Troubleshooting Issues Documented**: 8
+- **Test Results**: 240/241 passing (1 skipped), 89% coverage ✅
+- **Quality**: Black/isort compliant ✅
+
+### Process Observations
+- **Learnings extraction value**: Harvesting troubleshooting content from LEARNINGS.md into user-facing docs increases accessibility—developers don't need to read 2000+ lines of historical learnings to find setup solutions
+- **Documentation as feature**: Comprehensive setup docs reduce onboarding time and support burden, justifying dedicated issue effort (1 PT delivered)
+- **Cross-platform considerations**: Windows-specific paths and PowerShell commands were primary, with Linux/macOS alternatives noted where different
+
+---
+
 ## Frontend React Query Provider Review (Issue #35 - PR #49 Review Implementation)
 
 ### Context

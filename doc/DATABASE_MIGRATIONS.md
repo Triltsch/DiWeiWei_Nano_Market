@@ -4,6 +4,8 @@
 
 This project uses Alembic for database schema migrations. All schema changes should be managed through migrations rather than direct SQL or `create_all()` calls.
 
+**Note**: This document focuses on migration mechanics and best practices. For complete environment setup including PostgreSQL, MinIO, and troubleshooting, see [DEVELOPER_SETUP.md](./DEVELOPER_SETUP.md).
+
 ## Setup
 
 ### Prerequisites
@@ -221,14 +223,71 @@ export TEST_DB_URL="postgresql+asyncpg://testuser:testpassword@localhost:5433/di
 python -m pytest tests/
 ```
 
+## Sprint 2 Migration Context
+
+### Nano Upload Domain Model (71e6668b4da7)
+
+**Migration**: `71e6668b4da7_add_nano_domain_models_for_upload_`  
+**Sprint**: 2 (Stories 2.1, 7.2)  
+**Purpose**: Enable Nano content management with versioning support
+
+**Key Schema Elements**:
+
+1. **`nanos` table**:
+   - Tracks Nano learning units
+   - Links to `users` table via `creator_id`
+   - Stores MinIO object reference in `file_storage_path`
+   - Status workflow: `DRAFT` → `PENDING_REVIEW` → `PUBLISHED` / `ARCHIVED` → `DELETED`
+   - Version tracking: Semantic version string (e.g., `1.0.0`)
+
+2. **Status Enum (`nanostatus`)**:
+   - `DRAFT`: Initial (no upload yet)
+   - `PENDING_REVIEW`: Awaiting moderation
+   - `PUBLISHED`: Available in marketplace
+   - `ARCHIVED`: Hidden but preserved
+   - `DELETED`: Marked for deletion
+
+3. **Related Models**:
+   - `audit_logs`: System event and auth tracking
+   - `categories`: Classification system
+   - `nano_category_assignments`: M:N relationship
+
+**Integration Points**:
+- **MinIO**: `file_storage_path` points to object at `nanos/{nano_id}/content/{filename}`
+- **Users**: Foreign key enforces creator must be registered user
+- **Versioning**: `version` field uses semantic versioning (1.0.0, 1.1.0, etc.)
+
+**Downgrade Behavior**:
+```python
+# Enum cleanup required
+def downgrade() -> None:
+    op.drop_table("nanos")
+    op.execute("DROP TYPE IF EXISTS nanostatus CASCADE")
+    # + other tables...
+```
+
+### Migration Dependencies
+
+**Sprint 2 migrations depend on**:
+- Docker Compose PostgreSQL service running (port 5432)
+- Environment variables: `DATABASE_URL` or `TEST_DB_URL`
+- No MinIO connection required for schema creation (only for upload API)
+
+**Migration applies**:
+- Before first upload API call
+- After PostgreSQL service is healthy
+- During CI/CD pipeline before tests
+
+See [DEVELOPER_SETUP.md](./DEVELOPER_SETUP.md#7-apply-database-migrations) for setup context.
+
 ## Current Schema
 
 ### Revision History
 
 1. **71e6668b4da7** - "Add Nano domain models for upload workflow" (Sprint 2)
    - Added `users`, `audit_logs`, `consent_audit` tables
-   - Added `nanos`, `nano_versions` tables
-   - Added `categories`, `nano_category_assignments` tables
+   - Added `nanos`, `categories` tables
+   - Added `nano_category_assignments` junction table
    - Created enum types: `userstatus`, `userrole`, `auditaction`, `consenttype`, `nanostatus`, `nanoformat`, `competencylevel`, `licensetype`
 
 ## Resources

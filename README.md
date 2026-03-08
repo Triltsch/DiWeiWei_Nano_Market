@@ -24,6 +24,8 @@ Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und 
 
 ## 🚀 Quick Start
 
+> **📚 For comprehensive setup instructions**, including troubleshooting, migration workflows, and MinIO configuration, see **[doc/DEVELOPER_SETUP.md](./doc/DEVELOPER_SETUP.md)**.
+
 ### Voraussetzungen
 - Python 3.13.1+
 - Docker & Docker Compose (für lokale Services)
@@ -192,9 +194,19 @@ docker-compose down
 
 ## 📖 Weitere Dokumentation
 
+### Developer Guides
+- **[doc/DEVELOPER_SETUP.md](./doc/DEVELOPER_SETUP.md)** - **Comprehensive setup guide** for Sprint 2 (DB, MinIO, uploads, troubleshooting)
+- **[doc/DATABASE_MIGRATIONS.md](./doc/DATABASE_MIGRATIONS.md)** - Alembic migration workflow and best practices
+
+### Architecture & Implementation
 - **[IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md)** - Detaillierte Implementierungsdokumentation
 - **[LEARNINGS.md](./LEARNINGS.md)** - Architektur-Entscheidungen und Erkenntnisse
 - **[doc/planning/](./doc/planning/)** - Projektplanung und Requirements
+
+### Feature-Specific Docs
+- **[doc/AUDIT_LOGGING.md](./doc/AUDIT_LOGGING.md)** - Audit logging framework (40+ event types)
+- **[doc/FRONTEND_S2_SETUP.md](./doc/FRONTEND_S2_SETUP.md)** - React + Vite + Tailwind setup (Story 8.1)
+- **[doc/REACT_QUERY_SETUP.md](./doc/REACT_QUERY_SETUP.md)** - TanStack Query integration
 
 ## 🔒 Sicherheitsfeatures
 
