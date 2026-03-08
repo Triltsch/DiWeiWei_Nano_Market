@@ -38,14 +38,10 @@ interface AppProvidersProps {
  * @param children - Child components to wrap
  * @returns Provider-wrapped children
  */
-export function AppProviders({
-  children,
-}: AppProvidersProps): JSX.Element {
+export function AppProviders({ children }: AppProvidersProps): JSX.Element {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        {children}
-      </BrowserRouter>
+      <BrowserRouter>{children}</BrowserRouter>
     </QueryClientProvider>
   );
 }

@@ -51,10 +51,7 @@ export function setupRequestInterceptor(instance: AxiosInstance): void {
 
       // Log requests in development mode
       if (import.meta.env.DEV) {
-        console.debug(
-          `[API] ${config.method?.toUpperCase()} ${config.url}`,
-          config.data || ""
-        );
+        console.debug(`[API] ${config.method?.toUpperCase()} ${config.url}`, config.data || "");
       }
 
       return config;
@@ -110,10 +107,7 @@ export function setupResponseInterceptor(instance: AxiosInstance): void {
 
       // Log errors in development mode
       if (import.meta.env.DEV) {
-        console.error(
-          `[API] Error ${error.response?.status || "unknown"}:`,
-          error.message
-        );
+        console.error(`[API] Error ${error.response?.status || "unknown"}:`, error.message);
       }
 
       return Promise.reject(error);

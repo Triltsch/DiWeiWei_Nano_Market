@@ -140,6 +140,21 @@ services:
       - diwei_dev
     restart: unless-stopped
 
+  # Frontend - React + Vite static asset serving
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: diwei_dev_frontend
+    ports:
+      - "127.0.0.1:3000:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - diwei_dev
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:

@@ -1973,3 +1973,162 @@ Implemented React Query client/provider composition in the frontend root and add
 - **Learning**: Treat root README as release-facing documentation and update it in the same implementation cycle as feature code.
 
 
+## Frontend Quality Tooling & Docker Compose Integration (Issue #33 - S2-FE-06)
+
+### Context
+Issue #33 required setting up ESLint/Prettier for code quality, a dev proxy for API requests, and a Docker Compose service for frontend static asset serving. This completed the frontend infrastructure bootstrap for Sprint 2.
+
+### Implementation Summary
+
+#### 1. **ESLint + Prettier Setup**
+- **Challenge**: Peer dependency conflicts between ESLint 9+ and eslint-plugin-react-hooks (expects ESLint 8)
+- **Solution**: Pinned eslint@^8.57.0, typescript-eslint@^7.18.0, and eslint-plugin-react@^7.36.1 for compatibility
+- **Configuration**:
+  - `.eslintrc.json` - React, TypeScript, and hooks rules enabled
+  - `.prettierrc.json` - LF line endings, 100-char print width, standard formatting
+  - `.eslintignore` / `.prettierignore` - Exclude dist, node_modules, config files
+- **Scripts**:
+  - `npm run lint` - Check code quality
+  - `npm run lint:fix` - Auto-fix ESLint violations
+  - `npm run format` - Apply Prettier formatting
+- **Learning**: Frontend tooling version compatibility requires careful pin management. Test `npm install` early to catch peer dependency conflicts before pushing code.
+
+#### 2. **Vite Dev Proxy Configuration**
+- **Purpose**: Forward `/api/*` requests from frontend to backend during development
+- **Implementation**: Added proxy config to `vite.config.ts`:
+  ```typescript
+  proxy: {
+    "/api": {
+      target: process.env.VITE_API_BASE_URL ?? "http://localhost:8000",
+      changeOrigin: true,
+      rewrite: (path) => path.replace(/^\/api/, ""),
+    },
+  }
+  ```
+- **Behavior**: 
+  - Dev server on `:5173` proxies `/api/auth/login` to `http://localhost:8000/auth/login`
+  - Respects `VITE_API_BASE_URL` environment variable for flexibility
+  - Strips `/api` prefix before forwarding to backend
+- **Learning**: HTTP client must be configured to use `/api` prefix URLs for proxy to intercept. Backend and frontend can develop independently on different ports during dev.
+
+#### 3. **Frontend Docker Compose Service**
+- **Challenge**: Frontend state is stateless (built HTML/CSS/JS) but needs backend at :8000 available
+- **Solution**: 
+  - Created `Dockerfile.frontend` with multi-stage build (Node.js builder → Nginx server)
+  - Builder stage: Runs TypeScript check + Vite production build
+  - Server stage: Nginx Alpine serves `/dist` artifacts on port 80
+  - Health check: Curl `/health` endpoint every 10 seconds
+- **Docker Compose**:
+  - Added `frontend` service on `:3000` (mapped from container port 80)
+  - Depends on `app` service health check (waits for backend readiness)
+  - Uses named `Dockerfile.frontend` to avoid conflicts with backend Dockerfile
+- **Nginx Configuration**:
+  - SPA routing: `try_files $uri $uri/ /index.html` for React Router
+  - Cache-busting: Static assets (js/css) cached with 1-year immutable headers
+  - Gzip compression enabled by Nginx defaults
+- **Learning**: Frontend Docker service should enforce backend readiness via health checks. SPA serving requires special Nginx config to route all unknown paths to index.html.
+
+#### 4. **Frontend Test Execution & Linting**
+- **Issue Found**: Unused `waitFor` import in useUserProfile.test.ts was flagged by ESLint
+- **Fix**: Removed unused import to satisfy linting checks
+- **Test Results**: 11 tests passing (9 HTTP client + 2 React Query hook tests)
+- **Build Output**: Production bundle with gzipped JS (~62.5KB), CSS (~2.17KB)
+- **Learning**: Frontend tests must be executable without backend (uses mocked httpClient). Linting should pass before commits to prevent CI failures.
+
+#### 5. **Documentation Parity**
+- **Updated**: 
+  - `frontend/README.md` - Added comprehensive dev proxy, Docker, and script documentation
+  - Documented API proxy behavior and multi-terminal workflow
+  - Included Docker Compose deployment section with multi-stage build explanation
+- **Learning**: Quality tooling docs should cover not just what's available but when/why each script is needed (e.g., dev proxy only works with `/api` prefixed URLs).
+
+### Acceptance Criteria Status
+
+✅ **Lint + formatting scripts available and passing**
+- ESLint and Prettier configured and all checks pass
+- `npm run lint`, `npm run lint:fix`, `npm run format` scripts available
+
+✅ **Dev proxy forwards API requests to backend**
+- Vite proxy configured to forward `/api/*` to backend :8000
+- VITE_API_BASE_URL env var allows customization
+
+✅ **Compose service exists for frontend static artifact serving**
+- Dockerfile.frontend with multi-stage build and Nginx SPA routing
+- Frontend service on :3000 with health checks and dependency on backend
+
+✅ **npm run build produces deployable bundle**
+- Production build outputs to `dist/` with TypeScript checking
+- Gzipped bundle ready for Nginx static serving
+
+### Dependencies Resolved
+
+✅ S2-FE-01 (React 18 + Vite + TypeScript baseline)
+✅ S2-FE-02 (Tailwind CSS styling)
+✅ S2-FE-03 (HTTP client & React Query) - S2-FE-04 and S2-FE-05
+✅ S2-FE-06 (Quality tooling) - This issue
+
+### Known Issues & Future Improvements
+
+1. **TypeScript Version Compatibility**: typescript-eslint warns about TypeScript 5.9.3 vs. supported <=5.6.0. Not blocking but worth monitoring for major updates.
+2. **ESLint v8 Usage**: Using v8 instead of latest v9 due to ecosystem compatibility. Plan to upgrade when plugins catch up.
+3. **Frontend Tests Not in Main Suite**: Frontend tests run separately (`npm test`). Backend test suite (`pytest`) doesn't include frontend. Consider unified test execution in Sprint 3.
+4. **No Pre-commit Hooks**: Linting/formatting not enforced before git commits. Consider husky + lint-staged for CI/CD pipeline.
+5. **Token Storage Security**: Current implementation stores access and refresh tokens in `localStorage`, exposing them to XSS attacks. Sprint 3 should migrate refresh tokens to `HttpOnly`, `Secure` cookies and keep access tokens in short-lived memory only.
+
+### Technical Debt
+
+- Audit npm vulnerabilities (2 moderate severity found). Consider `npm audit fix` after verifying no breaking changes.
+- Deprecation warnings for eslint@8 - plan ESLint 9 upgrade when react-hooks plugin stabilizes.
+
+
+## Frontend Quality Tooling PR Review (Issue #33 - PR #50 Review Implementation)
+
+### Context
+After implementing ESLint/Prettier and Docker Compose integration (Issue #33, PR #50), Copilot AI reviewer identified 5 critical issues with Vite proxy configuration, environment variable loading, and security patterns.
+
+### Key Learnings
+
+#### 1. **Vite Proxy Path Rewriting Must Match Backend Routes**
+- **Problem**: Proxy config had `rewrite: (path) => path.replace(/^\/api/, "")` which strips `/api` prefix
+- **Impact**: Frontend calls to `/api/v1/auth/me` would be forwarded as `/v1/auth/me` but backend routes expect `/api/v1/*`, causing 404s
+- **Root Cause**: Assumed backend was mounted at root instead of verifying actual route prefixes
+- **Fix**: Removed rewrite rule - backend routes already include `/api/v1/*` prefix
+- **Learning**: Always verify actual backend route structure before configuring proxies. Use `grep` to find router prefix definitions.
+
+#### 2. **Vite Config Doesn't Auto-Load Environment Variables**
+- **Problem**: Used `process.env.VITE_API_BASE_URL` directly in `vite.config.ts` but Vite doesn't load `.env` files into `process.env` for config file context
+- **Impact**: Environment variables from `.env.local` would be ignored, always using hardcoded defaults
+- **Fix**: Changed to function-based config with `loadEnv(mode, process.cwd(), '')` to explicitly load environment variables
+- **Why it wasn't caught**: Dev testing used defaults (localhost:8000) which happened to match, so bug was silent
+- **Learning**: Vite config files need explicit `loadEnv()` - unlike application code where Vite auto-injects `import.meta.env.VITE_*`. Test with non-default env values to catch config loading issues.
+
+#### 3. **Prettierignore Pattern Specificity**
+- **Problem**: Used generic `*.lockfile` pattern which doesn't match actual lock file names (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`)
+- **Impact**: Lock files would still be formatted if Prettier ran outside `src/` directory
+- **Fix**: List actual lock file names explicitly instead of using catching pattern
+- **Learning**: Glob patterns in ignore files should match actual file naming conventions. Don't assume generic patterns will work - verify against real filenames.
+
+#### 4. **localStorage Token Security Is Known Sprint 3 Gap**
+- **Finding**: Storing tokens in `localStorage` exposes them to XSS attacks enabling token theft and account takeover
+- **Status**: Documented as known technical debt for Sprint 3 token security implementation
+- **Plan**: Migrate to `HttpOnly`, `Secure` cookies for refresh tokens and short-lived memory-only access tokens
+- **Learning**: Security reviewers will flag Web Storage for sensitive data even if it's planned for later. Document known gaps explicitly in "Known Issues" sections to avoid repeated review cycles.
+
+### Implementation Impact Analysis
+
+**Why These Were Caught in PR Review:**
+1. **Proxy rewrite bug**: No integration test exercising actual frontend → backend API calls through proxy
+2. **Env loading bug**: Development always used default values matching actual setup, masking the loading failure
+3. **Prettierignore**: Lock files are normally gitignored so Prettier never ran on them to expose the pattern issue
+
+**Testing Improvements Needed:**
+- Add integration test that exercises Vite dev proxy with non-default backend URL
+- Add test that verifies `.env.local` variables are honored in Vite config
+- Verify ignore patterns match actual files in repository
+
+### Process Improvements
+
+1. **Proxy configuration verification**: Always grep backend codebase for route prefixes before configuring proxies
+2. **Environment variable testing**: Test all env-based config with non-default values to ensure loading works
+3. **Ignore pattern validation**: Check ignore patterns against actual files in repository, not assumed naming conventions
+4. **Security gap documentation**: Proactively document known security limitations in PR descriptions to set reviewer expectations

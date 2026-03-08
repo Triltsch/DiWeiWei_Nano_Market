@@ -40,9 +40,7 @@ export const API_CONFIG = {
 export function validateApiConfig(): void {
   // Check if environment variable was explicitly set (not using default)
   if (!import.meta.env.VITE_API_BASE_URL) {
-    console.warn(
-      "API_CONFIG: VITE_API_BASE_URL is not set. Using default: http://localhost:8000"
-    );
+    console.warn("API_CONFIG: VITE_API_BASE_URL is not set. Using default: http://localhost:8000");
   }
 
   if (API_CONFIG.REQUEST_TIMEOUT < 1000) {

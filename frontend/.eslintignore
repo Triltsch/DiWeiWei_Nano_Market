@@ -1,0 +1,6 @@
+dist
+node_modules
+.venv
+coverage
+*.d.ts
+*.config.ts

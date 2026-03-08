@@ -9,7 +9,7 @@
  * Usage:
  * ```tsx
  * import { colors, typography, spacing } from "../shared/tokens"
- * 
+ *
  * const buttonColor = colors.primary[500]
  * const headingSize = typography.sizes.h2
  * ```

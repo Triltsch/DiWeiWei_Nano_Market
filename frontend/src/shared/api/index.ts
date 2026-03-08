@@ -6,5 +6,9 @@
 
 export { httpClient } from "./httpClient";
 export { API_CONFIG, validateApiConfig } from "./config";
-export { setupInterceptors, setupRequestInterceptor, setupResponseInterceptor } from "./interceptors";
+export {
+  setupInterceptors,
+  setupRequestInterceptor,
+  setupResponseInterceptor,
+} from "./interceptors";
 export { useUserProfile } from "./useUserProfile";
