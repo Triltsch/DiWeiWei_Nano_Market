@@ -229,39 +229,41 @@ python -m pytest tests/
 
 **Migration**: `71e6668b4da7_add_nano_domain_models_for_upload_`  
 **Sprint**: 2 (Stories 2.1, 7.2)  
-**Purpose**: Enable ZIP upload workflow with versioning support
+**Purpose**: Enable Nano content management with versioning support
 
 **Key Schema Elements**:
 
-1. **`nano_uploads` table**:
-   - Tracks uploaded Nano learning units
-   - Links to `users` table via `uploader_id`
-   - Stores MinIO object reference in `storage_key`
-   - Status workflow: `draft` → `processing` → `published` / `failed`
-   - File integrity: `file_hash` (SHA256), `file_size`
+1. **`nanos` table**:
+   - Tracks Nano learning units
+   - Links to `users` table via `creator_id`
+   - Stores MinIO object reference in `file_storage_path`
+   - Status workflow: `DRAFT` → `PENDING_REVIEW` → `PUBLISHED` / `ARCHIVED` → `DELETED`
+   - Version tracking: Semantic version string (e.g., `1.0.0`)
 
-2. **Status Enum (`nanouploadstatus`)**:
-   - `draft`: Initial upload state
-   - `processing`: Being validated/processed
-   - `published`: Available in marketplace
-   - `failed`: Upload/validation failed
+2. **Status Enum (`nanostatus`)**:
+   - `DRAFT`: Initial (no upload yet)
+   - `PENDING_REVIEW`: Awaiting moderation
+   - `PUBLISHED`: Available in marketplace
+   - `ARCHIVED`: Hidden but preserved
+   - `DELETED`: Marked for deletion
 
 3. **Related Models**:
-   - `nano_versions`: Immutable version history
+   - `audit_logs`: System event and auth tracking
    - `categories`: Classification system
-   - `nano_category_assignments`: M:N relationship (max 5 per nano)
+   - `nano_category_assignments`: M:N relationship
 
 **Integration Points**:
-- **MinIO**: `storage_key` points to object at `nanos/{nano_id}/content/{filename}`
-- **Users**: Foreign key enforces uploader must be registered user
-- **Versioning**: `version` field increments on updates
+- **MinIO**: `file_storage_path` points to object at `nanos/{nano_id}/content/{filename}`
+- **Users**: Foreign key enforces creator must be registered user
+- **Versioning**: `version` field uses semantic versioning (1.0.0, 1.1.0, etc.)
 
 **Downgrade Behavior**:
 ```python
 # Enum cleanup required
 def downgrade() -> None:
-    op.drop_table("nano_uploads")
-    op.execute("DROP TYPE IF EXISTS nanouploadstatus CASCADE")
+    op.drop_table("nanos")
+    op.execute("DROP TYPE IF EXISTS nanostatus CASCADE")
+    # + other tables...
 ```
 
 ### Migration Dependencies
@@ -284,9 +286,9 @@ See [DEVELOPER_SETUP.md](./DEVELOPER_SETUP.md#7-apply-database-migrations) for s
 
 1. **71e6668b4da7** - "Add Nano domain models for upload workflow" (Sprint 2)
    - Added `users`, `audit_logs`, `consent_audit` tables
-   - Added `nano_uploads`, `nano_versions` tables
-   - Added `categories`, `nano_category_assignments` tables
-   - Created enum types: `userstatus`, `userrole`, `auditaction`, `consenttype`, `nanouploadstatus`, `nanoformat`, `competencylevel`, `licensetype`
+   - Added `nanos`, `categories` tables
+   - Added `nano_category_assignments` junction table
+   - Created enum types: `userstatus`, `userrole`, `auditaction`, `consenttype`, `nanostatus`, `nanoformat`, `competencylevel`, `licensetype`
 
 ## Resources
 

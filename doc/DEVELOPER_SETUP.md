@@ -74,10 +74,12 @@ cp .env.example .env
 | `REDIS_HOST` | `localhost` | Redis hostname |
 | `REDIS_PORT` | `6379` | Redis port |
 | `MINIO_ENDPOINT` | `localhost:9000` | MinIO API endpoint |
-| `MINIO_ROOT_USER` | `minioadmin` | MinIO access key |
-| `MINIO_ROOT_PASSWORD` | `minioadmin123` | MinIO secret key |
+| `MINIO_ACCESS_KEY` | `minioadmin` | MinIO access key (application client) |
+| `MINIO_SECRET_KEY` | `minioadmin` | MinIO secret key (application client) |
 | `MINIO_BUCKET_NAME` | `nanos` | Default upload bucket |
 | `MEILI_MASTER_KEY` | `diweiwei-dev-master-key...` | Meilisearch API key |
+| `MINIO_ROOT_USER` | `minioadmin` | MinIO server root user (Docker Compose only) |
+| `MINIO_ROOT_PASSWORD` | `minioadmin123` | MinIO server root password (Docker Compose only) |
 
 **Important**: For local development, leave `DATABASE_URL` and `REDIS_URL` unset in `.env`. The application will auto-detect services from Docker Compose.
 
@@ -246,7 +248,7 @@ Expected output: `Buckets: ['nanos']`
 ### MinIO Configuration in Application
 
 The app uses `MinIOStorageAdapter` for all object storage operations:
-- **Upload**: `POST /api/v1/uploads/zip` → stores in `nanos/{nano_id}/content/{filename}`
+- **Upload**: `POST /api/v1/upload/nano` → stores in `nanos/{nano_id}/content/{filename}`
 - **Deterministic paths**: Same `nano_id` overwrites previous upload (idempotent)
 - **Retry logic**: 3 attempts for transient failures
 - **Timeout**: 10 minutes per upload operation
@@ -258,10 +260,10 @@ The app uses `MinIOStorageAdapter` for all object storage operations:
 **Upload Workflow (Story 2.1):**
 
 1. **Authentication**: User must be logged in (JWT access token)
-2. **ZIP Validation**: File must be valid ZIP with `index.html` at root
-3. **Size Limit**: Max 50 MB per upload
+2. **ZIP Validation**: File must be valid ZIP with supported content (`.pdf`, `.jpg`, `.png`, `.mp4`, `.webm`)
+3. **Size Limit**: Max 100 MB per upload
 4. **Storage**: File uploaded to MinIO at deterministic path
-5. **Database**: `NanoUpload` record created with `draft` status
+5. **Database**: `Nano` record created with `DRAFT` status
 
 ### Testing Upload Endpoint
 
@@ -270,13 +272,13 @@ The app uses `MinIOStorageAdapter` for all object storage operations:
 # (See API docs: http://localhost:8000/docs)
 
 # 2. Create test ZIP file (PowerShell)
-$testContent = '<html><body>Test Nano</body></html>'
-$testContent | Out-File -FilePath index.html -Encoding utf8
-Compress-Archive -Path index.html -DestinationPath test-nano.zip -Force
-Remove-Item index.html
+$testContent = 'Test Nano Content'
+$testContent | Out-File -FilePath test-content.pdf -Encoding utf8
+Compress-Archive -Path test-content.pdf -DestinationPath test-nano.zip -Force
+Remove-Item test-content.pdf
 
 # 3. Upload ZIP (replace TOKEN with your access token)
-curl -X POST http://localhost:8000/api/v1/uploads/zip \
+curl -X POST http://localhost:8000/api/v1/upload/nano \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -F "file=@test-nano.zip"
 ```
@@ -292,14 +294,15 @@ Expected response:
 
 ### Upload Domain Model
 
-The `NanoUpload` model (migration `71e6668b4da7`) includes:
-- **nano_id**: UUID primary key
-- **uploader_id**: Foreign key to users table
-- **status**: Enum (`draft`, `processing`, `published`, `failed`)
-- **file_hash**: SHA256 of uploaded content
-- **storage_key**: MinIO object path
-- **file_size**: Bytes
-- **version**: Integer (starts at 1)
+The `Nano` model (migration `71e6668b4da7`) includes:
+- **id**: UUID primary key
+- **creator_id**: Foreign key to users table
+- **status**: Enum (`DRAFT`, `PENDING_REVIEW`, `PUBLISHED`, `ARCHIVED`, `DELETED`)
+- **file_storage_path**: MinIO object path
+- **version**: Semantic version string (e.g., `1.0.0`)
+- **format**: Content format (`VIDEO`, `TEXT`, `QUIZ`, `INTERACTIVE`, `MIXED`)
+- **competency_level**: Learning level (`BASIC`, `INTERMEDIATE`, `ADVANCED`)
+- **title**, **description**, **duration_minutes**, **language**
 - Timestamps: `created_at`, `updated_at`
 
 ## Running the Application
@@ -410,14 +413,14 @@ docker compose logs minio_init
 3. **Network issues**: Init container can't reach MinIO service
    **Solution**: Check Docker network:
    ```bash
-   docker network inspect diweiweiwei_nano_market_diwei_dev
+   docker network inspect diweiwei_nano_market_diwei_dev
    ```
 
 ### Issue 3: Database Migration Fails with "Type Already Exists"
 
 **Symptom**: `alembic upgrade head` fails with:
 ```
-asyncpg.exceptions.DuplicateObjectError: type "nanouploadstatus" already exists
+asyncpg.exceptions.DuplicateObjectError: type "nanostatus" already exists
 ```
 
 **Root Cause**: PostgreSQL enum types aren't cleaned up by previous downgrade
@@ -427,7 +430,7 @@ asyncpg.exceptions.DuplicateObjectError: type "nanouploadstatus" already exists
 # Drop enum types manually
 docker exec -it diwei_dev_postgres psql -U diwei_user -d diwei_nano_market
 \c diwei_nano_market
-DROP TYPE IF EXISTS nanouploadstatus CASCADE;
+DROP TYPE IF EXISTS nanostatus CASCADE;
 \q
 
 # Re-run migration
@@ -437,8 +440,8 @@ python -m alembic upgrade head
 **Prevention**: Always include enum cleanup in migration downgrade functions:
 ```python
 def downgrade() -> None:
-    op.drop_table("nano_uploads")
-    op.execute("DROP TYPE IF EXISTS nanouploadstatus CASCADE")
+    op.drop_table("nanos")
+    op.execute("DROP TYPE IF EXISTS nanostatus CASCADE")
 ```
 
 ### Issue 4: Redis Connection Refused
@@ -482,7 +485,7 @@ redis.exceptions.ConnectionError: Error 111 connecting to localhost:6379. Connec
 
 **Solutions**:
 
-1. **Reduce file size**: Current limit is 50 MB
+1. **Reduce file size**: Current limit is 100 MB
 2. **Check network speed**: Upload speed affects total time
 3. **Increase timeout** (not recommended): Modify `UPLOAD_TIMEOUT_SECONDS` in `.env`
 
@@ -492,7 +495,7 @@ redis.exceptions.ConnectionError: Error 111 connecting to localhost:6379. Connec
 docker compose logs minio
 
 # Monitor upload progress
-curl -X POST http://localhost:8000/api/v1/uploads/zip \
+curl -X POST http://localhost:8000/api/v1/upload/nano \
   -H "Authorization: Bearer TOKEN" \
   -F "file=@large-file.zip" \
   --trace-time
@@ -504,11 +507,12 @@ curl -X POST http://localhost:8000/api/v1/uploads/zip \
 
 **Possible Causes**:
 
-1. **Master key mismatch**: Requests require authentication
-   **Solution**: Add header parameter:
+1. **Meilisearch container not running or unhealthy**
+   **Solution**: Verify the container status and call the unauthenticated `/health` endpoint:
    ```bash
-   curl http://localhost:7700/health \
-     -H "Authorization: Bearer diweiwei-dev-master-key-32-bytes-secure"
+   docker compose ps meilisearch
+   docker compose logs meilisearch
+   curl http://localhost:7700/health
    ```
 
 2. **Volume version incompatibility**: Old Meilisearch data format
@@ -635,7 +639,7 @@ docker exec -it diwei_dev_postgres psql -U diwei_user -d diwei_nano_market
 docker exec -it diwei_dev_redis redis-cli
 
 # List MinIO buckets
-docker run --rm --network diweiweiwei_nano_market_diwei_dev \
+docker run --rm --network diweiwei_nano_market_diwei_dev \
   minio/mc alias set myminio http://minio:9000 minioadmin minioadmin123 && \
   minio/mc ls myminio
 ```
