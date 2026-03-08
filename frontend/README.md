@@ -30,6 +30,7 @@ The Vite dev server (`npm run dev`) includes a dev proxy that forwards API reque
 
 - Dev server runs on `http://localhost:5173`
 - Proxy forwards `/api/*` requests to `http://localhost:8000` (configurable via `VITE_API_BASE_URL`)
+- **Path preservation**: Requests keep the `/api` prefix when forwarded (backend routes are mounted at `/api/v1/*`)
 - Backend must be running on port 8000 for API calls to work
 
 ### Example
@@ -41,6 +42,8 @@ python -m uvicorn app.main:app --reload
 # Terminal 2: Start frontend dev server
 cd frontend
 npm run dev
+
+# Frontend call to /api/v1/auth/me → proxied to → http://localhost:8000/api/v1/auth/me
 ```
 
 ## Code Quality

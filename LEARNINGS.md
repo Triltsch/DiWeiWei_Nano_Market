@@ -2073,8 +2073,62 @@ Issue #33 required setting up ESLint/Prettier for code quality, a dev proxy for 
 2. **ESLint v8 Usage**: Using v8 instead of latest v9 due to ecosystem compatibility. Plan to upgrade when plugins catch up.
 3. **Frontend Tests Not in Main Suite**: Frontend tests run separately (`npm test`). Backend test suite (`pytest`) doesn't include frontend. Consider unified test execution in Sprint 3.
 4. **No Pre-commit Hooks**: Linting/formatting not enforced before git commits. Consider husky + lint-staged for CI/CD pipeline.
+5. **Token Storage Security**: Current implementation stores access and refresh tokens in `localStorage`, exposing them to XSS attacks. Sprint 3 should migrate refresh tokens to `HttpOnly`, `Secure` cookies and keep access tokens in short-lived memory only.
 
 ### Technical Debt
 
 - Audit npm vulnerabilities (2 moderate severity found). Consider `npm audit fix` after verifying no breaking changes.
 - Deprecation warnings for eslint@8 - plan ESLint 9 upgrade when react-hooks plugin stabilizes.
+
+
+## Frontend Quality Tooling PR Review (Issue #33 - PR #50 Review Implementation)
+
+### Context
+After implementing ESLint/Prettier and Docker Compose integration (Issue #33, PR #50), Copilot AI reviewer identified 5 critical issues with Vite proxy configuration, environment variable loading, and security patterns.
+
+### Key Learnings
+
+#### 1. **Vite Proxy Path Rewriting Must Match Backend Routes**
+- **Problem**: Proxy config had `rewrite: (path) => path.replace(/^\/api/, "")` which strips `/api` prefix
+- **Impact**: Frontend calls to `/api/v1/auth/me` would be forwarded as `/v1/auth/me` but backend routes expect `/api/v1/*`, causing 404s
+- **Root Cause**: Assumed backend was mounted at root instead of verifying actual route prefixes
+- **Fix**: Removed rewrite rule - backend routes already include `/api/v1/*` prefix
+- **Learning**: Always verify actual backend route structure before configuring proxies. Use `grep` to find router prefix definitions.
+
+#### 2. **Vite Config Doesn't Auto-Load Environment Variables**
+- **Problem**: Used `process.env.VITE_API_BASE_URL` directly in `vite.config.ts` but Vite doesn't load `.env` files into `process.env` for config file context
+- **Impact**: Environment variables from `.env.local` would be ignored, always using hardcoded defaults
+- **Fix**: Changed to function-based config with `loadEnv(mode, process.cwd(), '')` to explicitly load environment variables
+- **Why it wasn't caught**: Dev testing used defaults (localhost:8000) which happened to match, so bug was silent
+- **Learning**: Vite config files need explicit `loadEnv()` - unlike application code where Vite auto-injects `import.meta.env.VITE_*`. Test with non-default env values to catch config loading issues.
+
+#### 3. **Prettierignore Pattern Specificity**
+- **Problem**: Used generic `*.lockfile` pattern which doesn't match actual lock file names (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`)
+- **Impact**: Lock files would still be formatted if Prettier ran outside `src/` directory
+- **Fix**: List actual lock file names explicitly instead of using catching pattern
+- **Learning**: Glob patterns in ignore files should match actual file naming conventions. Don't assume generic patterns will work - verify against real filenames.
+
+#### 4. **localStorage Token Security Is Known Sprint 3 Gap**
+- **Finding**: Storing tokens in `localStorage` exposes them to XSS attacks enabling token theft and account takeover
+- **Status**: Documented as known technical debt for Sprint 3 token security implementation
+- **Plan**: Migrate to `HttpOnly`, `Secure` cookies for refresh tokens and short-lived memory-only access tokens
+- **Learning**: Security reviewers will flag Web Storage for sensitive data even if it's planned for later. Document known gaps explicitly in "Known Issues" sections to avoid repeated review cycles.
+
+### Implementation Impact Analysis
+
+**Why These Were Caught in PR Review:**
+1. **Proxy rewrite bug**: No integration test exercising actual frontend → backend API calls through proxy
+2. **Env loading bug**: Development always used default values matching actual setup, masking the loading failure
+3. **Prettierignore**: Lock files are normally gitignored so Prettier never ran on them to expose the pattern issue
+
+**Testing Improvements Needed:**
+- Add integration test that exercises Vite dev proxy with non-default backend URL
+- Add test that verifies `.env.local` variables are honored in Vite config
+- Verify ignore patterns match actual files in repository
+
+### Process Improvements
+
+1. **Proxy configuration verification**: Always grep backend codebase for route prefixes before configuring proxies
+2. **Environment variable testing**: Test all env-based config with non-default values to ensure loading works
+3. **Ignore pattern validation**: Check ignore patterns against actual files in repository, not assumed naming conventions
+4. **Security gap documentation**: Proactively document known security limitations in PR descriptions to set reviewer expectations
