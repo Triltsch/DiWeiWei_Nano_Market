@@ -174,9 +174,7 @@ interface User {
 
 export function UserProfileExample() {
   // HTTP client automatically injects token for authenticated request
-  const { data: user, isLoading, error } = useFetchDataExample<User>(
-    "/api/v1/auth/me"
-  );
+  const { data: user, isLoading, error } = useFetchDataExample<User>("/api/v1/auth/me");
 
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;

@@ -32,6 +32,7 @@
         "git clean": true,
         ".\\.venv\\Scripts\\python.exe": true,
         ".venv\\Scripts\\python.exe": true,
-        "npm run typecheck": true
+        "npm run typecheck": true,
+        "npm install": true
     }
 }

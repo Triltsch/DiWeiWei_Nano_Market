@@ -6,7 +6,7 @@
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { AxiosHeaders } from "axios";
 import type { AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { createElement } from "react";
@@ -102,9 +102,9 @@ describe("useUserProfile", () => {
 
     // Trigger refetch and wait for the promise
     const refetchPromise = result.current.refetch();
-    
+
     // Allow the async operation to complete
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 50));
     await refetchPromise.then(() => {
       // Verify HTTP call was made to correct endpoint
       expect(getSpy).toHaveBeenCalledWith("/api/v1/auth/me");

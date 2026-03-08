@@ -5,6 +5,7 @@ This file documents how to use the centralized HTTP client for API communication
 ## Overview
 
 The HTTP client provides:
+
 - Environment-based configuration (base URL, timeout)
 - Automatic JWT token injection in request headers
 - Error handling with placeholder for token refresh (Sprint 3)
@@ -20,6 +21,7 @@ The HTTP client provides:
 ## Environment Configuration
 
 Create `.env.local` in the `frontend/` directory with:
+
 ```
 VITE_API_BASE_URL=http://localhost:8000
 VITE_API_REQUEST_TIMEOUT=30000
@@ -37,15 +39,15 @@ cp frontend/.env.example frontend/.env.local
 ### Basic GET Request
 
 ```typescript
-import { httpClient } from "../shared/api"
+import { httpClient } from "../shared/api";
 
 async function fetchUserProfile() {
   try {
-    const response = await httpClient.get("/api/v1/auth/me")
-    console.log("User profile:", response.data)
-    return response.data
+    const response = await httpClient.get("/api/v1/auth/me");
+    console.log("User profile:", response.data);
+    return response.data;
   } catch (error) {
-    console.error("Failed to fetch profile:", error)
+    console.error("Failed to fetch profile:", error);
   }
 }
 ```
@@ -53,25 +55,28 @@ async function fetchUserProfile() {
 ### POST Request with Data
 
 ```typescript
-import { httpClient } from "../shared/api"
+import { httpClient } from "../shared/api";
 
 async function login(email: string, password: string) {
   try {
     const response = await httpClient.post("/api/v1/auth/login", {
       email,
       password,
-    })
-    
+    });
+
     // Store tokens
-    localStorage.setItem("auth_tokens", JSON.stringify({
-      accessToken: response.data.access_token,
-      refreshToken: response.data.refresh_token,
-      expiresIn: response.data.expires_in,
-    }))
-    
-    return response.data
+    localStorage.setItem(
+      "auth_tokens",
+      JSON.stringify({
+        accessToken: response.data.access_token,
+        refreshToken: response.data.refresh_token,
+        expiresIn: response.data.expires_in,
+      })
+    );
+
+    return response.data;
   } catch (error) {
-    console.error("Login failed:", error)
+    console.error("Login failed:", error);
   }
 }
 ```
@@ -79,23 +84,23 @@ async function login(email: string, password: string) {
 ### Authenticated Request (Token Auto-Injected)
 
 ```typescript
-import { httpClient } from "../shared/api"
+import { httpClient } from "../shared/api";
 
 async function uploadNano(file: File) {
   try {
     // Token is automatically injected by request interceptor
-    const formData = new FormData()
-    formData.append("file", file)
-    
+    const formData = new FormData();
+    formData.append("file", file);
+
     const response = await httpClient.post("/api/v1/upload/nano", formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
-    })
-    
-    return response.data
+    });
+
+    return response.data;
   } catch (error) {
-    console.error("Upload failed:", error)
+    console.error("Upload failed:", error);
   }
 }
 ```
@@ -103,32 +108,32 @@ async function uploadNano(file: File) {
 ### Error Handling
 
 ```typescript
-import { httpClient } from "../shared/api"
-import type { AxiosError } from "axios"
+import { httpClient } from "../shared/api";
+import type { AxiosError } from "axios";
 
 async function fetchData() {
   try {
-    const response = await httpClient.get("/api/v1/data")
-    return response.data
+    const response = await httpClient.get("/api/v1/data");
+    return response.data;
   } catch (error) {
-    const axiosError = error as AxiosError
-    
+    const axiosError = error as AxiosError;
+
     if (axiosError.response?.status === 401) {
       // Unauthorized - token is cleared by response interceptor
       // App should redirect to login
-      window.location.href = "/login"
+      window.location.href = "/login";
     } else if (axiosError.response?.status === 403) {
       // Forbidden - user doesn't have permission
-      console.error("Access denied")
+      console.error("Access denied");
     } else if (axiosError.response?.status === 404) {
       // Not found
-      console.error("Resource not found")
-    } else if (axiosError.code === 'ECONNABORTED') {
+      console.error("Resource not found");
+    } else if (axiosError.code === "ECONNABORTED") {
       // Request timeout
-      console.error("Request timeout - server not responding")
+      console.error("Request timeout - server not responding");
     } else {
       // Other error
-      console.error("Request failed:", axiosError.message)
+      console.error("Request failed:", axiosError.message);
     }
   }
 }
@@ -167,6 +172,7 @@ Storage key: `auth_tokens`
    - Passes error through for app-specific handling
 
 Current Status: Placeholder for Sprint 3
+
 - 401 responses clear tokens and dispatch auth:unauthorized event
 - App should listen for this event and redirect to login
 

@@ -63,7 +63,12 @@ export function HomePage(): JSX.Element {
 }
 
 export function SearchPage(): JSX.Element {
-  return <PlaceholderPage title="Search" description="Search view placeholder for Sprint 3 implementation." />;
+  return (
+    <PlaceholderPage
+      title="Search"
+      description="Search view placeholder for Sprint 3 implementation."
+    />
+  );
 }
 
 export function NanoDetailsPage(): JSX.Element {
@@ -83,7 +88,12 @@ export function LoginPage(): JSX.Element {
 }
 
 export function RegisterPage(): JSX.Element {
-  return <PlaceholderPage title="Register" description="Authentication registration placeholder route." />;
+  return (
+    <PlaceholderPage
+      title="Register"
+      description="Authentication registration placeholder route."
+    />
+  );
 }
 
 export function DashboardPage(): JSX.Element {

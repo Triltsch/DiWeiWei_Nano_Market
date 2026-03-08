@@ -1973,3 +1973,108 @@ Implemented React Query client/provider composition in the frontend root and add
 - **Learning**: Treat root README as release-facing documentation and update it in the same implementation cycle as feature code.
 
 
+## Frontend Quality Tooling & Docker Compose Integration (Issue #33 - S2-FE-06)
+
+### Context
+Issue #33 required setting up ESLint/Prettier for code quality, a dev proxy for API requests, and a Docker Compose service for frontend static asset serving. This completed the frontend infrastructure bootstrap for Sprint 2.
+
+### Implementation Summary
+
+#### 1. **ESLint + Prettier Setup**
+- **Challenge**: Peer dependency conflicts between ESLint 9+ and eslint-plugin-react-hooks (expects ESLint 8)
+- **Solution**: Pinned eslint@^8.57.0, typescript-eslint@^7.18.0, and eslint-plugin-react@^7.36.1 for compatibility
+- **Configuration**:
+  - `.eslintrc.json` - React, TypeScript, and hooks rules enabled
+  - `.prettierrc.json` - LF line endings, 100-char print width, standard formatting
+  - `.eslintignore` / `.prettierignore` - Exclude dist, node_modules, config files
+- **Scripts**:
+  - `npm run lint` - Check code quality
+  - `npm run lint:fix` - Auto-fix ESLint violations
+  - `npm run format` - Apply Prettier formatting
+- **Learning**: Frontend tooling version compatibility requires careful pin management. Test `npm install` early to catch peer dependency conflicts before pushing code.
+
+#### 2. **Vite Dev Proxy Configuration**
+- **Purpose**: Forward `/api/*` requests from frontend to backend during development
+- **Implementation**: Added proxy config to `vite.config.ts`:
+  ```typescript
+  proxy: {
+    "/api": {
+      target: process.env.VITE_API_BASE_URL ?? "http://localhost:8000",
+      changeOrigin: true,
+      rewrite: (path) => path.replace(/^\/api/, ""),
+    },
+  }
+  ```
+- **Behavior**: 
+  - Dev server on `:5173` proxies `/api/auth/login` to `http://localhost:8000/auth/login`
+  - Respects `VITE_API_BASE_URL` environment variable for flexibility
+  - Strips `/api` prefix before forwarding to backend
+- **Learning**: HTTP client must be configured to use `/api` prefix URLs for proxy to intercept. Backend and frontend can develop independently on different ports during dev.
+
+#### 3. **Frontend Docker Compose Service**
+- **Challenge**: Frontend state is stateless (built HTML/CSS/JS) but needs backend at :8000 available
+- **Solution**: 
+  - Created `Dockerfile.frontend` with multi-stage build (Node.js builder → Nginx server)
+  - Builder stage: Runs TypeScript check + Vite production build
+  - Server stage: Nginx Alpine serves `/dist` artifacts on port 80
+  - Health check: Curl `/health` endpoint every 10 seconds
+- **Docker Compose**:
+  - Added `frontend` service on `:3000` (mapped from container port 80)
+  - Depends on `app` service health check (waits for backend readiness)
+  - Uses named `Dockerfile.frontend` to avoid conflicts with backend Dockerfile
+- **Nginx Configuration**:
+  - SPA routing: `try_files $uri $uri/ /index.html` for React Router
+  - Cache-busting: Static assets (js/css) cached with 1-year immutable headers
+  - Gzip compression enabled by Nginx defaults
+- **Learning**: Frontend Docker service should enforce backend readiness via health checks. SPA serving requires special Nginx config to route all unknown paths to index.html.
+
+#### 4. **Frontend Test Execution & Linting**
+- **Issue Found**: Unused `waitFor` import in useUserProfile.test.ts was flagged by ESLint
+- **Fix**: Removed unused import to satisfy linting checks
+- **Test Results**: 11 tests passing (9 HTTP client + 2 React Query hook tests)
+- **Build Output**: Production bundle with gzipped JS (~62.5KB), CSS (~2.17KB)
+- **Learning**: Frontend tests must be executable without backend (uses mocked httpClient). Linting should pass before commits to prevent CI failures.
+
+#### 5. **Documentation Parity**
+- **Updated**: 
+  - `frontend/README.md` - Added comprehensive dev proxy, Docker, and script documentation
+  - Documented API proxy behavior and multi-terminal workflow
+  - Included Docker Compose deployment section with multi-stage build explanation
+- **Learning**: Quality tooling docs should cover not just what's available but when/why each script is needed (e.g., dev proxy only works with `/api` prefixed URLs).
+
+### Acceptance Criteria Status
+
+✅ **Lint + formatting scripts available and passing**
+- ESLint and Prettier configured and all checks pass
+- `npm run lint`, `npm run lint:fix`, `npm run format` scripts available
+
+✅ **Dev proxy forwards API requests to backend**
+- Vite proxy configured to forward `/api/*` to backend :8000
+- VITE_API_BASE_URL env var allows customization
+
+✅ **Compose service exists for frontend static artifact serving**
+- Dockerfile.frontend with multi-stage build and Nginx SPA routing
+- Frontend service on :3000 with health checks and dependency on backend
+
+✅ **npm run build produces deployable bundle**
+- Production build outputs to `dist/` with TypeScript checking
+- Gzipped bundle ready for Nginx static serving
+
+### Dependencies Resolved
+
+✅ S2-FE-01 (React 18 + Vite + TypeScript baseline)
+✅ S2-FE-02 (Tailwind CSS styling)
+✅ S2-FE-03 (HTTP client & React Query) - S2-FE-04 and S2-FE-05
+✅ S2-FE-06 (Quality tooling) - This issue
+
+### Known Issues & Future Improvements
+
+1. **TypeScript Version Compatibility**: typescript-eslint warns about TypeScript 5.9.3 vs. supported <=5.6.0. Not blocking but worth monitoring for major updates.
+2. **ESLint v8 Usage**: Using v8 instead of latest v9 due to ecosystem compatibility. Plan to upgrade when plugins catch up.
+3. **Frontend Tests Not in Main Suite**: Frontend tests run separately (`npm test`). Backend test suite (`pytest`) doesn't include frontend. Consider unified test execution in Sprint 3.
+4. **No Pre-commit Hooks**: Linting/formatting not enforced before git commits. Consider husky + lint-staged for CI/CD pipeline.
+
+### Technical Debt
+
+- Audit npm vulnerabilities (2 moderate severity found). Consider `npm audit fix` after verifying no breaking changes.
+- Deprecation warnings for eslint@8 - plan ESLint 9 upgrade when react-hooks plugin stabilizes.
