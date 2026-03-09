@@ -7,9 +7,12 @@ import {
   LoginPage,
   NanoDetailsPage,
   NotFoundPage,
+  PrivacyPage,
   ProfilePage,
   RegisterPage,
   SearchPage,
+  TermsPage,
+  VerifyEmailPage,
 } from "../features/routing/pages";
 import { ProtectedRouteLayout } from "../features/routing/ProtectedRouteLayout";
 
@@ -29,6 +32,9 @@ export function AppRouter(): JSX.Element {
       <Route path="/nano/:id" element={<NanoDetailsPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
 
       <Route element={<ProtectedRouteLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />

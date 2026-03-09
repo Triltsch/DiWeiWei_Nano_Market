@@ -1,6 +1,12 @@
 import type { PropsWithChildren } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import {
+  LoginPage as LoginAuthPage,
+  RegisterPage as RegisterAuthPage,
+  VerifyEmailPage as VerifyEmailAuthPage,
+} from "../auth";
+import { PrivacyPage as PrivacyLegalPage, TermsPage as TermsLegalPage } from "../legal/pages";
 import { AppShell } from "../../shared/ui/AppShell";
 
 interface PlaceholderPageProps {
@@ -47,6 +53,9 @@ export function HomePage(): JSX.Element {
               <Link to="/register">/register</Link>
             </li>
             <li>
+              <Link to="/verify-email">/verify-email</Link>
+            </li>
+            <li>
               <Link to="/dashboard">/dashboard</Link>
             </li>
             <li>
@@ -84,15 +93,26 @@ export function NanoDetailsPage(): JSX.Element {
 }
 
 export function LoginPage(): JSX.Element {
-  return <PlaceholderPage title="Login" description="Authentication login placeholder route." />;
+  return (
+    <PageLayout>
+      <LoginAuthPage />
+    </PageLayout>
+  );
 }
 
 export function RegisterPage(): JSX.Element {
   return (
-    <PlaceholderPage
-      title="Register"
-      description="Authentication registration placeholder route."
-    />
+    <PageLayout>
+      <RegisterAuthPage />
+    </PageLayout>
+  );
+}
+
+export function VerifyEmailPage(): JSX.Element {
+  return (
+    <PageLayout>
+      <VerifyEmailAuthPage />
+    </PageLayout>
   );
 }
 
@@ -106,6 +126,22 @@ export function ProfilePage(): JSX.Element {
 
 export function AdminPage(): JSX.Element {
   return <PlaceholderPage title="Admin" description="Protected admin placeholder route." />;
+}
+
+export function TermsPage(): JSX.Element {
+  return (
+    <PageLayout>
+      <TermsLegalPage />
+    </PageLayout>
+  );
+}
+
+export function PrivacyPage(): JSX.Element {
+  return (
+    <PageLayout>
+      <PrivacyLegalPage />
+    </PageLayout>
+  );
 }
 
 export function NotFoundPage(): JSX.Element {
