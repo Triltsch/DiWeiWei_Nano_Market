@@ -6,7 +6,6 @@ with proper authentication and authorization checks.
 """
 
 import uuid
-from datetime import datetime, timezone
 
 import pytest
 
@@ -648,4 +647,3 @@ class TestUpdateNanoMetadata:
 
         assert response.status_code == 422
         assert "5" in response.text or "maximum" in response.text.lower()
-

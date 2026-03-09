@@ -48,21 +48,21 @@ Implemented comprehensive API endpoints for Nano metadata capture and retrieval 
 - **Learning**: REST PATCH endpoints should support partial updates explicitly. Make all fields optional in request schema. Track which fields changed and return that in response—client knows what was modified, useful for optimistic UI updates. Pattern: `if metadata.field_name is not None: object.field_name = metadata.field_name; updated_fields.append("field_name")`
 
 #### 6. **Enum Mapping at Service Boundary**
-- **Challenge**: Database stores enums as Python enum objects (`CompetencyLevel.BASIC`), but API responses need strings ("beginner")
+- **Challenge**: Database stores enums as Python enum objects (`CompetencyLevel.BASIC`), but API responses need strings like `"beginner"`
 - **Solution location**: Service layer, not router or model property
-- **Implementation**: `competency_level=competency_level.value if competency_level else None` in response schema building
+- **Implementation**: Use an explicit mapping dict from `CompetencyLevel` (int enum) to API strings in response schema building, for example: `competency_level = COMPETENCY_LEVEL_API_MAPPING[competency_level] if competency_level is not None else None`
 - **Why not in model**: SQLAlchemy models should represent storage format (enums as objects)
 - **Why not in Pydantic**: Pydantic is for schema validation; enum mapping is business logic
-- **Learning**: Data format transformations (database format → API format) happen at service boundaries. Create `NanoMetadataResponse` from raw Nano object with explicit enum mapping, don't have Pydantic try to guess. Pattern: service builds response objects with explicit transformations, not implicit serialization.
+- **Learning**: Data format transformations (database format → API format) happen at service boundaries. Create `NanoMetadataResponse` from the raw Nano object using an explicit enum-to-string mapping dict, rather than relying on `.value` or implicit serialization. Pattern: service builds response objects with explicit transformations, not implicit serialization.
 
 #### 7. **Category Assignments: Many-to-Many Creates Complexity**
 - **Observation**: Categories are many-to-many via NanoCategoryAssignment junction table
 - **Update pattern challenges**:
-  - Delete old assignments: `await db.execute(delete(NanoCategoryAssignment).where(NanoCategoryAssignment.nano_id == nano_id))`
-  - Create new assignments: `await db.execute(insert(NanoCategoryAssignment).values([{nano_id: id, category_id: cid, rank: idx} for ...]))`
-  - Must not leave assignments orphaned if validation fails mid-transaction
-- **Test protection**: Tests verify old assignments deleted before new ones added, categories queryable via GET endpoint
-- **Learning**: Many-to-many updates are atomic in a single transaction, but conceptually multiple deletes/inserts. Document the pattern clearly. For future: consider if category ranking (assign `rank` during update) needs versioning (Sprint 3: audit trail of category changes). Pattern: `db.begin_nested()` for savepoints if categories are optional fields; full transaction rollback if category validation fails.
+  - Delete old assignments by first loading them via `select(NanoCategoryAssignment).where(NanoCategoryAssignment.nano_id == nano_id)` and then calling `session.delete(assignment)` on each ORM instance in a loop
+  - Create new assignments by instantiating `NanoCategoryAssignment` ORM objects for each `(nano_id, category_id, rank)` combination and adding them to the session
+  - Must not leave assignments orphaned if validation fails mid-transaction; all deletes and inserts must occur within a single transaction
+- **Test protection**: Tests verify old assignments are removed before new ones are added and that categories remain queryable via the GET endpoint after an update
+- **Learning**: Many-to-many updates are atomic in a single transaction, but implemented as multiple ORM-level deletes/inserts rather than raw bulk SQL. Document the actual pattern clearly. For future: consider refactoring to true bulk `delete(...)`/`insert(...)` operations if profiling shows a need, and whether category ranking (assigning `rank` during update) needs versioning (Sprint 3: audit trail of category changes). Pattern: `db.begin_nested()` for savepoints if categories are optional fields; full transaction rollback if category validation fails.
 
 #### 8. **Validation: Client-Side Limits vs. Server-Side Constraints**
 - **Pydantic schema validates**:
@@ -71,12 +71,12 @@ Implemented comprehensive API endpoints for Nano metadata capture and retrieval 
   - `duration_minutes`: Field(gt=0) (must be positive)
   - `format`: Literal["video", "text", "quiz", ...] (enum)
   - `competency_level`: Literal["beginner", "intermediate", ...] (enum)
-  - `language`: Pattern for ISO 639-1 codes (regex match)
+  - `language`: two-character ISO 639-1 code; length enforced via Field and value normalized to lowercase by a validator that also checks format (length 2, alphabetic only)
 - **Service layer validates**:
   - Category IDs exist in database (FK doesn't auto-validate non-existent IDs in ORM without explicit query)
   - At most 5 categories assigned (business rule, not schema constraint)
 - **Test coverage**: Both "valid within limits" and "invalid when exceeded" tested
-- **Learning**: Pydantic handles format validation (types, lengths, enums); service handles business logic validation (existence, relationships, limits). Layered validation provides both tight error feedback (Pydantic 422 for malformed request) and business-logic feedback (service 400 for invalid state). Pattern: Pydantic first-pass (syntax), service second-pass (semantics).
+- **Learning**: Pydantic handles format validation (types, lengths, enums, basic normalization); service handles business logic validation (existence, relationships, limits). Layered validation provides both tight error feedback (Pydantic 422 for malformed request) and business-logic feedback (service 400 for invalid state). Pattern: Pydantic first-pass (syntax), service second-pass (semantics).
 
 #### 9. **Tests Revealed Infrastructure Dependency Ordering**
 - **Observation**: Creating test users requires user_id UUID; creating nanos requires creator_id foreign key to users table

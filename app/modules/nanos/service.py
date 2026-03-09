@@ -5,7 +5,6 @@ This module provides service functions for creating, reading, and updating
 Nano metadata with proper validation and authorization checks.
 """
 
-from typing import Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -53,27 +52,25 @@ async def get_nano_metadata(nano_id: UUID, db: AsyncSession) -> NanoMetadataResp
             detail=f"Nano with ID {nano_id} not found",
         )
 
-    # Load category assignments
-    category_responses = []
-    assignments_stmt = select(NanoCategoryAssignment).where(
-        NanoCategoryAssignment.nano_id == nano_id
+    # Load category assignments with categories in a single joined query
+    assignments_stmt = (
+        select(NanoCategoryAssignment, Category)
+        .join(Category, NanoCategoryAssignment.category_id == Category.id)
+        .where(NanoCategoryAssignment.nano_id == nano_id)
+        .order_by(NanoCategoryAssignment.rank)
     )
     assignments_result = await db.execute(assignments_stmt)
-    assignments = assignments_result.scalars().all()
+    assignment_category_rows = assignments_result.all()
 
-    for assignment in assignments:
-        # Load category details
-        cat_stmt = select(Category).where(Category.id == assignment.category_id)
-        cat_result = await db.execute(cat_stmt)
-        category = cat_result.scalar_one_or_none()
-        if category:
-            category_responses.append(
-                NanoCategoryResponse(
-                    id=category.id,
-                    name=category.name,
-                    rank=assignment.rank,
-                )
-            )
+    category_responses = [
+        NanoCategoryResponse(
+            id=category.id,
+            name=category.name,
+            rank=assignment.rank,
+        )
+        for assignment, category in assignment_category_rows
+        if category is not None
+    ]
 
     # Map enum values to lowercase strings for API response
     competency_level_map = {
@@ -150,26 +147,27 @@ async def update_nano_metadata(
 
     # Track which fields are being updated
     updated_fields = []
+    fields_set = metadata.model_fields_set
 
-    # Update basic fields
-    if metadata.title is not None:
+    # Update basic fields (check if field was provided, even if None)
+    if "title" in fields_set:
         nano.title = metadata.title
         updated_fields.append("title")
 
-    if metadata.description is not None:
+    if "description" in fields_set:
         nano.description = metadata.description
         updated_fields.append("description")
 
-    if metadata.duration_minutes is not None:
+    if "duration_minutes" in fields_set:
         nano.duration_minutes = metadata.duration_minutes
         updated_fields.append("duration_minutes")
 
-    if metadata.language is not None:
+    if "language" in fields_set:
         nano.language = metadata.language
         updated_fields.append("language")
 
-    # Update enum fields with mapping
-    if metadata.competency_level is not None:
+    # Update enum fields with mapping (check if field was provided, even if None)
+    if "competency_level" in fields_set:
         level_map = {
             "beginner": CompetencyLevel.BASIC,
             "intermediate": CompetencyLevel.INTERMEDIATE,
@@ -178,7 +176,7 @@ async def update_nano_metadata(
         nano.competency_level = level_map[metadata.competency_level]
         updated_fields.append("competency_level")
 
-    if metadata.format is not None:
+    if "format" in fields_set:
         format_map = {
             "video": NanoFormat.VIDEO,
             "text": NanoFormat.TEXT,
@@ -189,7 +187,7 @@ async def update_nano_metadata(
         nano.format = format_map[metadata.format]
         updated_fields.append("format")
 
-    if metadata.license is not None:
+    if "license" in fields_set:
         license_map = {
             "CC-BY": LicenseType.CC_BY,
             "CC-BY-SA": LicenseType.CC_BY_SA,
@@ -200,17 +198,19 @@ async def update_nano_metadata(
         updated_fields.append("license")
 
     # Handle category assignments
-    if metadata.category_ids is not None:
-        # Validate all categories exist
-        for cat_id in metadata.category_ids:
-            cat_stmt = select(Category).where(Category.id == cat_id)
-            cat_result = await db.execute(cat_stmt)
-            category = cat_result.scalar_one_or_none()
-            if not category:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Category with ID {cat_id} not found",
-                )
+    if "category_ids" in fields_set:
+        # Validate all categories exist with a single query to avoid N+1 lookups
+        cat_stmt = select(Category.id).where(Category.id.in_(metadata.category_ids))
+        cat_result = await db.execute(cat_stmt)
+        existing_category_ids = set(cat_result.scalars().all())
+
+        missing_ids = set(metadata.category_ids) - existing_category_ids
+        if missing_ids:
+            missing_str = ", ".join(str(missing_id) for missing_id in sorted(missing_ids))
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Category with ID(s) {missing_str} not found",
+            )
 
         # Delete existing category assignments
         delete_stmt = select(NanoCategoryAssignment).where(

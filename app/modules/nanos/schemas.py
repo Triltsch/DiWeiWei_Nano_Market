@@ -109,8 +109,13 @@ class MetadataUpdateRequest(BaseModel):
         """Validate language code format."""
         if v is None:
             return v
-        # Convert to lowercase for consistency
-        return v.lower()
+        # Normalize to lowercase and validate ISO 639-1 format (two-letter, alphabetic)
+        code = v.lower()
+        if len(code) != 2 or not code.isalpha():
+            raise ValueError(
+                "language must be a valid ISO 639-1 code (two lowercase letters, e.g., 'de', 'en')"
+            )
+        return code
 
     @field_validator("category_ids")
     @classmethod

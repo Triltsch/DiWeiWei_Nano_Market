@@ -152,9 +152,8 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] = None) -> A
         db: Annotated[AsyncSession, Depends(get_db)],
     ) -> MetadataUpdateResponse:
         """Update Nano metadata."""
-        # Validate at least one field is provided
-        provided_fields = {k: v for k, v in metadata.model_dump().items() if v is not None}
-        if not provided_fields:
+        # Validate at least one field is provided (use model_fields_set to detect provided fields)
+        if not metadata.model_fields_set:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="At least one field must be provided for update",
