@@ -10,6 +10,8 @@ import uuid
 import pytest
 
 from app.models import (
+    AuditAction,
+    AuditLog,
     Category,
     CompetencyLevel,
     LicenseType,
@@ -93,7 +95,6 @@ class TestGetNanoMetadata:
     @pytest.mark.asyncio
     async def test_get_nano_metadata_with_categories(self, async_client, db_session):
         """Test retrieving Nano metadata with categories."""
-        # Create user
         from app.models import User, UserRole, UserStatus
 
         user = User(

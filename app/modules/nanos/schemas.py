@@ -199,3 +199,53 @@ class MetadataUpdateResponse(BaseModel):
     status: str = Field(..., description="Current Nano status")
     message: str = Field(default="Metadata updated successfully", description="Success message")
     updated_fields: list[str] = Field(default_factory=list, description="Fields that were updated")
+
+
+class StatusUpdateRequest(BaseModel):
+    """
+    Request schema for updating Nano status.
+
+    Attributes:
+        status: Target status (draft/pending_review/published/archived/deleted)
+        reason: Optional reason for status change (used for audit logging)
+    """
+
+    status: str = Field(
+        ...,
+        description="Target status: draft, pending_review, published, archived, or deleted",
+    )
+    reason: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Optional reason for status change (for audit log)",
+    )
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        """Validate status is one of allowed values."""
+        allowed = ["draft", "pending_review", "published", "archived", "deleted"]
+        if v.lower() not in allowed:
+            raise ValueError(f"status must be one of: {', '.join(allowed)}")
+        return v.lower()
+
+
+class StatusUpdateResponse(BaseModel):
+    """
+    Response schema for successful status update.
+
+    Attributes:
+        nano_id: Unique identifier for the Nano
+        old_status: Previous status
+        new_status: Updated status
+        message: Success message
+        published_at: Publication timestamp (set when transitioning to published)
+        archived_at: Archive timestamp (set when transitioning to archived)
+    """
+
+    nano_id: UUID = Field(..., description="Unique identifier for the Nano")
+    old_status: str = Field(..., description="Previous status")
+    new_status: str = Field(..., description="Updated status")
+    message: str = Field(default="Status updated successfully", description="Success message")
+    published_at: Optional[datetime] = Field(None, description="Publication timestamp")
+    archived_at: Optional[datetime] = Field(None, description="Archive timestamp")

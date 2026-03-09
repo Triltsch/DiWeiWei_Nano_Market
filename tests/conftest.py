@@ -382,6 +382,21 @@ async def verified_user(async_client, db_session, test_user_data) -> User:
 
 
 @pytest.fixture
+async def access_token(async_client, verified_user_id, test_user_data) -> str:
+    """Create and return access token for verified user"""
+    # Login to get token (verified_user_id fixture already registered and verified the user)
+    login_response = await async_client.post(
+        "/api/v1/auth/login",
+        json={
+            "email": test_user_data["email"],
+            "password": test_user_data["password"],
+        },
+    )
+    assert login_response.status_code == 200
+    return login_response.json()["access_token"]
+
+
+@pytest.fixture
 async def admin_user(async_client, db_session) -> User:
     """Create and verify an admin user, return the User object"""
     from sqlalchemy import select
