@@ -210,10 +210,11 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
         - archived_at timestamp set when transitioning to archived
 
         **Error Cases:**
-        - 400: Invalid status transition, incomplete metadata, or invalid status value
+        - 400: Invalid status transition or incomplete metadata
         - 401: Not authenticated
         - 403: Not the creator
         - 404: Nano not found
+        - 422: Invalid status value (request validation error)
         """,
         responses={
             200: {
@@ -231,12 +232,11 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
                     }
                 },
             },
-            400: {
-                "description": "Invalid status transition, incomplete metadata, or invalid status value"
-            },
+            400: {"description": "Invalid status transition or incomplete metadata"},
             401: {"description": "Not authenticated"},
             403: {"description": "Not authorized (not the creator)"},
             404: {"description": "Nano not found"},
+            422: {"description": "Invalid status value (request validation error)"},
         },
     )
     async def update_status(

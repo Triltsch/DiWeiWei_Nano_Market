@@ -375,6 +375,9 @@ async def update_nano_status(
         },
     )
 
+    # Commit audit log changes to ensure they persist beyond request scope
+    await db.commit()
+
     return nano, old_status, new_status
 
 
@@ -385,7 +388,7 @@ def _validate_status_transition(nano: Nano, old_status: str, new_status: str) ->
     Allowed transitions:
     - draft → pending_review, published, archived, deleted
     - pending_review → draft, published, archived
-    - published → archived (only within 24h: draft transition)
+    - published → archived, or draft (draft transition only within 24h of publication)
     - archived → deleted
     - deleted → (no transitions allowed)
 

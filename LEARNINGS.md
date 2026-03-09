@@ -101,7 +101,7 @@ Implemented status workflow for Nanos enabling creators to manage lifecycle from
 - **Files Modified**: 4 (schemas.py, service.py, router.py, conftest.py)
 - **Test Coverage**: 13 new tests, all passing; 266 total tests ✅
 - **Lines Added**: ~600 (including tests and documentation)
-- **State Transitions**: 14 valid paths, 5 status values
+- **State Transitions**: 10 total transitions (draft→4, pending_review→3, published→2, archived→1)
 - **Business Rules Enforced**: 4 (creator-only, state machine, 24h window, metadata completeness)
 
 ### Process Observations
