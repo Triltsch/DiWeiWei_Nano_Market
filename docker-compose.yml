@@ -110,10 +110,15 @@ services:
     container_name: diwei_dev_app
     env_file: .env
     environment:
-      # Override for Docker Compose (use Redis service name, not localhost)
+      # Override for Docker Compose (use service names, not localhost)
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-diwei_user}:${POSTGRES_PASSWORD:-diwei_password}@postgres:5432/${POSTGRES_DB:-diwei_nano_market}"
       REDIS_URL: "redis://redis:6379/0"
       REDIS_HOST: "redis"
       REDIS_PORT: "6379"
+      # Pass PostgreSQL credentials for entrypoint script
+      POSTGRES_USER: "${POSTGRES_USER:-diwei_user}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-diwei_password}"
+      POSTGRES_DB: "${POSTGRES_DB:-diwei_nano_market}"
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
