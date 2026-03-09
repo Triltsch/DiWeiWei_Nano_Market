@@ -109,7 +109,7 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
         - description: max 2000 characters
         - duration_minutes: 1-1440 (positive, max 24 hours)
         - competency_level: beginner, intermediate, or advanced
-        - language: ISO 639-1 code (2-5 chars)
+        - language: ISO 639-1 code (exactly 2 characters)
         - format: video, text, quiz, interactive, or mixed
         - category_ids: max 5 categories (must exist in database)
         - license: CC-BY, CC-BY-SA, CC0, or proprietary
@@ -120,10 +120,10 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
         - Only the creator can update metadata
 
         **Error Cases:**
-        - 400: Invalid data, Nano not in draft status
+        - 400: Invalid data, Nano not in draft status, or category not found
         - 401: Not authenticated
         - 403: Not the creator
-        - 404: Nano or category not found
+        - 404: Nano not found
         """,
         responses={
             200: {
@@ -139,10 +139,10 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
                     }
                 },
             },
-            400: {"description": "Invalid data or Nano not in draft status"},
+            400: {"description": "Invalid data, Nano not in draft status, or category not found"},
             401: {"description": "Not authenticated"},
             403: {"description": "Not authorized (not the creator)"},
-            404: {"description": "Nano or category not found"},
+            404: {"description": "Nano not found"},
         },
     )
     async def update_metadata(

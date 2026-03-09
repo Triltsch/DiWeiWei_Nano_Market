@@ -330,6 +330,7 @@ class TestUpdateNanoMetadata:
                 "password": "SecurePassword123!",
             },
         )
+        assert login_response.status_code == 200
         token = login_response.json()["access_token"]
 
         # Try to update as non-creator
@@ -355,6 +356,7 @@ class TestUpdateNanoMetadata:
                 "password": "SecurePassword123!",
             },
         )
+        assert login_response.status_code == 200
         token = login_response.json()["access_token"]
 
         # Create a published Nano
@@ -459,6 +461,7 @@ class TestUpdateNanoMetadata:
                 "password": "SecurePassword123!",
             },
         )
+        assert login_response.status_code == 200
         token = login_response.json()["access_token"]
 
         # Create a draft Nano
@@ -500,6 +503,7 @@ class TestUpdateNanoMetadata:
                 "password": "SecurePassword123!",
             },
         )
+        assert login_response.status_code == 200
         token = login_response.json()["access_token"]
 
         # Create categories
@@ -564,6 +568,7 @@ class TestUpdateNanoMetadata:
                 "password": "SecurePassword123!",
             },
         )
+        assert login_response.status_code == 200
         token = login_response.json()["access_token"]
 
         # Create a draft Nano
@@ -607,6 +612,7 @@ class TestUpdateNanoMetadata:
                 "password": "SecurePassword123!",
             },
         )
+        assert login_response.status_code == 200
         token = login_response.json()["access_token"]
 
         # Create 6 categories

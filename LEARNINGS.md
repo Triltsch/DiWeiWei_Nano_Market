@@ -13,8 +13,8 @@ Implemented comprehensive API endpoints for Nano metadata capture and retrieval 
   - Router layer handles HTTP concerns (dependency injection, status codes, response formatting)
   - Service layer handles business logic (authorization checks, state validation, field mutations)
   - Model layer (SQLAlchemy ORM) handles persistence only
-- **Benefit**: Both authorization failures and validation failures tested without HTTP client, using raw async calls and mocked database sessions
-- **Learning**: Clear separation of concerns yields testable code. Authorization failures (403) vs. validation failures (400) vs. not-found (404) are distinct business logic, not just HTTP status codes. Implement them in service layer where they can be unit tested independently of HTTP routing.
+- **Benefit**: Authorization and validation behavior is exercised via `async_client`-based route tests that drive the service layer through FastAPI's dependency injection and test database session fixtures, while still allowing the service layer to be unit tested independently if needed
+- **Learning**: Clear separation of concerns yields testable code. Authorization failures (403) vs. validation failures (400) vs. not-found (404) are distinct business logic, not just HTTP status codes. Implement them in service layer so they can be verified both via focused unit tests and end-to-end route tests.
 
 #### 2. **Test Infrastructure Must Mirror Production Dependency Injection**
 - **Problem**: Initial test run returned 404 on all nanos endpoints despite implementation being correct
@@ -45,7 +45,7 @@ Implemented comprehensive API endpoints for Nano metadata capture and retrieval 
 - **Benefit**: Clients can update single fields without providing full object
 - **Tracking mechanism**: Service returns `updated_fields: list[str]` showing which fields were modified
 - **Test coverage**: Tests verify that only provided fields are updated (other fields unchanged), and updated_fields list matches actual changes
-- **Learning**: REST PATCH endpoints should support partial updates explicitly. Make all fields optional in request schema. Track which fields changed and return that in response—client knows what was modified, useful for optimistic UI updates. Pattern: `if metadata.field_name is not None: object.field_name = metadata.field_name; updated_fields.append("field_name")`
+- **Learning**: The metadata update endpoint must support partial updates explicitly, even though it is implemented as a POST (`POST /api/v1/nanos/{nano_id}/metadata`) rather than a PATCH. Make all fields optional in the request schema, track which fields changed, and return that in the response—client knows what was modified, useful for optimistic UI updates. Pattern: `if metadata.field_name is not None: object.field_name = metadata.field_name; updated_fields.append("field_name")`
 
 #### 6. **Enum Mapping at Service Boundary**
 - **Challenge**: Database stores enums as Python enum objects (`CompetencyLevel.BASIC`), but API responses need strings like `"beginner"`
