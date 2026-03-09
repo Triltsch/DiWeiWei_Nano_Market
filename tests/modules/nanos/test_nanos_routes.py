@@ -1,0 +1,655 @@
+"""
+Tests for Nano metadata API routes.
+
+This module tests the metadata endpoints including GET and POST operations
+with proper authentication and authorization checks.
+"""
+
+import uuid
+
+import pytest
+
+from app.models import (
+    Category,
+    CompetencyLevel,
+    LicenseType,
+    Nano,
+    NanoCategoryAssignment,
+    NanoFormat,
+    NanoStatus,
+)
+
+
+class TestGetNanoMetadata:
+    """
+    Test suite for GET /api/v1/nanos/{nano_id} endpoint.
+
+    Tests retrieving Nano metadata including authentication,
+    authorization, and various metadata states.
+    """
+
+    @pytest.mark.asyncio
+    async def test_get_nano_metadata_success(self, async_client, db_session):
+        """Test successfully retrieving Nano metadata."""
+        # Create a user
+        from app.models import User, UserRole, UserStatus
+
+        user = User(
+            id=uuid.uuid4(),
+            email="creator@example.com",
+            username="creator",
+            password_hash="dummy_hash",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            role=UserRole.CREATOR,
+            preferred_language="de",
+            login_attempts=0,
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        # Create a Nano
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=user.id,
+            title="Test Nano",
+            description="A test learning module",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.BASIC,
+            language="de",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+        await db_session.refresh(nano)
+
+        # Retrieve Nano metadata
+        response = await async_client.get(f"/api/v1/nanos/{nano.id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["nano_id"] == str(nano.id)
+        assert data["title"] == "Test Nano"
+        assert data["description"] == "A test learning module"
+        assert data["duration_minutes"] == 30
+        assert data["competency_level"] == "beginner"
+        assert data["language"] == "de"
+        assert data["format"] == "video"
+        assert data["status"] == "draft"
+        assert data["license"] == "CC-BY"
+
+    @pytest.mark.asyncio
+    async def test_get_nano_metadata_not_found(self, async_client):
+        """Test retrieving non-existent Nano returns 404."""
+        non_existent_id = uuid.uuid4()
+        response = await async_client.get(f"/api/v1/nanos/{non_existent_id}")
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_get_nano_metadata_with_categories(self, async_client, db_session):
+        """Test retrieving Nano metadata with categories."""
+        # Create user
+        from app.models import User, UserRole, UserStatus
+
+        user = User(
+            id=uuid.uuid4(),
+            email="creator2@example.com",
+            username="creator2",
+            password_hash="dummy_hash",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            role=UserRole.CREATOR,
+            preferred_language="de",
+            login_attempts=0,
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        # Create categories
+        cat1 = Category(
+            id=uuid.uuid4(),
+            name="Programming",
+            description="Programming courses",
+            status="active",
+        )
+        cat2 = Category(
+            id=uuid.uuid4(),
+            name="Python",
+            description="Python courses",
+            parent_category_id=cat1.id,
+            status="active",
+        )
+        db_session.add(cat1)
+        db_session.add(cat2)
+        await db_session.flush()
+
+        # Create Nano
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=user.id,
+            title="Python Basics",
+            description="Learn Python",
+            duration_minutes=45,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY_SA,
+        )
+        db_session.add(nano)
+        await db_session.flush()
+
+        # Assign categories
+        assignment1 = NanoCategoryAssignment(
+            id=uuid.uuid4(),
+            nano_id=nano.id,
+            category_id=cat1.id,
+            rank=0,
+        )
+        assignment2 = NanoCategoryAssignment(
+            id=uuid.uuid4(),
+            nano_id=nano.id,
+            category_id=cat2.id,
+            rank=1,
+        )
+        db_session.add(assignment1)
+        db_session.add(assignment2)
+        await db_session.commit()
+
+        # Retrieve metadata
+        response = await async_client.get(f"/api/v1/nanos/{nano.id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["categories"]) == 2
+        assert data["categories"][0]["name"] == "Programming"
+        assert data["categories"][1]["name"] == "Python"
+
+
+class TestUpdateNanoMetadata:
+    """
+    Test suite for POST /api/v1/nanos/{nano_id}/metadata endpoint.
+
+    Tests updating Nano metadata with validation, authentication,
+    and authorization checks.
+    """
+
+    @pytest.mark.asyncio
+    async def test_update_nano_metadata_success(self, async_client, verified_user_id, db_session):
+        """Test successfully updating Nano metadata."""
+        # Get authentication token
+        login_response = await async_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "testuser@example.com",
+                "password": "SecurePassword123!",
+            },
+        )
+        assert login_response.status_code == 200
+        token = login_response.json()["access_token"]
+
+        # Create a Nano owned by the test user
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Original Title",
+            description="Original description",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.BASIC,
+            language="de",
+            format=NanoFormat.MIXED,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.PROPRIETARY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        # Update metadata
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/metadata",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "title": "Updated Title",
+                "description": "Updated description with more details",
+                "duration_minutes": 45,
+                "competency_level": "intermediate",
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["nano_id"] == str(nano.id)
+        assert data["status"] == "draft"
+        assert "title" in data["updated_fields"]
+        assert "description" in data["updated_fields"]
+        assert "duration_minutes" in data["updated_fields"]
+        assert "competency_level" in data["updated_fields"]
+
+        # Verify changes were persisted
+        get_response = await async_client.get(f"/api/v1/nanos/{nano.id}")
+        assert get_response.status_code == 200
+        updated_data = get_response.json()
+        assert updated_data["title"] == "Updated Title"
+        assert updated_data["description"] == "Updated description with more details"
+        assert updated_data["duration_minutes"] == 45
+        assert updated_data["competency_level"] == "intermediate"
+
+    @pytest.mark.asyncio
+    async def test_update_nano_metadata_requires_authentication(self, async_client, db_session):
+        """Test that updating metadata requires authentication."""
+        # Create a Nano
+        from app.models import User, UserRole, UserStatus
+
+        user = User(
+            id=uuid.uuid4(),
+            email="owner@example.com",
+            username="owner",
+            password_hash="dummy_hash",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            role=UserRole.CREATOR,
+            preferred_language="de",
+            login_attempts=0,
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=user.id,
+            title="Test Nano",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.BASIC,
+            language="de",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        # Try to update without authentication
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/metadata",
+            json={"title": "Unauthorized Update"},
+        )
+
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_update_nano_metadata_requires_creator(
+        self, async_client, verified_user_id, db_session
+    ):
+        """Test that only the creator can update metadata."""
+        # Create another user
+        from app.models import User, UserRole, UserStatus
+
+        other_user = User(
+            id=uuid.uuid4(),
+            email="other@example.com",
+            username="other",
+            password_hash="dummy_hash",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            role=UserRole.CREATOR,
+            preferred_language="de",
+            login_attempts=0,
+        )
+        db_session.add(other_user)
+        await db_session.flush()
+
+        # Create Nano owned by other_user
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=other_user.id,
+            title="Other's Nano",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.BASIC,
+            language="de",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        # Get token for verified_user (not the creator)
+        login_response = await async_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "testuser@example.com",
+                "password": "SecurePassword123!",
+            },
+        )
+        assert login_response.status_code == 200
+        token = login_response.json()["access_token"]
+
+        # Try to update as non-creator
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/metadata",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"title": "Unauthorized Update"},
+        )
+
+        assert response.status_code == 403
+        assert "creator" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_update_nano_metadata_only_draft(
+        self, async_client, verified_user_id, db_session
+    ):
+        """Test that only draft Nanos can be updated."""
+        # Get authentication token
+        login_response = await async_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "testuser@example.com",
+                "password": "SecurePassword123!",
+            },
+        )
+        assert login_response.status_code == 200
+        token = login_response.json()["access_token"]
+
+        # Create a published Nano
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Published Nano",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.BASIC,
+            language="de",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.PUBLISHED,  # Not DRAFT
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        # Try to update published Nano
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/metadata",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"title": "Attempt to Update Published"},
+        )
+
+        assert response.status_code == 400
+        assert "draft" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_update_nano_metadata_validation(
+        self, async_client, verified_user_id, db_session
+    ):
+        """Test metadata validation rules."""
+        # Get authentication token
+        login_response = await async_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "testuser@example.com",
+                "password": "SecurePassword123!",
+            },
+        )
+        token = login_response.json()["access_token"]
+
+        # Create a draft Nano
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Test Nano",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.BASIC,
+            language="de",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        # Test title too long
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/metadata",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"title": "A" * 201},  # Max 200
+        )
+        assert response.status_code == 422
+
+        # Test description too long
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/metadata",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"description": "B" * 2001},  # Max 2000
+        )
+        assert response.status_code == 422
+
+        # Test invalid competency level
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/metadata",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"competency_level": "expert"},  # Not valid
+        )
+        assert response.status_code == 422
+
+        # Test invalid format
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/metadata",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"format": "audio"},  # Not valid
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_update_nano_metadata_requires_fields(
+        self, async_client, verified_user_id, db_session
+    ):
+        """Test that at least one field must be provided."""
+        # Get authentication token
+        login_response = await async_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "testuser@example.com",
+                "password": "SecurePassword123!",
+            },
+        )
+        assert login_response.status_code == 200
+        token = login_response.json()["access_token"]
+
+        # Create a draft Nano
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Test Nano",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.BASIC,
+            language="de",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        # Try to update with empty payload
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/metadata",
+            headers={"Authorization": f"Bearer {token}"},
+            json={},
+        )
+
+        assert response.status_code == 400
+        assert "at least one field" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_update_nano_metadata_with_categories(
+        self, async_client, verified_user_id, db_session
+    ):
+        """Test updating Nano with category assignments."""
+        # Get authentication token
+        login_response = await async_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "testuser@example.com",
+                "password": "SecurePassword123!",
+            },
+        )
+        assert login_response.status_code == 200
+        token = login_response.json()["access_token"]
+
+        # Create categories
+        cat1 = Category(
+            id=uuid.uuid4(),
+            name="Science",
+            description="Science courses",
+            status="active",
+        )
+        cat2 = Category(
+            id=uuid.uuid4(),
+            name="Math",
+            description="Math courses",
+            status="active",
+        )
+        db_session.add(cat1)
+        db_session.add(cat2)
+        await db_session.flush()
+
+        # Create a draft Nano
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Test Nano",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.BASIC,
+            language="de",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        # Update with categories
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/metadata",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"category_ids": [str(cat1.id), str(cat2.id)]},
+        )
+
+        assert response.status_code == 200
+        assert "categories" in response.json()["updated_fields"]
+
+        # Verify categories were assigned
+        get_response = await async_client.get(f"/api/v1/nanos/{nano.id}")
+        assert get_response.status_code == 200
+        data = get_response.json()
+        assert len(data["categories"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_update_nano_metadata_invalid_category(
+        self, async_client, verified_user_id, db_session
+    ):
+        """Test that invalid category IDs are rejected."""
+        # Get authentication token
+        login_response = await async_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "testuser@example.com",
+                "password": "SecurePassword123!",
+            },
+        )
+        assert login_response.status_code == 200
+        token = login_response.json()["access_token"]
+
+        # Create a draft Nano
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Test Nano",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.BASIC,
+            language="de",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        # Try to update with non-existent category
+        fake_category_id = uuid.uuid4()
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/metadata",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"category_ids": [str(fake_category_id)]},
+        )
+
+        assert response.status_code == 400
+        assert "category" in response.json()["detail"].lower()
+        assert "not found" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_update_nano_metadata_max_categories(
+        self, async_client, verified_user_id, db_session
+    ):
+        """Test that maximum 5 categories can be assigned."""
+        # Get authentication token
+        login_response = await async_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "testuser@example.com",
+                "password": "SecurePassword123!",
+            },
+        )
+        assert login_response.status_code == 200
+        token = login_response.json()["access_token"]
+
+        # Create 6 categories
+        category_ids = []
+        for i in range(6):
+            cat = Category(
+                id=uuid.uuid4(),
+                name=f"Category {i}",
+                description=f"Description {i}",
+                status="active",
+            )
+            db_session.add(cat)
+            category_ids.append(cat.id)
+        await db_session.flush()
+
+        # Create a draft Nano
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Test Nano",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.BASIC,
+            language="de",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        # Try to assign 6 categories (should fail, max is 5)
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/metadata",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"category_ids": [str(cid) for cid in category_ids]},
+        )
+
+        assert response.status_code == 422
+        assert "5" in response.text or "maximum" in response.text.lower()
