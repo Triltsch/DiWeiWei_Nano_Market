@@ -5,6 +5,7 @@ This module provides service functions for creating, reading, and updating
 Nano metadata with proper validation and authorization checks.
 """
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -12,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
+    AuditAction,
     Category,
     CompetencyLevel,
     LicenseType,
@@ -20,10 +22,12 @@ from app.models import (
     NanoFormat,
     NanoStatus,
 )
+from app.modules.audit.service import AuditLogger
 from app.modules.nanos.schemas import (
     MetadataUpdateRequest,
     NanoCategoryResponse,
     NanoMetadataResponse,
+    StatusUpdateRequest,
 )
 
 
@@ -278,3 +282,183 @@ async def update_nano_metadata(
     await db.refresh(nano)
 
     return nano, updated_fields
+
+
+async def update_nano_status(
+    nano_id: UUID,
+    status_update: StatusUpdateRequest,
+    current_user_id: UUID,
+    db: AsyncSession,
+) -> tuple[Nano, str, str]:
+    """
+    Update Nano status with state machine validation.
+
+    Args:
+        nano_id: UUID of the Nano to update
+        status_update: Status update request with target status and optional reason
+        current_user_id: UUID of the authenticated user
+        db: Database session
+
+    Returns:
+        Tuple of (updated Nano, old_status, new_status)
+
+    Raises:
+        HTTPException: 404 if Nano not found, 403 if not creator, 400 if invalid transition
+    """
+    # Fetch the Nano
+    stmt = select(Nano).where(Nano.id == nano_id)
+    result = await db.execute(stmt)
+    nano = result.scalar_one_or_none()
+
+    if not nano:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Nano with ID {nano_id} not found",
+        )
+
+    # Authorization check: only creator can update status
+    if nano.creator_id != current_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the creator can update Nano status",
+        )
+
+    old_status = nano.status.value
+    new_status = status_update.status
+
+    # No-op: if status is already the target status, return immediately
+    if old_status == new_status:
+        return nano, old_status, new_status
+
+    # Map string status to enum
+    status_map = {
+        "draft": NanoStatus.DRAFT,
+        "pending_review": NanoStatus.PENDING_REVIEW,
+        "published": NanoStatus.PUBLISHED,
+        "archived": NanoStatus.ARCHIVED,
+        "deleted": NanoStatus.DELETED,
+    }
+    target_status_enum = status_map[new_status]
+
+    # State machine validation
+    _validate_status_transition(nano, old_status, new_status)
+
+    # Metadata completeness check for draft → published
+    if new_status == "published" and old_status == "draft":
+        _validate_metadata_completeness(nano)
+
+    # Update status and set timestamps
+    nano.status = target_status_enum
+
+    if new_status == "published" and nano.published_at is None:
+        nano.published_at = datetime.now(timezone.utc)
+
+    if new_status == "archived" and nano.archived_at is None:
+        nano.archived_at = datetime.now(timezone.utc)
+
+    # Commit changes
+    await db.commit()
+    await db.refresh(nano)
+
+    # Log status change to audit log
+    await AuditLogger.log_action(
+        session=db,
+        action=AuditAction.DATA_MODIFIED,
+        user_id=current_user_id,
+        resource_type="nano",
+        resource_id=str(nano_id),
+        metadata={
+            "field": "status",
+            "old_value": old_status,
+            "new_value": new_status,
+            "reason": status_update.reason,
+        },
+    )
+
+    return nano, old_status, new_status
+
+
+def _validate_status_transition(nano: Nano, old_status: str, new_status: str) -> None:
+    """
+    Validate that the status transition is allowed by the state machine.
+
+    Allowed transitions:
+    - draft → pending_review, published, archived, deleted
+    - pending_review → draft, published, archived
+    - published → archived (only within 24h: draft transition)
+    - archived → deleted
+    - deleted → (no transitions allowed)
+
+    Args:
+        nano: The Nano object
+        old_status: Current status
+        new_status: Target status
+
+    Raises:
+        HTTPException: 400 if transition is not allowed
+    """
+    # Define allowed transitions
+    allowed_transitions = {
+        "draft": ["pending_review", "published", "archived", "deleted"],
+        "pending_review": ["draft", "published", "archived"],
+        "published": ["archived", "draft"],  # draft only within 24h
+        "archived": ["deleted"],
+        "deleted": [],  # No transitions from deleted
+    }
+
+    if new_status not in allowed_transitions.get(old_status, []):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid status transition: cannot change from '{old_status}' to '{new_status}'",
+        )
+
+    # Special rule: published → draft only allowed within 24h of publication
+    if old_status == "published" and new_status == "draft":
+        if nano.published_at is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot unpublish: publication timestamp is missing",
+            )
+
+        # Ensure published_at is timezone-aware for comparison
+        published_at = nano.published_at
+        if published_at.tzinfo is None:
+            published_at = published_at.replace(tzinfo=timezone.utc)
+
+        time_since_publish = datetime.now(timezone.utc) - published_at
+        if time_since_publish.total_seconds() > 24 * 3600:  # 24 hours in seconds
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot unpublish: Nano has been published for more than 24 hours. Use 'archived' status instead.",
+            )
+
+
+def _validate_metadata_completeness(nano: Nano) -> None:
+    """
+    Validate that all required metadata is complete before publishing.
+
+    Args:
+        nano: The Nano object to validate
+
+    Raises:
+        HTTPException: 400 if metadata is incomplete
+    """
+    missing_fields = []
+
+    if not nano.title or nano.title.strip() == "":
+        missing_fields.append("title")
+
+    if not nano.description or nano.description.strip() == "":
+        missing_fields.append("description")
+
+    if nano.duration_minutes is None or nano.duration_minutes <= 0:
+        missing_fields.append("duration_minutes")
+
+    if not nano.language:
+        missing_fields.append("language")
+
+    if missing_fields:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot publish: missing required metadata fields: {', '.join(missing_fields)}",
+        )

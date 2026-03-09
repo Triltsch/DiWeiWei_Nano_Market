@@ -17,8 +17,14 @@ from app.modules.nanos.schemas import (
     MetadataUpdateRequest,
     MetadataUpdateResponse,
     NanoMetadataResponse,
+    StatusUpdateRequest,
+    StatusUpdateResponse,
 )
-from app.modules.nanos.service import get_nano_metadata, update_nano_metadata
+from app.modules.nanos.service import (
+    get_nano_metadata,
+    update_nano_metadata,
+    update_nano_status,
+)
 
 
 def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = None) -> APIRouter:
@@ -166,6 +172,91 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
             status=nano.status.value.lower(),
             message="Metadata updated successfully",
             updated_fields=updated_fields,
+        )
+
+    @router.patch(
+        "/{nano_id}/status",
+        response_model=StatusUpdateResponse,
+        status_code=status.HTTP_200_OK,
+        summary="Update Nano status",
+        description="""
+        Update the publishing status of a Nano with state machine validation.
+
+        **Requirements:**
+        - Authentication required (Bearer token)
+        - User must be the creator of the Nano
+        - Status transition must be valid according to state machine rules
+        - For draft → published: metadata must be complete
+
+        **Valid Status Transitions:**
+        - draft → pending_review, published, archived, deleted
+        - pending_review → draft, published, archived
+        - published → archived (or draft within 24h of publication)
+        - archived → deleted
+        - deleted → (no transitions allowed)
+
+        **Metadata Completeness Requirements for Publishing:**
+        - title (required, non-empty)
+        - description (required, non-empty)
+        - duration_minutes (required, > 0)
+        - language (required)
+
+        **Business Rules:**
+        - Only creators can change status
+        - Published → draft transition only allowed within 24h of publication
+        - Cannot delete published Nanos directly (must archive first)
+        - Status changes trigger audit log entries
+        - published_at timestamp set when transitioning to published
+        - archived_at timestamp set when transitioning to archived
+
+        **Error Cases:**
+        - 400: Invalid status transition, incomplete metadata, or invalid status value
+        - 401: Not authenticated
+        - 403: Not the creator
+        - 404: Nano not found
+        """,
+        responses={
+            200: {
+                "description": "Status updated successfully",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "nano_id": "123e4567-e89b-12d3-a456-426614174000",
+                            "old_status": "draft",
+                            "new_status": "published",
+                            "message": "Status updated successfully",
+                            "published_at": "2026-03-08T15:30:00Z",
+                            "archived_at": None,
+                        }
+                    }
+                },
+            },
+            400: {
+                "description": "Invalid status transition, incomplete metadata, or invalid status value"
+            },
+            401: {"description": "Not authenticated"},
+            403: {"description": "Not authorized (not the creator)"},
+            404: {"description": "Nano not found"},
+        },
+    )
+    async def update_status(
+        nano_id: UUID,
+        status_update: StatusUpdateRequest,
+        current_user_id: Annotated[UUID, Depends(get_current_user_id)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> StatusUpdateResponse:
+        """Update Nano status with state machine validation."""
+        nano, old_status, new_status = await update_nano_status(
+            nano_id, status_update, current_user_id, db
+        )
+
+        return StatusUpdateResponse(
+            nano_id=nano.id,
+            old_status=old_status,
+            new_status=new_status,
+            message=f"Status updated from '{old_status}' to '{new_status}'",
+            published_at=nano.published_at,
+            archived_at=nano.archived_at,
         )
 
     return router

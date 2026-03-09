@@ -1,5 +1,124 @@
 # Learnings - DiWeiWei Nano-Marktplatz Projekt
 
+## Sprint 3 Story 2.4: Nano Status Workflow (Issue #52)
+
+### Context
+Implemented status workflow for Nanos enabling creators to manage lifecycle from draft to published with state machine validation, metadata completeness checks, and audit logging. Built PATCH `/api/v1/nanos/{nano_id}/status` endpoint with comprehensive business rules.
+
+### Key Learnings
+
+#### 1. **State Machine Pattern in Business Logic**
+- **Implementation**: Explicit allowed transitions map in service layer with validation function
+- **Pattern Used**: 
+  - Define allowed transitions dictionary: `{"draft": ["pending_review", "published", ...], ...}`
+  - Separate validation function for transition rules (`_validate_status_transition()`)
+  - Special rules (24h unpublish window) implemented as conditional checks
+- **Benefit**: Clear business rules, easy to test, maintainable state machine
+- **Learning**: State machines belong in service layer, not database constraints. Use explicit transition maps rather than implicit checks. Document allowed transitions in endpoint description and test all edges. Pattern: `allowed_transitions[old_status]` lookup with special condition handling.
+
+#### 2. **Metadata Completeness Validation for Publishing**
+- **Observation**: Publishing requires complete metadata (title, description, duration, language)
+- **Implementation choice**:
+  - Validation only on draft → published transition
+  - Separate `_validate_metadata_completeness()` function
+  - Checks required fields are present and non-empty
+  - Returns clear error message listing missing fields
+- **Alternative considered**: Schema-level NOT NULL constraints (rejected - metadata can be incomplete in draft)
+- **Learning**: Conditional validation based on state transitions. Don't enforce completeness globally - allow drafts to be incomplete. Provide actionable error messages listing exactly what's missing. Pattern: dedicated validation function called before state transition, not in schema.
+
+#### 3. **Timezone-Aware Datetime Handling**
+- **Problem**: Comparing `datetime.now(timezone.utc)` with database timestamp caused `TypeError: can't subtract offset-naive and offset-aware datetimes`
+- **Root Cause**: SQLAlchemy may return timezone-naive datetimes depending on database/column configuration
+- **Solution**: Normalize timezone before comparison:
+  ```python
+  published_at = nano.published_at
+  if published_at.tzinfo is None:
+      published_at = published_at.replace(tzinfo=timezone.utc)
+  time_since_publish = datetime.now(timezone.utc) - published_at
+  ```
+- **Learning**: Always check `tzinfo` before comparing datetimes. PostgreSQL's `timestamp with time zone` returns timezone-aware, but `timestamp without time zone` doesn't. Normalize at comparison point rather than at storage. Pattern: defensive timezone handling in business logic, not at ORM level.
+
+#### 4. **Audit Logging Integration**
+- **Pattern**: Log status changes via `AuditLogger.log_action()` after successful commit
+- **Metadata captured**: `field`, `old_value`, `new_value`, `reason` (optional)
+- **Benefit**: Complete audit trail of status changes for compliance/debugging
+- **Learning**: Audit logging after commit (not before) ensures transaction succeeded. Include optional reason field for context. Use existing `AuditAction.DATA_MODIFIED` for field changes. Pattern: `await AuditLogger.log_action(session=db, action=..., metadata={...})` immediately after commit.
+
+#### 5. **Test Fixture Dependency Management**
+- **Problem**: Status workflow tests needed authenticated user token, but no `access_token` fixture existed
+- **Solution**: Created `access_token` fixture that depends on `verified_user_id` and `test_user_data`, logs in, returns token
+- **Pattern**:
+  ```python
+  @pytest.fixture
+  async def access_token(async_client, verified_user_id, test_user_data) -> str:
+      login_response = await async_client.post("/api/v1/auth/login", json={...})
+      return login_response.json()["access_token"]
+  ```
+- **Learning**: Reusable token fixtures reduce test boilerplate and ensure consistent auth setup. Fixture dependencies (verified_user_id) automatically create user before login. One fixture, many tests. Pattern: fixture for common test prerequisites.
+
+#### 6. **Timestamp Management for State Transitions**
+- **Pattern**: Set `published_at` when transitioning to published, `archived_at` when transitioning to archived
+- **Implementation**: 
+  - Check if timestamp already set (only set on first transition to that state)
+  - Use `datetime.now(timezone.utc)` for consistency
+  - Timestamps returned in API response for client awareness
+- **Learning**: Timestamps track state transition history. Don't overwrite existing timestamps (preserve original publish date). Always use timezone-aware datetimes for consistency. Pattern: `if nano.published_at is None: nano.published_at = datetime.now(timezone.utc)` before commit.
+
+#### 7. **No-Op Status Updates for Idempotency**
+- **Design choice**: Allow updating status to same status (no-op)
+- **Implementation**: Early return when `old_status == new_status`
+- **Benefit**: Idempotent API - client can retry without side effects
+- **Learning**: Idempotent APIs are safer for retry scenarios. No-op check before validation reduces unnecessary processing. Return success (200) with both old/new status matching. Pattern: `if old_status == new_status: return nano, old_status, new_status` at start of function.
+
+#### 8. **Test Organization for Feature Completeness**
+- **Approach**: Separate test file for status workflow (`test_status_workflow.py`) vs. metadata tests (`test_nanos_routes.py`)
+- **Structure**: 13 tests covering:
+  - Valid transitions (5 tests)
+  - Invalid transitions (2 tests)
+  - Authorization boundaries (2 tests)
+  - Metadata completeness (1 test)
+  - Edge cases (3 tests: no-op, 404, invalid value)
+- **Coverage**: All state transitions tested, all error paths verified, audit logging confirmed
+- **Learning**: Organize tests by feature domain, not by endpoint. Comprehensive edge case coverage (24h boundary, no-op, invalid transitions) prevents production bugs. Test both happy paths and all error conditions. Pattern: one test class per feature, descriptive test names, verify database state + API response.
+
+#### 9. **24-Hour Business Rule Implementation**
+- **Requirement**: Published → draft only allowed within 24h of publication
+- **Implementation**: Calculate time delta, compare to 24 * 3600 seconds
+- **Error message**: Clear guidance ("Use 'archived' status instead")
+- **Learning**: Time-based business rules need clear error messages with alternatives. Use seconds for comparison (avoids floating point issues with hours). Test both sides of boundary (within 24h succeeds, after 24h fails). Pattern: delta calculation with clear threshold comparison and actionable error.
+
+#### 10. **OpenAPI Documentation for State Machines**
+- **Documentation approach**:
+  - List all valid transitions in endpoint description
+  - Document special rules (24h, metadata completeness)
+  - Provide clear error descriptions for each validation
+  - Include example request/response with status change
+- **Benefit**: Clients understand state machine without reading code
+- **Learning**: State machines need comprehensive documentation - list transitions, special rules, error scenarios. FastAPI auto-generates from docstrings but requires explicit detail. Example: "draft → pending_review, published, archived, deleted" shows all options at a glance. Pattern: endpoint docstring with structured "Valid Status Transitions" section.
+
+### Implementation Stats
+- **Files Created**: 1 (test_status_workflow.py)
+- **Files Modified**: 4 (schemas.py, service.py, router.py, conftest.py)
+- **Test Coverage**: 13 new tests, all passing; 266 total tests ✅
+- **Lines Added**: ~600 (including tests and documentation)
+- **State Transitions**: 14 valid paths, 5 status values
+- **Business Rules Enforced**: 4 (creator-only, state machine, 24h window, metadata completeness)
+
+### Process Observations
+- **Black formatting caveat**: Auto-formatter can incorrectly nest new classes if patch indentation is ambiguous - verify top-level classes remain top-level after formatting
+- **Timezone handling discovered via tests**: TDD caught naive/aware datetime mismatch that might have been production bug
+- **Audit logging integration seamless**: Existing AuditLogger service worked perfectly without modification
+- **Test fixture pattern accelerated testing**: access_token fixture eliminated repetitive login code across 13 tests
+
+### Design Decisions Documented
+- **Why state machine in service layer**: Business rules change; service layer is more flexible than database triggers/constraints
+- **Why 24-hour window**: Balance between creator flexibility and content stability for consumers
+- **Why separate validation functions**: Testability and clarity - each validation concern isolated
+- **Why allow no-op status updates**: API idempotency for safe retries
+- **Why timestamps on first transition only**: Preserve historical publish dates, not latest re-publish
+
+---
+
 ## Sprint 2 Story 2.2: Nano Metadata Capture (Issue #53)
 
 ### Context
