@@ -21,7 +21,7 @@ from app.modules.nanos.schemas import (
 from app.modules.nanos.service import get_nano_metadata, update_nano_metadata
 
 
-def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] = None) -> APIRouter:
+def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = None) -> APIRouter:
     """
     Create and configure the nanos router.
 

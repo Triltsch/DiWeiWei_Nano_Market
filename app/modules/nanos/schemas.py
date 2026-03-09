@@ -53,8 +53,8 @@ class MetadataUpdateRequest(BaseModel):
     language: Optional[str] = Field(
         None,
         min_length=2,
-        max_length=5,
-        description="Content language (ISO 639-1, e.g., 'de', 'en')",
+        max_length=2,
+        description="Content language (ISO 639-1 code, exactly 2 letters, e.g., 'de', 'en')",
     )
     format: Optional[str] = Field(
         None,

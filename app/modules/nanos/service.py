@@ -151,6 +151,12 @@ async def update_nano_metadata(
 
     # Update basic fields (check if field was provided, even if None)
     if "title" in fields_set:
+        # Title is NOT NULL in DB - reject explicit None
+        if metadata.title is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="title cannot be set to null (required field)",
+            )
         nano.title = metadata.title
         updated_fields.append("title")
 
@@ -163,11 +169,22 @@ async def update_nano_metadata(
         updated_fields.append("duration_minutes")
 
     if "language" in fields_set:
+        # Language is NOT NULL in DB - reject explicit None
+        if metadata.language is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="language cannot be set to null (required field)",
+            )
         nano.language = metadata.language
         updated_fields.append("language")
 
     # Update enum fields with mapping (check if field was provided, even if None)
     if "competency_level" in fields_set:
+        if metadata.competency_level is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="competency_level cannot be set to null",
+            )
         level_map = {
             "beginner": CompetencyLevel.BASIC,
             "intermediate": CompetencyLevel.INTERMEDIATE,
@@ -177,6 +194,11 @@ async def update_nano_metadata(
         updated_fields.append("competency_level")
 
     if "format" in fields_set:
+        if metadata.format is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="format cannot be set to null",
+            )
         format_map = {
             "video": NanoFormat.VIDEO,
             "text": NanoFormat.TEXT,
@@ -188,6 +210,11 @@ async def update_nano_metadata(
         updated_fields.append("format")
 
     if "license" in fields_set:
+        if metadata.license is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="license cannot be set to null",
+            )
         license_map = {
             "CC-BY": LicenseType.CC_BY,
             "CC-BY-SA": LicenseType.CC_BY_SA,
@@ -199,18 +226,33 @@ async def update_nano_metadata(
 
     # Handle category assignments
     if "category_ids" in fields_set:
-        # Validate all categories exist with a single query to avoid N+1 lookups
-        cat_stmt = select(Category.id).where(Category.id.in_(metadata.category_ids))
-        cat_result = await db.execute(cat_stmt)
-        existing_category_ids = set(cat_result.scalars().all())
-
-        missing_ids = set(metadata.category_ids) - existing_category_ids
-        if missing_ids:
-            missing_str = ", ".join(str(missing_id) for missing_id in sorted(missing_ids))
+        if metadata.category_ids is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Category with ID(s) {missing_str} not found",
+                detail="category_ids cannot be set to null (use empty list to clear)",
             )
+
+        # Deduplicate category_ids while preserving order
+        seen = set()
+        unique_category_ids = []
+        for cat_id in metadata.category_ids:
+            if cat_id not in seen:
+                seen.add(cat_id)
+                unique_category_ids.append(cat_id)
+
+        # Validate all categories exist with a single query to avoid N+1 lookups
+        if unique_category_ids:
+            cat_stmt = select(Category.id).where(Category.id.in_(unique_category_ids))
+            cat_result = await db.execute(cat_stmt)
+            existing_category_ids = set(cat_result.scalars().all())
+
+            missing_ids = set(unique_category_ids) - existing_category_ids
+            if missing_ids:
+                missing_str = ", ".join(str(missing_id) for missing_id in sorted(missing_ids))
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Category with ID(s) {missing_str} not found",
+                )
 
         # Delete existing category assignments
         delete_stmt = select(NanoCategoryAssignment).where(
@@ -220,8 +262,8 @@ async def update_nano_metadata(
         for assignment in delete_result.scalars():
             await db.delete(assignment)
 
-        # Create new assignments
-        for idx, cat_id in enumerate(metadata.category_ids):
+        # Create new assignments with deduplicated list
+        for idx, cat_id in enumerate(unique_category_ids):
             assignment = NanoCategoryAssignment(
                 nano_id=nano_id,
                 category_id=cat_id,
