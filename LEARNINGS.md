@@ -1,5 +1,60 @@
 # Learnings - DiWeiWei Nano-Marktplatz Projekt
 
+## Sprint 3 Story 8.3: CORS Configuration Fix (Issue #55 Follow-up)
+
+### Context
+After implementing the auth pages in issue #55, discovered that registration requests were failing with "Connection error" in the browser. The frontend was built and served correctly through Docker nginx, but API requests from the browser to the backend were being blocked by CORS policy.
+
+### Key Learnings
+
+#### 1. **CORS Credentials Mismatch Causes Silent Failures**
+- **Problem**: Frontend configured with `withCredentials: true` but backend had `allow_credentials=False` in CORS middleware
+- **Symptom**: Browser blocked requests with CORS error: "The value of the 'Access-Control-Allow-Credentials' header in the response is '' which must be 'true' when the request's credentials mode is 'include'"
+- **Root Cause**: Axios `withCredentials: true` tells browser to send credentials (cookies, auth headers), but backend CORS policy denied it
+- **Solution**: Changed backend CORS to `allow_credentials=True`
+- **Learning**: CORS credentials must match on both ends. If frontend sends `withCredentials: true`, backend must respond with `allow_credentials=True`. Mismatched configuration causes silent failures that appear as "connection errors" to users.
+
+#### 2. **Wildcard Origins Incompatible with Credentials**
+- **Problem**: Backend CORS had `allow_origins=["*"]` with `allow_credentials=True`
+- **CORS Spec Requirement**: When `allow_credentials=True`, CORS requires explicit origins - wildcards are forbidden by browsers
+- **Solution**: Replaced wildcard with explicit origin list:
+  ```python
+  allow_origins=[
+      "http://localhost:3000",  # Docker frontend
+      "http://localhost:5173",  # Vite dev server  
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:5173",
+  ]
+  ```
+- **Learning**: Wildcard origins (`*`) cannot be used with credential-enabled CORS. Always specify exact origins when `allow_credentials=True`. Include both localhost and 127.0.0.1 variants, plus both production (Docker) and development (Vite) ports.
+
+#### 3. **Client-Side API Calls Aren't Proxied in Docker Production Build**
+- **Observation**: Vite `proxy` configuration in `vite.config.ts` only works during `npm run dev`
+- **Production Reality**: When frontend is built (`npm run build`) and served by nginx in Docker, API calls happen from the browser (client-side) directly to backend URL
+- **Implication**: CORS must be configured correctly on backend; cannot rely on proxy to avoid CORS
+- **Learning**: Vite proxy is dev-only. Production builds make direct API calls from browser to backend, requiring proper CORS configuration. Test auth flows with Docker-served frontend, not just dev server, to catch CORS issues early.
+
+#### 4. **Testing CORS with OPTIONS Preflight**
+- **Technique**: Use `curl` with OPTIONS method to test CORS preflight:
+  ```bash
+  curl -X OPTIONS http://localhost:8000/api/v1/auth/register \
+    -H "Origin: http://localhost:3000" \
+    -H "Access-Control-Request-Method: POST" -v
+  ```
+- **Expected Response Headers**:
+  - `access-control-allow-credentials: true`
+  - `access-control-allow-origin: http://localhost:3000` (exact match, not *)
+  - `access-control-allow-methods: POST, ...`
+- **Learning**: Preflight OPTIONS requests reveal CORS configuration issues before actual API calls. Use curl to verify CORS headers match client-side requirements. Check both credentials and origin headers explicitly.
+
+### Implementation Notes
+- Fixed CORS middleware in `app/main.py` to enable credentials and specify explicit origins.
+- Restarted backend container to apply configuration changes.
+- Verified CORS headers with preflight request test.
+- Registration/login now work correctly from Docker-served frontend.
+
+---
+
 ## Sprint 3 Story 2.4: Nano Status Workflow (Issue #52)
 
 ### Context
@@ -2368,3 +2423,42 @@ After implementing ESLint/Prettier and Docker Compose integration (Issue #33, PR
 2. **Environment variable testing**: Test all env-based config with non-default values to ensure loading works
 3. **Ignore pattern validation**: Check ignore patterns against actual files in repository, not assumed naming conventions
 4. **Security gap documentation**: Proactively document known security limitations in PR descriptions to set reviewer expectations
+
+---
+
+## Sprint 3 Story 8.3: Auth Pages and Token Flow (Issue #55)
+
+### Context
+Implemented frontend authentication experience for registration, login, email verification, protected-route enforcement, and axios-based automatic token refresh handling.
+
+### Key Learnings
+
+#### 1. **Auth State Works Best with Split Storage Strategy**
+- **Implementation**: Access token in memory (`authSession.ts`), refresh token in localStorage (`auth_refresh_token`), user snapshot in localStorage (`auth_user`)
+- **Why**: Keeps request authorization fast and avoids long-lived access token persistence while still enabling session bootstrap after reload
+- **Learning**: Split storage reduces risk compared to full localStorage token persistence while remaining practical when backend does not yet provide refresh-token cookie flow.
+
+#### 2. **401 Refresh + Retry Needs Explicit Loop Protection**
+- **Implementation**: Added `_retry` flag on original axios request config and skipped refresh handler for `/api/v1/auth/refresh-token`
+- **Learning**: Without retry guards, a failed refresh causes recursive interceptor loops. Always mark first retry attempt and bypass refresh endpoint from refresh logic.
+
+#### 3. **Route Guards Should Preserve Intended Navigation**
+- **Implementation**: `ProtectedRouteLayout` redirects to `/login?redirect=<original-path>`
+- **Learning**: Preserving destination removes post-login friction and aligns with expected protected-route UX. Keeping guard logic in one layout avoids duplication per route.
+
+#### 4. **Email Verification UX Needs Two Modes**
+- **Implementation**:
+  - Pending mode (`/verify-email?email=...`) for post-registration guidance + resend action
+  - Token mode (`/verify-email?token=...`) for deep-link verification with auto-redirect
+- **Learning**: Supporting both pending and deep-link verification in one page keeps flow simple while covering all user entry points.
+
+#### 5. **Testing Interceptor Retry Paths Requires Mockable Request Invocation**
+- **Issue Encountered**: `instance(originalRequest)` in interceptor made tests hit network in jsdom
+- **Fix**: Changed to `instance.request(originalRequest)` so retry path can be reliably spied/mocked
+- **Learning**: For testability in axios interceptors, prefer explicit `request` method calls over callable instance shortcuts.
+
+### Implementation Notes
+- Added auth pages (`RegisterPage`, `LoginPage`, `VerifyEmailPage`) using React Hook Form and inline validation.
+- Added `AuthProvider` context with login/logout/session-bootstrap responsibilities.
+- Replaced placeholder 401 handling with refresh-token retry behavior and unauthorized event emission.
+- Added focused tests for password strength, protected-route behavior, and interceptor refresh flow.
