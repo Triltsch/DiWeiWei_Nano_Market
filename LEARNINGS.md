@@ -1,62 +1,119 @@
 # Learnings - DiWeiWei Nano-Marktplatz Projekt
 
-## Sprint 2 Developer Documentation & Migration Workflow (Issue #29)
+## Sprint 2 Story 2.2: Nano Metadata Capture (Issue #53)
 
 ### Context
-Created comprehensive developer setup documentation (600+ lines) covering PostgreSQL, MinIO, Redis, Meilisearch setup with troubleshooting guide. Enhanced DATABASE_MIGRATIONS.md with Sprint 2 migration context. Updated README with documentation hierarchy.
+Implemented comprehensive API endpoints for Nano metadata capture and retrieval as part of Sprint 2 story planning. The requirement involved creating REST endpoints that respect draft-only metadata editing, implement comprehensive validation, and maintain proper authorization boundaries. This story established several patterns for service-layer business logic and test infrastructure that will inform future feature implementations.
 
 ### Key Learnings
 
-#### 1. **Documentation Structure Requires Clear Hierarchy**
-- **Problem**: Prior to this issue, documentation was scattered (README Quick Start, DATABASE_MIGRATIONS.md, planning docs) without clear onboarding path
-- **Solution**: Created DEVELOPER_SETUP.md as the comprehensive entry point, with README pointing to it for "full setup details"
-- **Learning**: Large projects need a documentation funnel: Quick Start (README) → Comprehensive Guide (DEVELOPER_SETUP) → Specialized Docs (feature-specific). Each level serves different audience needs: quick reference vs. deep exploration vs. troubleshooting.
+#### 1. **Service-Layer Pattern Separates Concerns Effectively**
+- **Observation**: Implementing business logic strictly in service layer (not router or model) made authorization and validation testable in isolation
+- **Pattern Used**: 
+  - Router layer handles HTTP concerns (dependency injection, status codes, response formatting)
+  - Service layer handles business logic (authorization checks, state validation, field mutations)
+  - Model layer (SQLAlchemy ORM) handles persistence only
+- **Benefit**: Both authorization failures and validation failures tested without HTTP client, using raw async calls and mocked database sessions
+- **Learning**: Clear separation of concerns yields testable code. Authorization failures (403) vs. validation failures (400) vs. not-found (404) are distinct business logic, not just HTTP status codes. Implement them in service layer where they can be unit tested independently of HTTP routing.
 
-#### 2. **Troubleshooting Docs Pay for Themselves**
-- **Observation**: 8 common setup failures documented from LEARNINGS.md (Redis connection refused, MinIO bucket not created, enum type conflicts, etc.)
-- **Value**: Each issue includes symptoms, root causes, and solutions—saving 15-30 minutes per developer encounter
-- **Learning**: Extract production issues from learnings into structured troubleshooting sections. Include command-line diagnostics (e.g., `docker compose ps`, `netstat`) so developers can self-diagnose. The more painful the setup issue was initially, the more valuable it is to document.
+#### 2. **Test Infrastructure Must Mirror Production Dependency Injection**
+- **Problem**: Initial test run returned 404 on all nanos endpoints despite implementation being correct
+- **Root Cause**: Test app fixture in `conftest.py` didn't include nanos router—only auth/audit/upload routers were registered
+- **Why it wasn't caught earlier**: Router registration happens implicitly in app initialization, so "it worked" during manual testing (app/main.py includes router), but test fixture was incomplete
+- **Solution**: Added `app.include_router(get_nanos_router())` to test app fixture in conftest.py
+- **Learning**: Test fixtures are contracts—any dependency injected in production must be present in test fixtures, or tests will have false failures. The pattern: if it's in `main.py`, it must be in `conftest.py`'s test app. Use grep to verify router registration completeness: `grep -r "include_router" app/main.py tests/conftest.py` should show consistent router lists.
 
-#### 3. **Cross-Reference Documentation for Maintenance**
-- **Pattern**: DATABASE_MIGRATIONS.md now references DEVELOPER_SETUP.md for "setup context" and vice versa for "migration mechanics"
-- **Benefit**: Avoids duplication while keeping each doc focused on its primary purpose
-- **Learning**: When adding new documentation, add bi-directional references to related docs. This creates a navigable knowledge graph instead of isolated documents. Use phrases like "See [doc] for [specific context]" rather than repeating content.
+#### 3. **Draft-Status Validation: Business Logic, Not Database Constraints**
+- **Observation**: Draft-only metadata editing is a business rule, not a database constraint
+- **Implementation choice**: 
+  - Service layer validates `if nano.status != NanoStatus.DRAFT: raise HTTPException(400, ...)`
+  - Not enforced via database trigger or unique constraint
+  - Allows other services to potentially manage published Nano metadata without triggering constraint violations
+- **Alternative considered**: Database NOT NULL constraint on metadata frozen_at timestamp when status = published
+- **Reasoning**: Business rules change; database constraints are hard to modify. Keeping validation in service layer provides flexibility
+- **Learning**: Stateful business rules (draft-only editing, published-immutable) belong in service layer, not schema constraints. This allows incremental feature evolution (future: Sprint 3 could add update broadcasts to editors when Nano publishes, without schema changes).
 
-#### 4. **Environment-Specific Configuration Needs Explicit Documentation**
-- **Problem**: `.env` settings work differently in local development (localhost) vs. Docker Compose (service names like `redis`, `postgres`)
-- **Solution**: Documented both scenarios explicitly with "Environment-Specific Configuration" section showing when to use `localhost` vs. service names
-- **Learning**: Configuration that varies by environment (local, Docker, CI, production) must be documented with explicit examples for each context. Don't assume developers will figure out service name resolution in Docker networks.
+#### 4. **Authorization Boundary: Creator-Only Access**
+- **Pattern established**: `if nano.creator_id != current_user_id: raise HTTPException(403, ...)`
+- **Not checked by**: Router layer (doesn't know about Nano ownership), middleware (too early, no context), database (no constraint)
+- **Always checked by**: Service layer before any modification
+- **Test coverage**: Both happy path (creator updates own nano) and failure path (other user gets 403) tested explicitly
+- **Learning**: Ownership-based authorization belongs in service layer where business entities are known. Middleware is too generic; routers are too shallow. Service layer knows about Nano objects and their creator fields—the right place for this check. Pattern: every service function that modifies a user-owned resource should have a `current_user_id` parameter and ownership check.
 
-#### 5. **Tests Fail Silently Without Infrastructure**
-- **Observation**: Running tests without Docker services produced Redis connection failures, but only after Redis calls (not at test start)
-- **Impact**: 8 tests failed with connection refused errors when Redis wasn't running
-- **Solution**: Documented "Test: Verified" task in DEVELOPER_SETUP.md which starts Docker before tests
-- **Learning**: Integration tests have infrastructure dependencies that aren't obvious from test names. Document the "safe" test execution path (with infrastructure checks) prominently, and explain why the raw `pytest` command can produce false failures.
+#### 5. **Field-Level Validation Must Support Partial Updates**
+- **Pattern**: MetadataUpdateRequest has all fields optional (`title: str | None = None`)
+- **Benefit**: Clients can update single fields without providing full object
+- **Tracking mechanism**: Service returns `updated_fields: list[str]` showing which fields were modified
+- **Test coverage**: Tests verify that only provided fields are updated (other fields unchanged), and updated_fields list matches actual changes
+- **Learning**: REST PATCH endpoints should support partial updates explicitly. Make all fields optional in request schema. Track which fields changed and return that in response—client knows what was modified, useful for optimistic UI updates. Pattern: `if metadata.field_name is not None: object.field_name = metadata.field_name; updated_fields.append("field_name")`
 
-#### 6. **Migration Documentation Needs Domain Context**
-- **Addition**: Added "Sprint 2 Migration Context" section to DATABASE_MIGRATIONS.md explaining:
-  - What the migration enables (ZIP upload workflow)
-  - Schema integration points (MinIO storage_key, user foreign key)
-  - Status workflow (draft → processing → published)
-- **Learning**: Migration docs shouldn't just explain Alembic commands—they should explain why migrations exist, what domain problems they solve, and how schema elements connect to feature implementation. This helps developers understand the "why" behind schema choices.
+#### 6. **Enum Mapping at Service Boundary**
+- **Challenge**: Database stores enums as Python enum objects (`CompetencyLevel.BASIC`), but API responses need strings ("beginner")
+- **Solution location**: Service layer, not router or model property
+- **Implementation**: `competency_level=competency_level.value if competency_level else None` in response schema building
+- **Why not in model**: SQLAlchemy models should represent storage format (enums as objects)
+- **Why not in Pydantic**: Pydantic is for schema validation; enum mapping is business logic
+- **Learning**: Data format transformations (database format → API format) happen at service boundaries. Create `NanoMetadataResponse` from raw Nano object with explicit enum mapping, don't have Pydantic try to guess. Pattern: service builds response objects with explicit transformations, not implicit serialization.
 
-#### 7. **Documentation Maintenance Burden**
-- **Observation**: This documentation pass required synthesizing content from 4+ existing files (README, DATABASE_MIGRATIONS, LEARNINGS, planning docs)
-- **Risk**: Documentation can become stale if not regularly updated during feature development
-- **Mitigation**: Added "Last Updated" timestamp and "Maintainer" field to DEVELOPER_SETUP.md
-- **Learning**: Large onboarding docs are high-value but high-maintenance. Add update timestamps to signal freshness. Consider periodic "docs review" tasks in sprint planning, especially after major infrastructure changes (new services, config changes, deployment shifts).
+#### 7. **Category Assignments: Many-to-Many Creates Complexity**
+- **Observation**: Categories are many-to-many via NanoCategoryAssignment junction table
+- **Update pattern challenges**:
+  - Delete old assignments: `await db.execute(delete(NanoCategoryAssignment).where(NanoCategoryAssignment.nano_id == nano_id))`
+  - Create new assignments: `await db.execute(insert(NanoCategoryAssignment).values([{nano_id: id, category_id: cid, rank: idx} for ...]))`
+  - Must not leave assignments orphaned if validation fails mid-transaction
+- **Test protection**: Tests verify old assignments deleted before new ones added, categories queryable via GET endpoint
+- **Learning**: Many-to-many updates are atomic in a single transaction, but conceptually multiple deletes/inserts. Document the pattern clearly. For future: consider if category ranking (assign `rank` during update) needs versioning (Sprint 3: audit trail of category changes). Pattern: `db.begin_nested()` for savepoints if categories are optional fields; full transaction rollback if category validation fails.
+
+#### 8. **Validation: Client-Side Limits vs. Server-Side Constraints**
+- **Pydantic schema validates**:
+  - `title`: max_length 200 (documented limit, parsed during request deserialization)
+  - `description`: max_length 2000 (same)
+  - `duration_minutes`: Field(gt=0) (must be positive)
+  - `format`: Literal["video", "text", "quiz", ...] (enum)
+  - `competency_level`: Literal["beginner", "intermediate", ...] (enum)
+  - `language`: Pattern for ISO 639-1 codes (regex match)
+- **Service layer validates**:
+  - Category IDs exist in database (FK doesn't auto-validate non-existent IDs in ORM without explicit query)
+  - At most 5 categories assigned (business rule, not schema constraint)
+- **Test coverage**: Both "valid within limits" and "invalid when exceeded" tested
+- **Learning**: Pydantic handles format validation (types, lengths, enums); service handles business logic validation (existence, relationships, limits). Layered validation provides both tight error feedback (Pydantic 422 for malformed request) and business-logic feedback (service 400 for invalid state). Pattern: Pydantic first-pass (syntax), service second-pass (semantics).
+
+#### 9. **Tests Revealed Infrastructure Dependency Ordering**
+- **Observation**: Creating test users requires user_id UUID; creating nanos requires creator_id foreign key to users table
+- **Fixture dependency graph**: `db_session` → `verified_user_id` → `nano_in_draft_status` 
+- **Initial setup**: Tests created fixtures ad-hoc; later tests failed with FK constraint violations
+- **Resolution**: Explicit fixture ordering in conftest.py (user fixture first, then nano fixture using user_id)
+- **Learning**: Database fixtures need dependency ordering to avoid FK violations. Use pytest fixture request parameter to enforce ordering: `@pytest.fixture async def nano_in_draft_status(db_session, verified_user_id)` makes dependency explicit. Pattern: fixtures should be minimal and composed; complex test data built from simpler fixtures.
+
+#### 10. **OpenAPI Documentation Reduces Support Burden**
+- **Implementation**: FastAPI auto-generates from docstrings and Pydantic schemas, but explicit examples needed for clarity
+- **Added documentation**:
+  - Business rule: "Only draft Nanos may have metadata updated. Published Nanos have immutable metadata."
+  - Error cases: 401 (auth required), 403 (not creator), 400 (not draft, validation failed), 404 (not found)
+  - Example requests/responses with sample category assignments
+- **Usage**: `/docs` endpoint shows interactive Swagger UI—clients can test endpoints directly
+- **Learning**: OpenAPI documentation from code is low-friction. Invest 5 minutes in docstring examples and error descriptions; saves hours of client integration confusion. Pattern: FastAPI docstrings should include business rules and error scenarios in addition to parameter descriptions.
 
 ### Implementation Stats
-- **Files Created**: 1 (DEVELOPER_SETUP.md, 600+ lines)
-- **Files Enhanced**: 2 (DATABASE_MIGRATIONS.md, README.md)
-- **Troubleshooting Issues Documented**: 8
-- **Test Results**: 240/241 passing (1 skipped), 89% coverage ✅
-- **Quality**: Black/isort compliant ✅
+- **Files Created**: 3 (schemas.py, service.py, router.py in app/modules/nanos/)
+- **Files Modified**: 2 (app/main.py, tests/conftest.py)
+- **Test Coverage**: 12 new tests, all passing; >80% coverage on nanos module
+- **Test Results**: 252 tests passing (including 12 new nanos tests), 1 skipped ✅
+- **Quality**: Black/isort compliant, no linting errors ✅
+- **API Endpoints**: 2 implemented (GET /{nano_id}, POST /{nano_id}/metadata)
+- **Validation Fields**: 8 (title, description, duration_minutes, competency_level, language, format, license_type, category_ids)
+- **Business Rules Enforced**: 3 (creator-only, draft-only editing, metadata immutable when published)
 
 ### Process Observations
-- **Learnings extraction value**: Harvesting troubleshooting content from LEARNINGS.md into user-facing docs increases accessibility—developers don't need to read 2000+ lines of historical learnings to find setup solutions
-- **Documentation as feature**: Comprehensive setup docs reduce onboarding time and support burden, justifying dedicated issue effort (1 PT delivered)
-- **Cross-platform considerations**: Windows-specific paths and PowerShell commands were primary, with Linux/macOS alternatives noted where different
+- **Test-driven validation discovery**: Adding missing assertions to tests revealed that short passwords can score "strong" if varied enough—validation logic working as implemented, but may need design review
+- **Infrastructure-as-contract thinking**: Test fixture incompleteness exposed as 404s; fixed by ensuring test app matches production app's dependency chain
+- **Patterns enable future consistency**: Service-layer auth checks, enum mapping, field tracking patterns established here will accelerate Story 2.4 (Publishing Workflow) implementation—create similar patterns for published Nano transitions
+
+### Design Decisions Documented
+- **Why creator_id in Nano table**: Enables ownership checks; alternative (JWT claim-based) rejected because Nano can outlive creator's login session
+- **Why NanoCategoryAssignment.rank**: Allows future sorting of categories; MVP doesn't use it, but schema supports it
+- **Why no soft-delete**: Nanos are immutable once published; can be archived/hidden but not deleted to maintain referential integrity
+- **Why draft-only editing in service, not constraint**: Business rule flexibility; published Nanos might have admin-only metadata updates in future
 
 ---
 

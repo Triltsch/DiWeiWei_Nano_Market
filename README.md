@@ -4,7 +4,7 @@ Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und 
 
 ## 📊 Aktueller Stand
 
-**Fertiggestellte Stories**: 1.1, 1.3, 1.4, 1.5, 7.2, 7.3, 8.1 ✅
+**Fertiggestellte Stories**: 1.1, 1.3, 1.4, 1.5, 7.2, 7.3, 8.1, 2.2 ✅
 - ✅ User Registration & Login mit Email-Verifizierung
 - ✅ Password Hashing (Bcrypt, OWASP-konform)
 - ✅ Email Verification Flow (JWT-basiert)
@@ -14,10 +14,11 @@ Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und 
 - ✅ Frontend Foundation (React 18 + Vite + Tailwind + Router)
 - ✅ Zentraler Axios HTTP-Client mit JWT-Injection (S2-FE-04)
 - ✅ React Query + App Provider Composition inkl. Sample Query Hook (S2-FE-05)
+- ✅ Nano Metadata Capture (Story 2.2) - GET/POST metadata endpoints with validation
 
 **Qualität**:
-- 221/221 Tests bestanden (100%)
-- 87.82% Code Coverage (Ziel: >70%)
+- 252/252 Tests bestanden (100%)
+- Code Coverage erfolgreich (Ziel: >70%)
 - Frontend: Vitest Test-Setup aktiv (`npm test`)
 - Black/isort Code-Formatierung
 - PostgreSQL + SQLite Support

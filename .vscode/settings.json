@@ -33,6 +33,8 @@
         ".\\.venv\\Scripts\\python.exe": true,
         ".venv\\Scripts\\python.exe": true,
         "npm run typecheck": true,
-        "npm install": true
+        "npm install": true,
+        "Test-Path": true,
+        "&": true
     }
 }
