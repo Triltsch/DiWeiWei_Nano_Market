@@ -2462,3 +2462,33 @@ Implemented frontend authentication experience for registration, login, email ve
 - Added `AuthProvider` context with login/logout/session-bootstrap responsibilities.
 - Replaced placeholder 401 handling with refresh-token retry behavior and unauthorized event emission.
 - Added focused tests for password strength, protected-route behavior, and interceptor refresh flow.
+
+---
+
+## Sprint 3 Story 8.3: Operational Follow-ups (Issue #55)
+
+### Context
+During end-to-end validation of the new auth flow, registration initially failed in Docker with `500` errors. Root causes were infrastructure wiring (DB host), schema initialization timing, and expected MVP behavior around verification emails.
+
+### Key Learnings
+
+#### 1. **Containerized Services Must Never Use `localhost` for Inter-Service DB Access**
+- **Problem**: `DATABASE_URL` pointed to `localhost` inside the app container.
+- **Impact**: Registration hit `ConnectionRefusedError` when auth service attempted DB queries.
+- **Fix**: Override `DATABASE_URL` in compose to use the PostgreSQL service hostname (`postgres`).
+- **Learning**: In Docker networks, `localhost` resolves to the same container, not sibling services. Always use compose service names for internal dependencies.
+
+#### 2. **Auth Flows Require Automatic Schema Bootstrap in Dev Containers**
+- **Problem**: Even with reachable DB, registration failed with `UndefinedTableError: relation "users" does not exist`.
+- **Fix**: Hooked `scripts/init_db.py` into backend container startup via entrypoint script.
+- **Learning**: Developer environments should be self-bootstrapping. If auth depends on tables existing, schema creation must run as part of container initialization—not as a manual post-step.
+
+#### 3. **Verification Email in MVP Is Token Generation, Not SMTP Delivery**
+- **Current behavior**: `/resend-verification-email` returns a generated JWT token in the API response for manual testing.
+- **Implication**: Users expecting mailbox delivery may think verification is broken.
+- **Learning**: Distinguish clearly between MVP token generation and production email delivery. UX copy and docs should explicitly state that real email transport is pending.
+
+### Implementation Notes
+- Added backend entrypoint startup flow that waits for PostgreSQL, runs DB initialization, then starts uvicorn.
+- Updated compose DB wiring so backend reliably connects to postgres container.
+- Confirmed registration succeeds end-to-end after DB connectivity + schema bootstrap fixes.
