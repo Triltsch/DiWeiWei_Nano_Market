@@ -108,8 +108,16 @@ export function VerifyEmailPage(): JSX.Element {
       <p className="text-neutral-700">Check your email for verification link.</p>
       <p className="text-sm text-neutral-600">Registered email: {email || "(not provided)"}</p>
 
-      {statusMessage && <p className="text-sm text-green-700">{statusMessage}</p>}
-      {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
+      {statusMessage && (
+        <p className="text-sm text-green-700" role="status" aria-live="polite">
+          {statusMessage}
+        </p>
+      )}
+      {errorMessage && (
+        <p className="text-sm text-red-600" role="alert">
+          {errorMessage}
+        </p>
+      )}
 
       <button
         type="button"

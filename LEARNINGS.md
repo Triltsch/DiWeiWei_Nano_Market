@@ -2552,3 +2552,20 @@ Code review revealed the project expects:
 4. Clear documentation: test files document scope and intent
 5. Explicit resource cleanup: don't rely on flags alone for side effects
 
+## Review Follow-up Insights - PR #58 Second Pass
+
+### Key Learnings
+
+#### 1. **Token Refresh Logic Needs Concurrency Control**
+- **Problem**: Multiple simultaneous `401` responses can trigger parallel refresh calls using the same refresh token.
+- **Risk**: If the backend rotates refresh tokens per use, later refresh attempts can fail and log the user out even though the first refresh succeeded.
+- **Learning**: Client auth middleware should share one in-flight refresh promise across concurrent failures. The first request performs the refresh; the rest await the same promise and retry afterward.
+
+#### 2. **Shared UI Should Stay Feature-Agnostic**
+- **Problem**: `shared/ui/AppShell.tsx` imported `useAuth` from the auth feature, reversing the intended dependency direction.
+- **Learning**: Shared layout components should receive feature-specific header content via props or generic slots. Feature layers can compose shared UI, but shared UI should not import feature hooks.
+
+#### 3. **Accessibility Fixes Need Input-to-Error Wiring, Not Just Visible Text**
+- **Problem**: Validation messages were visible but not announced by assistive technologies because inputs lacked `aria-describedby` / `aria-invalid` wiring.
+- **Learning**: Accessible forms require semantic linkage between each control and its error message. Visible error text alone does not satisfy WCAG expectations for screen reader users.
+

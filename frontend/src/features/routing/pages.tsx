@@ -1,10 +1,11 @@
 import type { PropsWithChildren } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import {
   LoginPage as LoginAuthPage,
   RegisterPage as RegisterAuthPage,
   VerifyEmailPage as VerifyEmailAuthPage,
+  useAuth,
 } from "../auth";
 import { PrivacyPage as PrivacyLegalPage, TermsPage as TermsLegalPage } from "../legal/pages";
 import { AppShell } from "../../shared/ui/AppShell";
@@ -15,7 +16,53 @@ interface PlaceholderPageProps {
 }
 
 function PageLayout({ children }: PropsWithChildren): JSX.Element {
-  return <AppShell>{children}</AppShell>;
+  const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useAuth();
+  const accountLabel =
+    typeof user?.username === "string"
+      ? user.username
+      : typeof user?.email === "string"
+        ? user.email
+        : "Account";
+
+  return (
+    <AppShell
+      headerStart={
+        <>
+          <Link to="/" className="text-primary-600 font-semibold">
+            DiWeiWei Nano Market
+          </Link>
+          <Link to="/search">Search</Link>
+          {isAuthenticated && <Link to="/dashboard">Dashboard</Link>}
+        </>
+      }
+      headerEnd={
+        isAuthenticated ? (
+          <>
+            <span>{accountLabel}</span>
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={() => {
+                void logout().then(() => {
+                  navigate("/login");
+                });
+              }}
+            >
+              Logout
+            </button>
+          </>
+        ) : (
+          <>
+            <Link to="/login">Login</Link>
+            <Link to="/register">Register</Link>
+          </>
+        )
+      }
+    >
+      {children}
+    </AppShell>
+  );
 }
 
 function PlaceholderPage({ title, description }: PlaceholderPageProps): JSX.Element {

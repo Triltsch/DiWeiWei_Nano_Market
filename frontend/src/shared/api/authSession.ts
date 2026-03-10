@@ -1,3 +1,10 @@
+/**
+ * Auth Session Storage
+ *
+ * Manages split auth session persistence for the frontend:
+ * - access tokens stay in memory to reduce persistent exposure
+ * - refresh tokens and serialized user data are stored in localStorage
+ */
 import type { AuthTokens, AuthUser } from "./types";
 
 const AUTH_REFRESH_TOKEN_KEY = "auth_refresh_token";

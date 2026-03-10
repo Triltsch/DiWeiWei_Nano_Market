@@ -6,7 +6,7 @@
  */
 
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as authApi from "./api";
 import * as authSessionModule from "../../shared/api/authSession";
@@ -18,6 +18,12 @@ vi.mock("./api");
 vi.mock("../../shared/api/authSession");
 
 describe("AuthContext", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (authSessionModule.getRefreshToken as any).mockReturnValue(null);
+    (authSessionModule.getStoredUser as any).mockReturnValue(null);
+  });
+
   /**
    * Verifies successful login flow: credentials sent to API, tokens stored,
    * and context state updated to authenticated.
@@ -51,7 +57,7 @@ describe("AuthContext", () => {
 
   /**
    * Verifies logout clears auth session and resets context.
-   * After logout, authentication state should be cleared is unauthenticated.
+    * After logout, authentication state should be cleared and context is unauthenticated.
    */
   it("logout clears session and context", async () => {
     const mockTokens: AuthTokens = {
@@ -108,6 +114,38 @@ describe("AuthContext", () => {
 
     expect(authApi.refreshToken as any).toHaveBeenCalledWith("stored-refresh-token");
     expect(result.current.isAuthenticated).toBe(true);
+  });
+
+  /**
+   * Verifies unauthorized events clear the active session immediately.
+   * When the interceptor dispatches `auth:unauthorized`, context should reset user
+   * state so the UI can redirect or prompt for re-authentication.
+   */
+  it("clears session when auth:unauthorized is dispatched", async () => {
+    const mockTokens: AuthTokens = {
+      accessToken: "new-access",
+      refreshToken: "new-refresh",
+      expiresIn: 900,
+    };
+
+    (authApi.loginUser as any).mockResolvedValue(mockTokens);
+    (authSessionModule.getRefreshToken as any).mockReturnValue(null);
+    (authSessionModule.getStoredUser as any).mockReturnValue(null);
+
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+
+    await act(async () => {
+      await result.current.login("user@example.com", "password123");
+    });
+
+    expect(result.current.isAuthenticated).toBe(true);
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+    });
+
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(result.current.user).toBeNull();
   });
 
   /**

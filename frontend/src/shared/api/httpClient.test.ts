@@ -211,4 +211,73 @@ describe("HTTP Client - Response Interceptor", () => {
 
     window.removeEventListener("auth:unauthorized", unauthorizedEventSpy);
   });
+
+  /**
+   * Verifies that concurrent 401 responses share a single refresh request.
+   * When multiple requests fail at the same time, they should await one in-flight
+   * refresh operation instead of issuing parallel refresh calls with the same token.
+   */
+  it("reuses an in-flight refresh request for concurrent 401 responses", async () => {
+    const retryResponses = [
+      { data: { ok: "first" } } as AxiosResponse<{ ok: string }>,
+      { data: { ok: "second" } } as AxiosResponse<{ ok: string }>,
+    ];
+
+    setAuthSession(
+      {
+        accessToken: "expired-access",
+        refreshToken: "shared-refresh-token",
+        expiresIn: 900,
+      },
+      { email: "tester@example.com" }
+    );
+
+    let resolveRefresh: ((value: AxiosResponse) => void) | undefined;
+    const refreshPromise = new Promise<AxiosResponse>((resolve) => {
+      resolveRefresh = resolve;
+    });
+
+    const axiosPostSpy = vi.spyOn(axios, "post").mockReturnValue(refreshPromise);
+    const instanceSpy = vi
+      .spyOn(httpClient, "request")
+      .mockResolvedValueOnce(retryResponses[0])
+      .mockResolvedValueOnce(retryResponses[1]);
+
+    const rejectedHandler = getResponseHandlers().find((handler) => handler.rejected)?.rejected;
+    if (!rejectedHandler) {
+      throw new Error("Response interceptor rejected handler missing");
+    }
+
+    const firstError = {
+      response: { status: 401 },
+      config: createRequestConfig({ url: "/api/v1/protected/one" }),
+      message: "Unauthorized",
+    } as unknown as Error;
+
+    const secondError = {
+      response: { status: 401 },
+      config: createRequestConfig({ url: "/api/v1/protected/two" }),
+      message: "Unauthorized",
+    } as unknown as Error;
+
+    const firstRetryPromise = rejectedHandler(firstError);
+    const secondRetryPromise = rejectedHandler(secondError);
+
+    expect(axiosPostSpy).toHaveBeenCalledOnce();
+
+    resolveRefresh?.({
+      data: {
+        access_token: "fresh-access",
+        refresh_token: "fresh-refresh",
+        expires_in: 900,
+      },
+    } as AxiosResponse);
+
+    const [firstResult, secondResult] = await Promise.all([firstRetryPromise, secondRetryPromise]);
+
+    expect(instanceSpy).toHaveBeenCalledTimes(2);
+    expect(getAccessToken()).toBe("fresh-access");
+    expect(firstResult).toEqual(retryResponses[0]);
+    expect(secondResult).toEqual(retryResponses[1]);
+  });
 });

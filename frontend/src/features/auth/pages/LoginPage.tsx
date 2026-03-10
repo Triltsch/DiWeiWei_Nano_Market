@@ -79,6 +79,8 @@ export function LoginPage(): JSX.Element {
             id="login-email"
             type="email"
             className="w-full border border-neutral-300 rounded-lg px-3 py-2"
+            aria-invalid={Boolean(errors.email)}
+            aria-describedby={errors.email ? "login-email-error" : undefined}
             {...register("email", {
               required: "Email is required",
               pattern: {
@@ -87,7 +89,11 @@ export function LoginPage(): JSX.Element {
               },
             })}
           />
-          {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
+          {errors.email && (
+            <p id="login-email-error" className="text-sm text-red-600">
+              {errors.email.message}
+            </p>
+          )}
         </div>
 
         <div className="space-y-1">
@@ -99,6 +105,8 @@ export function LoginPage(): JSX.Element {
               id="login-password"
               type={showPassword ? "text" : "password"}
               className="w-full border border-neutral-300 rounded-lg px-3 py-2"
+              aria-invalid={Boolean(errors.password)}
+              aria-describedby={errors.password ? "login-password-error" : undefined}
               {...register("password", {
                 required: "Password is required",
               })}
@@ -111,7 +119,11 @@ export function LoginPage(): JSX.Element {
               {showPassword ? "Hide" : "Show"}
             </button>
           </div>
-          {errors.password && <p className="text-sm text-red-600">{errors.password.message}</p>}
+          {errors.password && (
+            <p id="login-password-error" className="text-sm text-red-600">
+              {errors.password.message}
+            </p>
+          )}
         </div>
 
         <label className="flex items-center gap-2 text-sm text-neutral-700">
@@ -119,7 +131,11 @@ export function LoginPage(): JSX.Element {
           Remember my email
         </label>
 
-        {formError && <p className="text-sm text-red-600">{formError}</p>}
+        {formError && (
+          <p className="text-sm text-red-600" role="alert">
+            {formError}
+          </p>
+        )}
 
         <button type="submit" className="btn-primary w-full" disabled={!isValid || isSubmitting}>
           {isSubmitting ? "Signing in..." : "Sign in"}

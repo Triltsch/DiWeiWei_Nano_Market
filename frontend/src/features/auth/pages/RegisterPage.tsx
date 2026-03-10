@@ -77,6 +77,8 @@ export function RegisterPage(): JSX.Element {
             id="register-email"
             type="email"
             className="w-full border border-neutral-300 rounded-lg px-3 py-2"
+            aria-invalid={Boolean(errors.email)}
+            aria-describedby={errors.email ? "register-email-error" : undefined}
             {...register("email", {
               required: "Email is required",
               pattern: {
@@ -85,7 +87,11 @@ export function RegisterPage(): JSX.Element {
               },
             })}
           />
-          {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
+          {errors.email && (
+            <p id="register-email-error" className="text-sm text-red-600">
+              {errors.email.message}
+            </p>
+          )}
         </div>
 
         <div className="space-y-1">
@@ -96,6 +102,8 @@ export function RegisterPage(): JSX.Element {
             id="register-username"
             type="text"
             className="w-full border border-neutral-300 rounded-lg px-3 py-2"
+            aria-invalid={Boolean(errors.username)}
+            aria-describedby={errors.username ? "register-username-error" : undefined}
             {...register("username", {
               required: "Username is required",
               minLength: { value: 3, message: "Username must be at least 3 characters" },
@@ -106,7 +114,11 @@ export function RegisterPage(): JSX.Element {
               },
             })}
           />
-          {errors.username && <p className="text-sm text-red-600">{errors.username.message}</p>}
+          {errors.username && (
+            <p id="register-username-error" className="text-sm text-red-600">
+              {errors.username.message}
+            </p>
+          )}
         </div>
 
         <div className="space-y-1">
@@ -118,6 +130,8 @@ export function RegisterPage(): JSX.Element {
               id="register-password"
               type={showPassword ? "text" : "password"}
               className="w-full border border-neutral-300 rounded-lg px-3 py-2"
+              aria-invalid={Boolean(errors.password)}
+              aria-describedby={errors.password ? "register-password-error" : undefined}
               {...register("password", {
                 required: "Password is required",
                 validate: (value) =>
@@ -137,7 +151,11 @@ export function RegisterPage(): JSX.Element {
           <p className="text-sm text-neutral-600">
             Strength: <span className="font-semibold capitalize">{passwordStrength.label}</span>
           </p>
-          {errors.password && <p className="text-sm text-red-600">{errors.password.message}</p>}
+          {errors.password && (
+            <p id="register-password-error" className="text-sm text-red-600">
+              {errors.password.message}
+            </p>
+          )}
         </div>
 
         <div className="space-y-1">
@@ -149,6 +167,10 @@ export function RegisterPage(): JSX.Element {
               id="register-confirm-password"
               type={showConfirmPassword ? "text" : "password"}
               className="w-full border border-neutral-300 rounded-lg px-3 py-2"
+              aria-invalid={Boolean(errors.confirmPassword)}
+              aria-describedby={
+                errors.confirmPassword ? "register-confirm-password-error" : undefined
+              }
               {...register("confirmPassword", {
                 required: "Please confirm your password",
                 validate: (value) => value === password || "Passwords do not match",
@@ -163,7 +185,9 @@ export function RegisterPage(): JSX.Element {
             </button>
           </div>
           {errors.confirmPassword && (
-            <p className="text-sm text-red-600">{errors.confirmPassword.message}</p>
+            <p id="register-confirm-password-error" className="text-sm text-red-600">
+              {errors.confirmPassword.message}
+            </p>
           )}
         </div>
 
@@ -180,6 +204,8 @@ export function RegisterPage(): JSX.Element {
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
+              aria-invalid={Boolean(errors.acceptTerms)}
+              aria-describedby={errors.acceptTerms ? "register-terms-error" : undefined}
               {...register("acceptTerms", {
                 validate: (value) => value || "You must accept the Terms of Service",
               })}
@@ -189,11 +215,17 @@ export function RegisterPage(): JSX.Element {
               Terms of Service
             </a>
           </label>
-          {errors.acceptTerms && <p className="text-sm text-red-600">{errors.acceptTerms.message}</p>}
+          {errors.acceptTerms && (
+            <p id="register-terms-error" className="text-sm text-red-600">
+              {errors.acceptTerms.message}
+            </p>
+          )}
 
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
+              aria-invalid={Boolean(errors.acceptPrivacy)}
+              aria-describedby={errors.acceptPrivacy ? "register-privacy-error" : undefined}
               {...register("acceptPrivacy", {
                 validate: (value) => value || "You must accept the Privacy Policy",
               })}
@@ -204,11 +236,17 @@ export function RegisterPage(): JSX.Element {
             </a>
           </label>
           {errors.acceptPrivacy && (
-            <p className="text-sm text-red-600">{errors.acceptPrivacy.message}</p>
+            <p id="register-privacy-error" className="text-sm text-red-600">
+              {errors.acceptPrivacy.message}
+            </p>
           )}
         </div>
 
-        {formError && <p className="text-sm text-red-600">{formError}</p>}
+        {formError && (
+          <p className="text-sm text-red-600" role="alert">
+            {formError}
+          </p>
+        )}
 
         <button type="submit" className="btn-primary w-full" disabled={!isValid || isSubmitting}>
           {isSubmitting ? "Creating account..." : "Create account"}

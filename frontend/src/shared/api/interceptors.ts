@@ -27,6 +27,8 @@ type RetriableRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
 };
 
+let inFlightRefreshPromise: Promise<TokenRefreshResponse> | null = null;
+
 function setAuthorizationHeader(config: InternalAxiosRequestConfig, token: string): void {
   if (!config.headers) {
     config.headers = new AxiosHeaders();
@@ -43,6 +45,32 @@ function setAuthorizationHeader(config: InternalAxiosRequestConfig, token: strin
 function handleUnauthorized(): void {
   clearAuthSession();
   window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+}
+
+function refreshAccessToken(
+  instance: AxiosInstance,
+  refreshTokenValue: string
+): Promise<TokenRefreshResponse> {
+  if (!inFlightRefreshPromise) {
+    inFlightRefreshPromise = axios
+      .post<TokenRefreshResponse>(
+        `${instance.defaults.baseURL}/api/v1/auth/refresh-token`,
+        { refresh_token: refreshTokenValue },
+        {
+          timeout: instance.defaults.timeout,
+          withCredentials: true,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      )
+      .then((response) => response.data)
+      .finally(() => {
+        inFlightRefreshPromise = null;
+      });
+  }
+
+  return inFlightRefreshPromise;
 }
 
 export function setupRequestInterceptor(instance: AxiosInstance): void {
@@ -93,25 +121,15 @@ export function setupResponseInterceptor(instance: AxiosInstance): void {
         originalRequest._retry = true;
 
         try {
-          const response = await axios.post<TokenRefreshResponse>(
-            `${instance.defaults.baseURL}/api/v1/auth/refresh-token`,
-            { refresh_token: storedRefreshToken },
-            {
-              timeout: instance.defaults.timeout,
-              withCredentials: true,
-              headers: {
-                "Content-Type": "application/json",
-              },
-            }
-          );
+          const refreshedTokens = await refreshAccessToken(instance, storedRefreshToken);
 
           updateAuthTokens({
-            accessToken: response.data.access_token,
-            refreshToken: response.data.refresh_token,
-            expiresIn: response.data.expires_in,
+            accessToken: refreshedTokens.access_token,
+            refreshToken: refreshedTokens.refresh_token,
+            expiresIn: refreshedTokens.expires_in,
           });
 
-          setAuthorizationHeader(originalRequest, response.data.access_token);
+          setAuthorizationHeader(originalRequest, refreshedTokens.access_token);
           return instance.request(originalRequest);
         } catch (refreshError) {
           handleUnauthorized();
