@@ -2492,3 +2492,63 @@ During end-to-end validation of the new auth flow, registration initially failed
 - Added backend entrypoint startup flow that waits for PostgreSQL, runs DB initialization, then starts uvicorn.
 - Updated compose DB wiring so backend reliably connects to postgres container.
 - Confirmed registration succeeds end-to-end after DB connectivity + schema bootstrap fixes.
+
+## Code Review Insights - PR #58 Copilot Review
+
+### Context
+After initial implementation of auth pages and token flow in PR #58, Copilot code review generated 10 actionable suggestions covering security, architecture, testing, and code quality. Implementation of these suggestions revealed important patterns for production-ready code.
+
+### Key Learnings
+
+#### 1. **Open Redirect Attacks Must Be Validated in Frontend Routes**
+- **Vulnerability**: LoginPage.tsx accepted redirect query parameter without validation
+- **Attack Pattern**: Malicious link like /login?redirect=https://evil.com redirects authenticated users to external site
+- **React Router Limitation**: navigate() doesn't automatically prevent protocol-relative URLs (//evil.com)
+- **Fix Applied**: Validate that redirect targets are local paths before calling navigate()
+- **Learning**: Frontend route parameters are user-controlled. Always validate redirect targets before navigation.
+
+#### 2. **Environment-Specific Configuration Must Be Runtime-Selectable**
+- **Problem**: CORS origins hardcoded to development URLs; deployment to production would fail
+- **Fix Applied**: Load from CORS_ORIGINS environment variable, with dev defaults as fallback
+- **Learning**: Hardcoded URLs in middleware break multi-environment deployments. Always externalize domain/host configuration via env vars.
+
+#### 3. **Dependency Direction Violations Create Circular Import Risks**
+- **Issue**: Shared layer imported from feature layer, violating layering principles
+- **Fix Applied**: Moved AuthTokens and AuthUser types to shared/api/types.ts, making types generic-friendly
+- **Learning**: Shared code must not depend on features. Keep shared types generic; let consumers narrow them.
+
+#### 4. **Shell Script set -e Can Create Dead Code Paths**
+- **Anti-pattern**: Using set -e with conditional if statements creates unreachable else branches
+- **Fix Applied**: Use set +e / set -e pairs to handle expected failures gracefully
+- **Learning**: When intent is "try but don't fail on error", explicitly disable/enable set -e around the command.
+
+#### 5. **Variable Names Must Not Shadow Function Names**
+- **Anti-pattern**: Function parameter named same as function (e.g., refreshToken parameter in refreshToken function)
+- **Risk**: Accidental recursive call becomes ambiguous; IDE autocomplete breaks
+- **Fix Applied**: Rename parameter to refreshTokenValue to match adjacent naming convention
+- **Learning**: Establish naming convention for parameters that avoid shadowing. Check for shadowing in code review.
+
+#### 6. **Test Files Require Both File-Level and Per-Test Documentation**
+- **Project Convention**: Each test file must have JSDoc header + per-test descriptive comments
+- **Purpose**: Explains what subset of code is under test and test intent at a glance
+- **Learning**: Test documentation is maintenance insurance. Enforce in code review; tools cannot generate meaningful docs.
+
+#### 7. **Complex Component Logic Needs Test Coverage Beyond UI Rendering**
+- **Issue**: AuthContext manages critical flows (login, logout, session bootstrap) but had no test file
+- **Risk**: Refactoring or debugging async flows is error-prone without behavioral tests
+- **Learning**: Components using useCallback, useEffect, async state management require behavioral tests beyond rendering tests.
+
+#### 8. **Cleanup Functions Must Clear All Resources in useEffect**
+- **Anti-pattern**: Using active flag but not clearing setTimeout callbacks
+- **Problem**: setTimeout callback can fire after unmount, causing memory leaks
+- **Fix Applied**: Store timeout ID and clearTimeout() in cleanup, plus guard with active flag
+- **Learning**: Cleanup functions must clearTimeout() and clearInterval() explicitly. Don't rely on flags alone.
+
+### Implementation Pattern Established
+Code review revealed the project expects:
+1. Security-first mindset: validate all user input, externalize config
+2. Clean architecture: proper layering, no circular deps
+3. Comprehensive testing: cover async flows and error paths
+4. Clear documentation: test files document scope and intent
+5. Explicit resource cleanup: don't rely on flags alone for side effects
+
