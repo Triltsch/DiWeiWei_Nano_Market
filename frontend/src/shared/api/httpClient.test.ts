@@ -1,40 +1,37 @@
 /**
  * HTTP Client Tests
  *
- * Tests for the centralized Axios HTTP client configuration,
- * environment loading, and interceptor functionality.
+ * Tests for centralized Axios configuration and auth interceptor behavior.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { AxiosHeaders } from "axios";
+import axios, { AxiosHeaders } from "axios";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AxiosResponse, InternalAxiosRequestConfig } from "axios";
 
-import { httpClient } from "./httpClient";
 import { API_CONFIG } from "./config";
+import { setAuthSession, clearAuthSession, getAccessToken } from "./authSession";
+import { httpClient } from "./httpClient";
 
-function createRequestConfig(): InternalAxiosRequestConfig {
+function createRequestConfig(
+  config: Partial<InternalAxiosRequestConfig> = {}
+): InternalAxiosRequestConfig {
   return {
     headers: new AxiosHeaders(),
+    url: "/api/v1/test",
+    method: "get",
+    ...config,
   } as InternalAxiosRequestConfig;
 }
 
 function getRequestHandlers() {
   const handlers = httpClient.interceptors.request.handlers;
-  expect(handlers).toBeDefined();
   expect(handlers?.length).toBeGreaterThan(0);
-  if (!handlers) {
-    throw new Error("Request handlers not defined");
-  }
   return handlers as NonNullable<typeof handlers>;
 }
 
 function getResponseHandlers() {
   const handlers = httpClient.interceptors.response.handlers;
-  expect(handlers).toBeDefined();
   expect(handlers?.length).toBeGreaterThan(0);
-  if (!handlers) {
-    throw new Error("Response handlers not defined");
-  }
   return handlers as NonNullable<typeof handlers>;
 }
 
@@ -44,9 +41,7 @@ function runRequestInterceptors(
   let config = initialConfig;
 
   for (const handler of getRequestHandlers()) {
-    if (!handler.fulfilled) {
-      continue;
-    }
+    if (!handler.fulfilled) continue;
 
     const next = handler.fulfilled(config);
     if (next instanceof Promise) {
@@ -61,169 +56,228 @@ function runRequestInterceptors(
 
 describe("HTTP Client - API Configuration", () => {
   /**
-   * Verify API_CONFIG loads environment variables correctly
-   * Tests base URL and request timeout configuration
+   * Verifies that API configuration constants are properly defined.
+   * Ensures BASE_URL, REQUEST_TIMEOUT, and VERSION are available and valid.
    */
-  it("should load API_CONFIG from environment variables", () => {
+  it("loads API config", () => {
     expect(API_CONFIG.BASE_URL).toBeDefined();
     expect(API_CONFIG.REQUEST_TIMEOUT).toBeGreaterThan(0);
     expect(API_CONFIG.VERSION).toBe("v1");
   });
 
   /**
-   * Verify httpClient is properly configured with API_CONFIG
+   * Verifies that httpClient is configured with required defaults.
+   * Checks that baseURL, timeout, and withCredentials settings are correctly applied.
    */
-  it("should create httpClient with correct baseURL", () => {
+  it("creates httpClient with expected defaults", () => {
     expect(httpClient.defaults.baseURL).toBe(API_CONFIG.BASE_URL);
     expect(httpClient.defaults.timeout).toBe(API_CONFIG.REQUEST_TIMEOUT);
-  });
-
-  /**
-   * Verify default headers are set
-   */
-  it("should have correct default headers", () => {
-    // In axios, default headers set during create are stored but may not be
-    // directly accessible in defaults.headers.common. Instead, verify through
-    // a real request that Content-Type would be set correctly.
-    // The important part is that baseURL and timeout are configured correctly,
-    // which are tested in the previous test.
-    expect(httpClient.defaults.baseURL).toBe(API_CONFIG.BASE_URL);
-    expect(httpClient.defaults.timeout).toBe(API_CONFIG.REQUEST_TIMEOUT);
+    expect(httpClient.defaults.withCredentials).toBe(true);
   });
 });
 
-describe("HTTP Client - Request Interceptor (Token Injection)", () => {
+describe("HTTP Client - Request Interceptor", () => {
   beforeEach(() => {
-    // Clear localStorage before each test
-    localStorage.clear();
+    clearAuthSession();
   });
 
   afterEach(() => {
-    // Clean up after tests
-    localStorage.clear();
+    clearAuthSession();
   });
 
   /**
-   * Verify token is injected into Authorization header when present
+   * Verifies that the request interceptor injects the access token from auth session.
+   * When a valid access token exists, it should be added as Authorization: Bearer <token>.
    */
-  it("should inject access token into Authorization header", () => {
-    const mockToken = "test-access-token-12345";
-    const tokenStorage = { accessToken: mockToken };
+  it("injects access token into Authorization header", () => {
+    setAuthSession(
+      {
+        accessToken: "access-token-1",
+        refreshToken: "refresh-token-1",
+        expiresIn: 900,
+      },
+      { email: "tester@example.com" }
+    );
 
-    // Store token in localStorage
-    localStorage.setItem("auth_tokens", JSON.stringify(tokenStorage));
-
-    const testConfig = createRequestConfig();
-    const capturedConfig = runRequestInterceptors(testConfig);
-
-    // Verify the token was injected into Authorization header
-    expect(capturedConfig.headers.Authorization).toBe(`Bearer ${mockToken}`);
+    const config = runRequestInterceptors(createRequestConfig());
+    expect(config.headers.Authorization).toBe("Bearer access-token-1");
   });
 
   /**
-   * Verify request proceeds without token when localStorage is empty
+   * Verifies that the request interceptor gracefully handles missing access token.
+   * When no token is available in auth session, Authorization header should not be set.
    */
-  it("should allow requests without stored token", () => {
-    // localStorage is empty (cleared in beforeEach)
-    expect(localStorage.getItem("auth_tokens")).toBeNull();
-
-    // Request should proceed normally
-    const testConfig = createRequestConfig();
-    const configAfterInterceptor = runRequestInterceptors(testConfig);
-
-    // Config should be unchanged (no Authorization header added)
-    expect(configAfterInterceptor.headers.Authorization).toBeUndefined();
-  });
-
-  /**
-   * Verify corrupted token storage doesn't break requests
-   */
-  it("should handle corrupted localStorage gracefully", () => {
-    // Store invalid JSON
-    localStorage.setItem("auth_tokens", "invalid-json-{");
-
-    const testConfig = createRequestConfig();
-    const configAfterInterceptor = runRequestInterceptors(testConfig);
-
-    // Request should still proceed
-    expect(configAfterInterceptor).toBeDefined();
+  it("does not inject Authorization when access token missing", () => {
+    const config = runRequestInterceptors(createRequestConfig());
+    expect(config.headers.Authorization).toBeUndefined();
   });
 });
 
-describe("HTTP Client - Response Interceptor (Error Handling)", () => {
+describe("HTTP Client - Response Interceptor", () => {
   beforeEach(() => {
-    localStorage.clear();
+    clearAuthSession();
   });
 
   afterEach(() => {
-    localStorage.clear();
+    clearAuthSession();
+    vi.restoreAllMocks();
   });
 
   /**
-   * Verify 401 response clears tokens from localStorage
-   * Placeholder test for Sprint 3 token refresh implementation
+   * Verifies 401 response handler refreshes token and retries the original request.
+   * When a request fails with 401, the response interceptor should:
+   * 1. Call the refresh token endpoint
+   * 2. Update stored tokens with fresh ones
+   * 3. Retry the original request with the new access token
+   * 4. Return the successful retry response
    */
-  it("should clear tokens on 401 Unauthorized response", async () => {
-    const mockToken = "test-token";
-    localStorage.setItem("auth_tokens", JSON.stringify({ accessToken: mockToken }));
+  it("refreshes and retries request after 401", async () => {
+    const retryResponse = { data: { ok: true } } as AxiosResponse<{ ok: boolean }>;
 
-    expect(localStorage.getItem("auth_tokens")).not.toBeNull();
+    setAuthSession(
+      {
+        accessToken: "expired-access",
+        refreshToken: "refresh-token-1",
+        expiresIn: 900,
+      },
+      { email: "tester@example.com" }
+    );
 
-    // Mock 401 response
-    const error = new Error("Unauthorized") as Error & { response?: { status: number } };
-    error.response = { status: 401 };
+    const axiosPostSpy = vi.spyOn(axios, "post").mockResolvedValue({
+      data: {
+        access_token: "fresh-access",
+        refresh_token: "fresh-refresh",
+        expires_in: 900,
+      },
+    } as AxiosResponse);
 
-    // When response interceptor handles 401, it should reject and clear tokens
-    let tokenCleared = false;
-    const handlers = getResponseHandlers();
+    const instanceSpy = vi.spyOn(httpClient, "request").mockResolvedValue(retryResponse);
 
-    for (const handler of handlers) {
-      if (handler.rejected) {
-        // Ensure the interceptor rejects as expected
-        await expect(handler.rejected(error)).rejects.toBeInstanceOf(Error);
-        // After the interceptor runs, tokens should be cleared
-        tokenCleared = localStorage.getItem("auth_tokens") === null;
-      }
+    const rejectedHandler = getResponseHandlers().find((handler) => handler.rejected)?.rejected;
+    if (!rejectedHandler) {
+      throw new Error("Response interceptor rejected handler missing");
     }
 
-    expect(tokenCleared).toBe(true);
+    const error = {
+      response: { status: 401 },
+      config: createRequestConfig({ url: "/api/v1/protected" }),
+      message: "Unauthorized",
+    } as unknown as Error;
+
+    const result = await rejectedHandler(error);
+
+    expect(axiosPostSpy).toHaveBeenCalledOnce();
+    expect(instanceSpy).toHaveBeenCalledOnce();
+    expect(getAccessToken()).toBe("fresh-access");
+    expect(result).toEqual(retryResponse);
   });
 
   /**
-   * Verify successful responses are passed through
+   * Verifies error handling when token refresh fails.
+   * When refresh endpoint returns an error, the response interceptor should:
+   * 1. Clear the auth session (tokens and user)
+   * 2. Dispatch auth:unauthorized event to notify listeners
+   * 3. Reject the promise to propagate the error
    */
-  it("should pass through successful responses", () => {
-    const mockResponse: AxiosResponse<{ success: boolean }> = {
-      status: 200,
-      data: { success: true },
-      statusText: "OK",
-      headers: {},
-      config: createRequestConfig(),
-    };
+  it("clears session when refresh fails", async () => {
+    const unauthorizedEventSpy = vi.fn();
+    window.addEventListener("auth:unauthorized", unauthorizedEventSpy);
 
-    let result: AxiosResponse<{ success: boolean }> | null = null;
-    for (const handler of getResponseHandlers()) {
-      if (handler.fulfilled) {
-        const response = handler.fulfilled(mockResponse);
-        if (response instanceof Promise) {
-          throw new Error("Response interceptor unexpectedly returned a Promise");
-        }
-        result = response;
-      }
+    setAuthSession(
+      {
+        accessToken: "expired-access",
+        refreshToken: "refresh-token-1",
+        expiresIn: 900,
+      },
+      { email: "tester@example.com" }
+    );
+
+    vi.spyOn(axios, "post").mockRejectedValue(new Error("refresh failed"));
+
+    const rejectedHandler = getResponseHandlers().find((handler) => handler.rejected)?.rejected;
+    if (!rejectedHandler) {
+      throw new Error("Response interceptor rejected handler missing");
     }
 
-    expect(result).toEqual(mockResponse);
-  });
-});
+    const error = {
+      response: { status: 401 },
+      config: createRequestConfig({ url: "/api/v1/protected" }),
+      message: "Unauthorized",
+    } as unknown as Error;
 
-describe("HTTP Client - Development Logging", () => {
+    await expect(rejectedHandler(error)).rejects.toBeInstanceOf(Error);
+    expect(getAccessToken()).toBeNull();
+    expect(unauthorizedEventSpy).toHaveBeenCalled();
+
+    window.removeEventListener("auth:unauthorized", unauthorizedEventSpy);
+  });
+
   /**
-   * Verify logging is available in development mode
-   * Actual logging is optional and controlled by environment
+   * Verifies that concurrent 401 responses share a single refresh request.
+   * When multiple requests fail at the same time, they should await one in-flight
+   * refresh operation instead of issuing parallel refresh calls with the same token.
    */
-  it("should have logging configured for debugging", () => {
-    // In development (import.meta.env.DEV), console logs are emitted
-    // This test verifies the feature exists but doesn't test console output
-    expect(httpClient).toBeDefined();
+  it("reuses an in-flight refresh request for concurrent 401 responses", async () => {
+    const retryResponses = [
+      { data: { ok: "first" } } as AxiosResponse<{ ok: string }>,
+      { data: { ok: "second" } } as AxiosResponse<{ ok: string }>,
+    ];
+
+    setAuthSession(
+      {
+        accessToken: "expired-access",
+        refreshToken: "shared-refresh-token",
+        expiresIn: 900,
+      },
+      { email: "tester@example.com" }
+    );
+
+    let resolveRefresh: ((value: AxiosResponse) => void) | undefined;
+    const refreshPromise = new Promise<AxiosResponse>((resolve) => {
+      resolveRefresh = resolve;
+    });
+
+    const axiosPostSpy = vi.spyOn(axios, "post").mockReturnValue(refreshPromise);
+    const instanceSpy = vi
+      .spyOn(httpClient, "request")
+      .mockResolvedValueOnce(retryResponses[0])
+      .mockResolvedValueOnce(retryResponses[1]);
+
+    const rejectedHandler = getResponseHandlers().find((handler) => handler.rejected)?.rejected;
+    if (!rejectedHandler) {
+      throw new Error("Response interceptor rejected handler missing");
+    }
+
+    const firstError = {
+      response: { status: 401 },
+      config: createRequestConfig({ url: "/api/v1/protected/one" }),
+      message: "Unauthorized",
+    } as unknown as Error;
+
+    const secondError = {
+      response: { status: 401 },
+      config: createRequestConfig({ url: "/api/v1/protected/two" }),
+      message: "Unauthorized",
+    } as unknown as Error;
+
+    const firstRetryPromise = rejectedHandler(firstError);
+    const secondRetryPromise = rejectedHandler(secondError);
+
+    expect(axiosPostSpy).toHaveBeenCalledOnce();
+
+    resolveRefresh?.({
+      data: {
+        access_token: "fresh-access",
+        refresh_token: "fresh-refresh",
+        expires_in: 900,
+      },
+    } as AxiosResponse);
+
+    const [firstResult, secondResult] = await Promise.all([firstRetryPromise, secondRetryPromise]);
+
+    expect(instanceSpy).toHaveBeenCalledTimes(2);
+    expect(getAccessToken()).toBe("fresh-access");
+    expect(firstResult).toEqual(retryResponses[0]);
+    expect(secondResult).toEqual(retryResponses[1]);
   });
 });

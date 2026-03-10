@@ -36,6 +36,7 @@ function createHttpClient() {
   const instance = axios.create({
     baseURL: API_CONFIG.BASE_URL,
     timeout: API_CONFIG.REQUEST_TIMEOUT,
+    withCredentials: true,
     headers: {
       "Content-Type": "application/json",
     },

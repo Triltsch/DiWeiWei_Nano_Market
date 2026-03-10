@@ -1,5 +1,60 @@
 # Learnings - DiWeiWei Nano-Marktplatz Projekt
 
+## Sprint 3 Story 8.3: CORS Configuration Fix (Issue #55 Follow-up)
+
+### Context
+After implementing the auth pages in issue #55, discovered that registration requests were failing with "Connection error" in the browser. The frontend was built and served correctly through Docker nginx, but API requests from the browser to the backend were being blocked by CORS policy.
+
+### Key Learnings
+
+#### 1. **CORS Credentials Mismatch Causes Silent Failures**
+- **Problem**: Frontend configured with `withCredentials: true` but backend had `allow_credentials=False` in CORS middleware
+- **Symptom**: Browser blocked requests with CORS error: "The value of the 'Access-Control-Allow-Credentials' header in the response is '' which must be 'true' when the request's credentials mode is 'include'"
+- **Root Cause**: Axios `withCredentials: true` tells browser to send credentials (cookies, auth headers), but backend CORS policy denied it
+- **Solution**: Changed backend CORS to `allow_credentials=True`
+- **Learning**: CORS credentials must match on both ends. If frontend sends `withCredentials: true`, backend must respond with `allow_credentials=True`. Mismatched configuration causes silent failures that appear as "connection errors" to users.
+
+#### 2. **Wildcard Origins Incompatible with Credentials**
+- **Problem**: Backend CORS had `allow_origins=["*"]` with `allow_credentials=True`
+- **CORS Spec Requirement**: When `allow_credentials=True`, CORS requires explicit origins - wildcards are forbidden by browsers
+- **Solution**: Replaced wildcard with explicit origin list:
+  ```python
+  allow_origins=[
+      "http://localhost:3000",  # Docker frontend
+      "http://localhost:5173",  # Vite dev server  
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:5173",
+  ]
+  ```
+- **Learning**: Wildcard origins (`*`) cannot be used with credential-enabled CORS. Always specify exact origins when `allow_credentials=True`. Include both localhost and 127.0.0.1 variants, plus both production (Docker) and development (Vite) ports.
+
+#### 3. **Client-Side API Calls Aren't Proxied in Docker Production Build**
+- **Observation**: Vite `proxy` configuration in `vite.config.ts` only works during `npm run dev`
+- **Production Reality**: When frontend is built (`npm run build`) and served by nginx in Docker, API calls happen from the browser (client-side) directly to backend URL
+- **Implication**: CORS must be configured correctly on backend; cannot rely on proxy to avoid CORS
+- **Learning**: Vite proxy is dev-only. Production builds make direct API calls from browser to backend, requiring proper CORS configuration. Test auth flows with Docker-served frontend, not just dev server, to catch CORS issues early.
+
+#### 4. **Testing CORS with OPTIONS Preflight**
+- **Technique**: Use `curl` with OPTIONS method to test CORS preflight:
+  ```bash
+  curl -X OPTIONS http://localhost:8000/api/v1/auth/register \
+    -H "Origin: http://localhost:3000" \
+    -H "Access-Control-Request-Method: POST" -v
+  ```
+- **Expected Response Headers**:
+  - `access-control-allow-credentials: true`
+  - `access-control-allow-origin: http://localhost:3000` (exact match, not *)
+  - `access-control-allow-methods: POST, ...`
+- **Learning**: Preflight OPTIONS requests reveal CORS configuration issues before actual API calls. Use curl to verify CORS headers match client-side requirements. Check both credentials and origin headers explicitly.
+
+### Implementation Notes
+- Fixed CORS middleware in `app/main.py` to enable credentials and specify explicit origins.
+- Restarted backend container to apply configuration changes.
+- Verified CORS headers with preflight request test.
+- Registration/login now work correctly from Docker-served frontend.
+
+---
+
 ## Sprint 3 Story 2.4: Nano Status Workflow (Issue #52)
 
 ### Context
@@ -2368,3 +2423,149 @@ After implementing ESLint/Prettier and Docker Compose integration (Issue #33, PR
 2. **Environment variable testing**: Test all env-based config with non-default values to ensure loading works
 3. **Ignore pattern validation**: Check ignore patterns against actual files in repository, not assumed naming conventions
 4. **Security gap documentation**: Proactively document known security limitations in PR descriptions to set reviewer expectations
+
+---
+
+## Sprint 3 Story 8.3: Auth Pages and Token Flow (Issue #55)
+
+### Context
+Implemented frontend authentication experience for registration, login, email verification, protected-route enforcement, and axios-based automatic token refresh handling.
+
+### Key Learnings
+
+#### 1. **Auth State Works Best with Split Storage Strategy**
+- **Implementation**: Access token in memory (`authSession.ts`), refresh token in localStorage (`auth_refresh_token`), user snapshot in localStorage (`auth_user`)
+- **Why**: Keeps request authorization fast and avoids long-lived access token persistence while still enabling session bootstrap after reload
+- **Learning**: Split storage reduces risk compared to full localStorage token persistence while remaining practical when backend does not yet provide refresh-token cookie flow.
+
+#### 2. **401 Refresh + Retry Needs Explicit Loop Protection**
+- **Implementation**: Added `_retry` flag on original axios request config and skipped refresh handler for `/api/v1/auth/refresh-token`
+- **Learning**: Without retry guards, a failed refresh causes recursive interceptor loops. Always mark first retry attempt and bypass refresh endpoint from refresh logic.
+
+#### 3. **Route Guards Should Preserve Intended Navigation**
+- **Implementation**: `ProtectedRouteLayout` redirects to `/login?redirect=<original-path>`
+- **Learning**: Preserving destination removes post-login friction and aligns with expected protected-route UX. Keeping guard logic in one layout avoids duplication per route.
+
+#### 4. **Email Verification UX Needs Two Modes**
+- **Implementation**:
+  - Pending mode (`/verify-email?email=...`) for post-registration guidance + resend action
+  - Token mode (`/verify-email?token=...`) for deep-link verification with auto-redirect
+- **Learning**: Supporting both pending and deep-link verification in one page keeps flow simple while covering all user entry points.
+
+#### 5. **Testing Interceptor Retry Paths Requires Mockable Request Invocation**
+- **Issue Encountered**: `instance(originalRequest)` in interceptor made tests hit network in jsdom
+- **Fix**: Changed to `instance.request(originalRequest)` so retry path can be reliably spied/mocked
+- **Learning**: For testability in axios interceptors, prefer explicit `request` method calls over callable instance shortcuts.
+
+### Implementation Notes
+- Added auth pages (`RegisterPage`, `LoginPage`, `VerifyEmailPage`) using React Hook Form and inline validation.
+- Added `AuthProvider` context with login/logout/session-bootstrap responsibilities.
+- Replaced placeholder 401 handling with refresh-token retry behavior and unauthorized event emission.
+- Added focused tests for password strength, protected-route behavior, and interceptor refresh flow.
+
+---
+
+## Sprint 3 Story 8.3: Operational Follow-ups (Issue #55)
+
+### Context
+During end-to-end validation of the new auth flow, registration initially failed in Docker with `500` errors. Root causes were infrastructure wiring (DB host), schema initialization timing, and expected MVP behavior around verification emails.
+
+### Key Learnings
+
+#### 1. **Containerized Services Must Never Use `localhost` for Inter-Service DB Access**
+- **Problem**: `DATABASE_URL` pointed to `localhost` inside the app container.
+- **Impact**: Registration hit `ConnectionRefusedError` when auth service attempted DB queries.
+- **Fix**: Override `DATABASE_URL` in compose to use the PostgreSQL service hostname (`postgres`).
+- **Learning**: In Docker networks, `localhost` resolves to the same container, not sibling services. Always use compose service names for internal dependencies.
+
+#### 2. **Auth Flows Require Automatic Schema Bootstrap in Dev Containers**
+- **Problem**: Even with reachable DB, registration failed with `UndefinedTableError: relation "users" does not exist`.
+- **Fix**: Hooked `scripts/init_db.py` into backend container startup via entrypoint script.
+- **Learning**: Developer environments should be self-bootstrapping. If auth depends on tables existing, schema creation must run as part of container initialization—not as a manual post-step.
+
+#### 3. **Verification Email in MVP Is Token Generation, Not SMTP Delivery**
+- **Current behavior**: `/resend-verification-email` returns a generated JWT token in the API response for manual testing.
+- **Implication**: Users expecting mailbox delivery may think verification is broken.
+- **Learning**: Distinguish clearly between MVP token generation and production email delivery. UX copy and docs should explicitly state that real email transport is pending.
+
+### Implementation Notes
+- Added backend entrypoint startup flow that waits for PostgreSQL, runs DB initialization, then starts uvicorn.
+- Updated compose DB wiring so backend reliably connects to postgres container.
+- Confirmed registration succeeds end-to-end after DB connectivity + schema bootstrap fixes.
+
+## Code Review Insights - PR #58 Copilot Review
+
+### Context
+After initial implementation of auth pages and token flow in PR #58, Copilot code review generated 10 actionable suggestions covering security, architecture, testing, and code quality. Implementation of these suggestions revealed important patterns for production-ready code.
+
+### Key Learnings
+
+#### 1. **Open Redirect Attacks Must Be Validated in Frontend Routes**
+- **Vulnerability**: LoginPage.tsx accepted redirect query parameter without validation
+- **Attack Pattern**: Malicious link like /login?redirect=https://evil.com redirects authenticated users to external site
+- **React Router Limitation**: navigate() doesn't automatically prevent protocol-relative URLs (//evil.com)
+- **Fix Applied**: Validate that redirect targets are local paths before calling navigate()
+- **Learning**: Frontend route parameters are user-controlled. Always validate redirect targets before navigation.
+
+#### 2. **Environment-Specific Configuration Must Be Runtime-Selectable**
+- **Problem**: CORS origins hardcoded to development URLs; deployment to production would fail
+- **Fix Applied**: Load from CORS_ORIGINS environment variable, with dev defaults as fallback
+- **Learning**: Hardcoded URLs in middleware break multi-environment deployments. Always externalize domain/host configuration via env vars.
+
+#### 3. **Dependency Direction Violations Create Circular Import Risks**
+- **Issue**: Shared layer imported from feature layer, violating layering principles
+- **Fix Applied**: Moved AuthTokens and AuthUser types to shared/api/types.ts, making types generic-friendly
+- **Learning**: Shared code must not depend on features. Keep shared types generic; let consumers narrow them.
+
+#### 4. **Shell Script set -e Can Create Dead Code Paths**
+- **Anti-pattern**: Using set -e with conditional if statements creates unreachable else branches
+- **Fix Applied**: Use set +e / set -e pairs to handle expected failures gracefully
+- **Learning**: When intent is "try but don't fail on error", explicitly disable/enable set -e around the command.
+
+#### 5. **Variable Names Must Not Shadow Function Names**
+- **Anti-pattern**: Function parameter named same as function (e.g., refreshToken parameter in refreshToken function)
+- **Risk**: Accidental recursive call becomes ambiguous; IDE autocomplete breaks
+- **Fix Applied**: Rename parameter to refreshTokenValue to match adjacent naming convention
+- **Learning**: Establish naming convention for parameters that avoid shadowing. Check for shadowing in code review.
+
+#### 6. **Test Files Require Both File-Level and Per-Test Documentation**
+- **Project Convention**: Each test file must have JSDoc header + per-test descriptive comments
+- **Purpose**: Explains what subset of code is under test and test intent at a glance
+- **Learning**: Test documentation is maintenance insurance. Enforce in code review; tools cannot generate meaningful docs.
+
+#### 7. **Complex Component Logic Needs Test Coverage Beyond UI Rendering**
+- **Issue**: AuthContext manages critical flows (login, logout, session bootstrap) but had no test file
+- **Risk**: Refactoring or debugging async flows is error-prone without behavioral tests
+- **Learning**: Components using useCallback, useEffect, async state management require behavioral tests beyond rendering tests.
+
+#### 8. **Cleanup Functions Must Clear All Resources in useEffect**
+- **Anti-pattern**: Using active flag but not clearing setTimeout callbacks
+- **Problem**: setTimeout callback can fire after unmount, causing memory leaks
+- **Fix Applied**: Store timeout ID and clearTimeout() in cleanup, plus guard with active flag
+- **Learning**: Cleanup functions must clearTimeout() and clearInterval() explicitly. Don't rely on flags alone.
+
+### Implementation Pattern Established
+Code review revealed the project expects:
+1. Security-first mindset: validate all user input, externalize config
+2. Clean architecture: proper layering, no circular deps
+3. Comprehensive testing: cover async flows and error paths
+4. Clear documentation: test files document scope and intent
+5. Explicit resource cleanup: don't rely on flags alone for side effects
+
+## Review Follow-up Insights - PR #58 Second Pass
+
+### Key Learnings
+
+#### 1. **Token Refresh Logic Needs Concurrency Control**
+- **Problem**: Multiple simultaneous `401` responses can trigger parallel refresh calls using the same refresh token.
+- **Risk**: If the backend rotates refresh tokens per use, later refresh attempts can fail and log the user out even though the first refresh succeeded.
+- **Learning**: Client auth middleware should share one in-flight refresh promise across concurrent failures. The first request performs the refresh; the rest await the same promise and retry afterward.
+
+#### 2. **Shared UI Should Stay Feature-Agnostic**
+- **Problem**: `shared/ui/AppShell.tsx` imported `useAuth` from the auth feature, reversing the intended dependency direction.
+- **Learning**: Shared layout components should receive feature-specific header content via props or generic slots. Feature layers can compose shared UI, but shared UI should not import feature hooks.
+
+#### 3. **Accessibility Fixes Need Input-to-Error Wiring, Not Just Visible Text**
+- **Problem**: Validation messages were visible but not announced by assistive technologies because inputs lacked `aria-describedby` / `aria-invalid` wiring.
+- **Learning**: Accessible forms require semantic linkage between each control and its error message. Visible error text alone does not satisfy WCAG expectations for screen reader users.
+

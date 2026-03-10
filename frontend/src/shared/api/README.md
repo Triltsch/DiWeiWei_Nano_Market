@@ -8,7 +8,7 @@ The HTTP client provides:
 
 - Environment-based configuration (base URL, timeout)
 - Automatic JWT token injection in request headers
-- Error handling with placeholder for token refresh (Sprint 3)
+- Automatic access-token refresh and request retry on `401`
 - Request/response logging in development mode
 
 ## Files
@@ -58,26 +58,12 @@ async function fetchUserProfile() {
 import { httpClient } from "../shared/api";
 
 async function login(email: string, password: string) {
-  try {
-    const response = await httpClient.post("/api/v1/auth/login", {
-      email,
-      password,
-    });
+  const response = await httpClient.post("/api/v1/auth/login", {
+    email,
+    password,
+  });
 
-    // Store tokens
-    localStorage.setItem(
-      "auth_tokens",
-      JSON.stringify({
-        accessToken: response.data.access_token,
-        refreshToken: response.data.refresh_token,
-        expiresIn: response.data.expires_in,
-      })
-    );
-
-    return response.data;
-  } catch (error) {
-    console.error("Login failed:", error);
-  }
+  return response.data;
 }
 ```
 
@@ -143,38 +129,26 @@ async function fetchData() {
 
 ### Token Storage
 
-Access and refresh tokens are stored in localStorage:
-
-```json
-{
-  "accessToken": "eyJ...",
-  "refreshToken": "eyJ...",
-  "expiresIn": 900
-}
-```
-
-Storage key: `auth_tokens`
+- Access token is held in memory (`authSession.ts`) and injected into requests.
+- Refresh token is stored under localStorage key `auth_refresh_token` for session bootstrap.
+- User identity for UI state is stored under `auth_user`.
 
 ### Request Interceptor
 
-1. Checks localStorage for stored tokens
-2. If access token exists, adds it to Authorization header: `Bearer <token>`
-3. Passes request to backend
+1. Reads in-memory access token from `authSession`.
+2. Injects `Authorization: Bearer <token>` when available.
+3. Passes request to backend.
 
-### Response Interceptor (Sprint 3 TODO)
+### Response Interceptor
 
-1. On 401 response:
-   - Gets refresh token from localStorage
-   - Calls POST /api/v1/auth/refresh-token
-   - Updates access token in localStorage
-   - Retries original request with new token
-2. On other errors:
-   - Passes error through for app-specific handling
-
-Current Status: Placeholder for Sprint 3
-
-- 401 responses clear tokens and dispatch auth:unauthorized event
-- App should listen for this event and redirect to login
+1. On `401` (non-refresh requests):
+   - Reads refresh token from `authSession`
+   - Calls `POST /api/v1/auth/refresh-token`
+   - Updates in-memory access token + stored refresh token
+   - Retries the original request once
+2. If refresh fails:
+   - Clears auth session
+   - Dispatches `auth:unauthorized` event
 
 ## Logging
 
@@ -202,8 +176,8 @@ All endpoints are at `/api/v1/{endpoint}`:
 - `POST /api/v1/auth/login` - Login with email/password
 - `POST /api/v1/auth/logout` - Logout
 - `POST /api/v1/auth/refresh-token` - Refresh access token
-- `GET /api/v1/auth/me` - Get current user profile
 - `POST /api/v1/auth/verify-email` - Verify email with token
+- `POST /api/v1/auth/resend-verification-email` - Resend verification token
 
 ### Uploads
 

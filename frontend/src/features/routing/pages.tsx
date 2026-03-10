@@ -1,6 +1,13 @@
 import type { PropsWithChildren } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
+import {
+  LoginPage as LoginAuthPage,
+  RegisterPage as RegisterAuthPage,
+  VerifyEmailPage as VerifyEmailAuthPage,
+  useAuth,
+} from "../auth";
+import { PrivacyPage as PrivacyLegalPage, TermsPage as TermsLegalPage } from "../legal/pages";
 import { AppShell } from "../../shared/ui/AppShell";
 
 interface PlaceholderPageProps {
@@ -9,7 +16,53 @@ interface PlaceholderPageProps {
 }
 
 function PageLayout({ children }: PropsWithChildren): JSX.Element {
-  return <AppShell>{children}</AppShell>;
+  const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useAuth();
+  const accountLabel =
+    typeof user?.username === "string"
+      ? user.username
+      : typeof user?.email === "string"
+        ? user.email
+        : "Account";
+
+  return (
+    <AppShell
+      headerStart={
+        <>
+          <Link to="/" className="text-primary-600 font-semibold">
+            DiWeiWei Nano Market
+          </Link>
+          <Link to="/search">Search</Link>
+          {isAuthenticated && <Link to="/dashboard">Dashboard</Link>}
+        </>
+      }
+      headerEnd={
+        isAuthenticated ? (
+          <>
+            <span>{accountLabel}</span>
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={() => {
+                void logout().then(() => {
+                  navigate("/login");
+                });
+              }}
+            >
+              Logout
+            </button>
+          </>
+        ) : (
+          <>
+            <Link to="/login">Login</Link>
+            <Link to="/register">Register</Link>
+          </>
+        )
+      }
+    >
+      {children}
+    </AppShell>
+  );
 }
 
 function PlaceholderPage({ title, description }: PlaceholderPageProps): JSX.Element {
@@ -45,6 +98,9 @@ export function HomePage(): JSX.Element {
             </li>
             <li>
               <Link to="/register">/register</Link>
+            </li>
+            <li>
+              <Link to="/verify-email">/verify-email</Link>
             </li>
             <li>
               <Link to="/dashboard">/dashboard</Link>
@@ -84,15 +140,26 @@ export function NanoDetailsPage(): JSX.Element {
 }
 
 export function LoginPage(): JSX.Element {
-  return <PlaceholderPage title="Login" description="Authentication login placeholder route." />;
+  return (
+    <PageLayout>
+      <LoginAuthPage />
+    </PageLayout>
+  );
 }
 
 export function RegisterPage(): JSX.Element {
   return (
-    <PlaceholderPage
-      title="Register"
-      description="Authentication registration placeholder route."
-    />
+    <PageLayout>
+      <RegisterAuthPage />
+    </PageLayout>
+  );
+}
+
+export function VerifyEmailPage(): JSX.Element {
+  return (
+    <PageLayout>
+      <VerifyEmailAuthPage />
+    </PageLayout>
   );
 }
 
@@ -106,6 +173,22 @@ export function ProfilePage(): JSX.Element {
 
 export function AdminPage(): JSX.Element {
   return <PlaceholderPage title="Admin" description="Protected admin placeholder route." />;
+}
+
+export function TermsPage(): JSX.Element {
+  return (
+    <PageLayout>
+      <TermsLegalPage />
+    </PageLayout>
+  );
+}
+
+export function PrivacyPage(): JSX.Element {
+  return (
+    <PageLayout>
+      <PrivacyLegalPage />
+    </PageLayout>
+  );
 }
 
 export function NotFoundPage(): JSX.Element {

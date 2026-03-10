@@ -21,7 +21,8 @@ npm run lint       # Run ESLint checks on src/
 npm run lint:fix   # Auto-fix ESLint issues
 npm run format     # Format code with Prettier
 npm test           # Run Vitest in watch mode
-npm test -- --run  # Run tests once and exit
+npm run test -- --run
+npx vitest run     # Run tests once and exit
 ```
 
 ## Development Proxy
@@ -78,25 +79,24 @@ The `Dockerfile.frontend` uses multi-stage build:
 
 ## Routing Baseline
 
-React Router v6 skeleton is wired in `src/app/router.tsx` with placeholder pages for:
+React Router v6 routes are wired in `src/app/router.tsx` with implemented auth flow:
 
-- `/`
+- `/` home placeholder
 - `/search`
 - `/nano/:id`
-- `/login`
-- `/register`
-- `/dashboard`
-- `/profile`
-- `/admin`
+- `/register` registration form (React Hook Form + client validation)
+- `/login` login form with remember-email support
+- `/verify-email` verification pending + token auto-verification flow
+- `/dashboard`, `/profile`, `/admin` protected via `ProtectedRouteLayout`
 
 Unknown routes are handled via wildcard fallback (`*`).
 
-Protected-route structure is scaffolded through `ProtectedRouteLayout` so Sprint 3 can
-add auth guards without reorganizing route definitions.
+`ProtectedRouteLayout` redirects unauthenticated users to `/login?redirect=<target>`.
 
 ## HTTP Client & Queries
 
-- **Axios**: Centralized HTTP client with request/response interceptors for token injection and error handling
+- **Axios**: Centralized HTTP client with request interceptors, automatic refresh token flow on 401, and retry handling
+- **Auth State**: React Context (`features/auth/AuthContext.tsx`) manages login/logout/session bootstrap
 - **React Query**: TanStack Query v5 with custom `useUserProfile` hook (sample implementation)
 - See `src/shared/api/README.md` for HTTP client and API integration details
 

@@ -30,9 +30,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy Python dependencies from builder
 COPY --from=builder /root/.local /root/.local
 
-# Copy application code
+# Copy application code and scripts
 COPY app/ /app/app/
+COPY scripts/ /app/scripts/
 COPY pyproject.toml /app/
+
+# Make entrypoint script executable
+RUN chmod +x /app/scripts/docker-entrypoint.sh
 
 # Set PATH to use local Python packages
 ENV PATH=/root/.local/bin:$PATH
@@ -44,5 +48,5 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
 # Expose port
 EXPOSE 8000
 
-# Run FastAPI application with uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Use entrypoint script to initialize DB and start app
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
