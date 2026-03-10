@@ -21,6 +21,7 @@ export function VerifyEmailPage(): JSX.Element {
     }
 
     let active = true;
+    let timeoutId: NodeJS.Timeout | null = null;
 
     const verify = async (): Promise<void> => {
       setIsSubmitting(true);
@@ -35,8 +36,10 @@ export function VerifyEmailPage(): JSX.Element {
         }
 
         setStatusMessage("Email verified! Redirecting to login...");
-        setTimeout(() => {
-          navigate("/login");
+        timeoutId = setTimeout(() => {
+          if (active) {
+            navigate("/login");
+          }
         }, 2000);
       } catch {
         if (!active) {
@@ -54,6 +57,9 @@ export function VerifyEmailPage(): JSX.Element {
 
     return () => {
       active = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [verificationToken, navigate]);
 

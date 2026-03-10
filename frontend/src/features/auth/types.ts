@@ -1,13 +1,5 @@
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-}
-
-export interface AuthUser {
-  email: string;
-  username?: string;
-}
+// Re-export core types from shared to avoid circular dependencies
+export type { AuthTokens, AuthUser } from "../../shared/api/types";
 
 export interface RegisterPayload {
   email: string;

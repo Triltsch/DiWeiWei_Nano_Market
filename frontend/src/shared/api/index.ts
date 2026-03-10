@@ -20,3 +20,4 @@ export {
   setAuthSession,
   updateAuthTokens,
 } from "./authSession";
+export type { AuthTokens, AuthUser } from "./types";

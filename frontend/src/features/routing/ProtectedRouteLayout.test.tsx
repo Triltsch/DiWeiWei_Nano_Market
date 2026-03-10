@@ -1,3 +1,11 @@
+/**
+ * Protected Route Layout Tests
+ *
+ * Tests for the ProtectedRouteLayout component that guards routes based on authentication state.
+ * Verifies that protected routes are accessible to authenticated users and redirect
+ * unauthenticated users to the login page.
+ */
+
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
@@ -21,6 +29,10 @@ function renderWithAuth(value: AuthContextValue, initialPath = "/dashboard"): vo
 }
 
 describe("ProtectedRouteLayout", () => {
+  /**
+   * Verifies that protected routes render their content when user is authenticated.
+   * When isAuthenticated=true, the child route (dashboard) should be rendered.
+   */
   it("renders protected content when authenticated", () => {
     renderWithAuth({
       isLoading: false,
@@ -33,6 +45,11 @@ describe("ProtectedRouteLayout", () => {
     expect(screen.getByText("Dashboard page")).toBeTruthy();
   });
 
+  /**
+   * Verifies that unauthenticated users are redirected to the login page.
+   * When isAuthenticated=false, attempting to access a protected route should
+   * redirect to the login page instead of rendering the protected content.
+   */
   it("redirects to login when unauthenticated", () => {
     renderWithAuth({
       isLoading: false,

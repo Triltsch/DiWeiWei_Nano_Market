@@ -1,4 +1,4 @@
-import type { AuthTokens, AuthUser } from "../../features/auth/types";
+import type { AuthTokens, AuthUser } from "./types";
 
 const AUTH_REFRESH_TOKEN_KEY = "auth_refresh_token";
 const AUTH_USER_KEY = "auth_user";

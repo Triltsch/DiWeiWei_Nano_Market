@@ -70,14 +70,14 @@ export async function loginUser(payload: LoginPayload): Promise<AuthTokens> {
   }
 }
 
-export async function refreshToken(refreshToken: string): Promise<AuthTokens> {
+export async function refreshToken(refreshTokenValue: string): Promise<AuthTokens> {
   try {
     const response = await httpClient.post<{
       access_token: string;
       refresh_token: string;
       expires_in: number;
     }>("/api/v1/auth/refresh-token", {
-      refresh_token: refreshToken,
+      refresh_token: refreshTokenValue,
     });
 
     return {

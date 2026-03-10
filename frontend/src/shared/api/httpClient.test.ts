@@ -55,12 +55,20 @@ function runRequestInterceptors(
 }
 
 describe("HTTP Client - API Configuration", () => {
+  /**
+   * Verifies that API configuration constants are properly defined.
+   * Ensures BASE_URL, REQUEST_TIMEOUT, and VERSION are available and valid.
+   */
   it("loads API config", () => {
     expect(API_CONFIG.BASE_URL).toBeDefined();
     expect(API_CONFIG.REQUEST_TIMEOUT).toBeGreaterThan(0);
     expect(API_CONFIG.VERSION).toBe("v1");
   });
 
+  /**
+   * Verifies that httpClient is configured with required defaults.
+   * Checks that baseURL, timeout, and withCredentials settings are correctly applied.
+   */
   it("creates httpClient with expected defaults", () => {
     expect(httpClient.defaults.baseURL).toBe(API_CONFIG.BASE_URL);
     expect(httpClient.defaults.timeout).toBe(API_CONFIG.REQUEST_TIMEOUT);
@@ -77,6 +85,10 @@ describe("HTTP Client - Request Interceptor", () => {
     clearAuthSession();
   });
 
+  /**
+   * Verifies that the request interceptor injects the access token from auth session.
+   * When a valid access token exists, it should be added as Authorization: Bearer <token>.
+   */
   it("injects access token into Authorization header", () => {
     setAuthSession(
       {
@@ -91,6 +103,10 @@ describe("HTTP Client - Request Interceptor", () => {
     expect(config.headers.Authorization).toBe("Bearer access-token-1");
   });
 
+  /**
+   * Verifies that the request interceptor gracefully handles missing access token.
+   * When no token is available in auth session, Authorization header should not be set.
+   */
   it("does not inject Authorization when access token missing", () => {
     const config = runRequestInterceptors(createRequestConfig());
     expect(config.headers.Authorization).toBeUndefined();
@@ -107,6 +123,14 @@ describe("HTTP Client - Response Interceptor", () => {
     vi.restoreAllMocks();
   });
 
+  /**
+   * Verifies 401 response handler refreshes token and retries the original request.
+   * When a request fails with 401, the response interceptor should:
+   * 1. Call the refresh token endpoint
+   * 2. Update stored tokens with fresh ones
+   * 3. Retry the original request with the new access token
+   * 4. Return the successful retry response
+   */
   it("refreshes and retries request after 401", async () => {
     const retryResponse = { data: { ok: true } } as AxiosResponse<{ ok: boolean }>;
 
@@ -148,6 +172,13 @@ describe("HTTP Client - Response Interceptor", () => {
     expect(result).toEqual(retryResponse);
   });
 
+  /**
+   * Verifies error handling when token refresh fails.
+   * When refresh endpoint returns an error, the response interceptor should:
+   * 1. Clear the auth session (tokens and user)
+   * 2. Dispatch auth:unauthorized event to notify listeners
+   * 3. Reject the promise to propagate the error
+   */
   it("clears session when refresh fails", async () => {
     const unauthorizedEventSpy = vi.fn();
     window.addEventListener("auth:unauthorized", unauthorizedEventSpy);

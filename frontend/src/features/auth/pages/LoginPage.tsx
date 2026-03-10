@@ -34,7 +34,17 @@ export function LoginPage(): JSX.Element {
     },
   });
 
-  const redirectTarget = searchParams.get("redirect") ?? "/dashboard";
+  /**
+   * Validates redirect target to prevent open redirect attacks.
+   * - Must start with `/` (local path)
+   * - Cannot start with `//` (protocol-relative URL)
+   */
+  function isValidRedirect(url: string): boolean {
+    return url.startsWith("/") && !url.startsWith("//");
+  }
+
+  const rawRedirect = searchParams.get("redirect") ?? "/dashboard";
+  const redirectTarget = isValidRedirect(rawRedirect) ? rawRedirect : "/dashboard";
 
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);

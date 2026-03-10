@@ -27,7 +27,7 @@ export function AppShell({ children }: PropsWithChildren): JSX.Element {
         <div className="flex items-center gap-3 text-sm text-neutral-700">
           {isAuthenticated ? (
             <>
-              <span>{user?.username ?? user?.email}</span>
+              <span>{(user?.username as string | undefined) ?? (user?.email as string)}</span>
               <button
                 type="button"
                 className="btn-outline"

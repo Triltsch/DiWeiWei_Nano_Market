@@ -1,5 +1,6 @@
 """FastAPI application factory"""
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -34,15 +35,23 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Add CORS middleware
+    # Add CORS middleware with configurable origins for production deployment
+    default_cors_origins = [
+        "http://localhost:3000",  # Docker frontend
+        "http://localhost:5173",  # Vite dev server
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
+    # Load from CORS_ORIGINS environment variable if set (comma-separated)
+    cors_origins_env = os.getenv("CORS_ORIGINS")
+    if cors_origins_env:
+        cors_origins = [origin.strip() for origin in cors_origins_env.split(",")]
+    else:
+        cors_origins = default_cors_origins
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",  # Docker frontend
-            "http://localhost:5173",  # Vite dev server
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1:5173",
-        ],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

@@ -17,9 +17,12 @@ echo "✅ PostgreSQL is up!"
 
 # Initialize database tables if they don't exist
 echo "🔧 Initializing database schema..."
+set +e  # Temporarily disable exit-on-error to handle init_db failure gracefully
 python /app/scripts/init_db.py
+INIT_STATUS=$?
+set -e  # Re-enable exit-on-error
 
-if [ $? -eq 0 ]; then
+if [ $INIT_STATUS -eq 0 ]; then
   echo "✅ Database initialized successfully!"
 else
   echo "⚠️  Database initialization had issues, but continuing..."
