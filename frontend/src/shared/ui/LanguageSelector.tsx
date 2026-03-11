@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { type ChangeEvent, useCallback, useState } from "react";
 
 /**
  * LanguageSelector Component
@@ -14,7 +14,7 @@ import { useCallback, useState } from "react";
 export function LanguageSelector(): JSX.Element {
   const [language, setLanguage] = useState<string>("de");
 
-  const handleLanguageChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleLanguageChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {
     setLanguage(e.target.value);
     // TODO: Implement language switching logic (i18n integration)
     // This is a placeholder for Story 8.X (future multi-language support)

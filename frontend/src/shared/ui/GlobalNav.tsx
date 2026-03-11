@@ -78,13 +78,24 @@ export function GlobalNav(): JSX.Element {
         <div className="hidden md:flex items-center gap-6">
           {/* Main nav items */}
           <div className="flex items-center gap-2">
-            <Link
-              to="/search"
-              className={navLinkClass("/search")}
-              aria-current={isActive("/search") ? "page" : undefined}
-            >
-              Search
-            </Link>
+            {isAuthenticated ? (
+              <Link
+                to="/search"
+                className={navLinkClass("/search")}
+                aria-current={isActive("/search") ? "page" : undefined}
+              >
+                Search
+              </Link>
+            ) : (
+              <button
+                type="button"
+                className={`${navLinkClass("/search")} cursor-not-allowed opacity-60`}
+                aria-disabled="true"
+                disabled
+              >
+                Search
+              </button>
+            )}
             {isAuthenticated && (
               <>
                 <Link
@@ -134,7 +145,8 @@ export function GlobalNav(): JSX.Element {
                 </Link>
                 <Link
                   to="/register"
-                  className="px-3 py-2 rounded-md text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+                  className={navLinkClass("/register")}
+                  aria-current={isActive("/register") ? "page" : undefined}
                 >
                   Register
                 </Link>
@@ -191,14 +203,25 @@ export function GlobalNav(): JSX.Element {
           aria-label="Mobile navigation"
         >
           <div className="container-main py-4 space-y-2">
-            <Link
-              to="/search"
-              className={navLinkClass("/search")}
-              onClick={() => setMobileMenuOpen(false)}
-              aria-current={isActive("/search") ? "page" : undefined}
-            >
-              Search
-            </Link>
+            {isAuthenticated ? (
+              <Link
+                to="/search"
+                className={navLinkClass("/search")}
+                onClick={() => setMobileMenuOpen(false)}
+                aria-current={isActive("/search") ? "page" : undefined}
+              >
+                Search
+              </Link>
+            ) : (
+              <button
+                type="button"
+                className={`${navLinkClass("/search")} w-full text-left cursor-not-allowed opacity-60`}
+                aria-disabled="true"
+                disabled
+              >
+                Search
+              </button>
+            )}
             {isAuthenticated && (
               <>
                 <Link
@@ -246,8 +269,9 @@ export function GlobalNav(): JSX.Element {
                   </Link>
                   <Link
                     to="/register"
-                    className="block px-3 py-2 rounded-md text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+                    className={navLinkClass("/register")}
                     onClick={() => setMobileMenuOpen(false)}
+                    aria-current={isActive("/register") ? "page" : undefined}
                   >
                     Register
                   </Link>

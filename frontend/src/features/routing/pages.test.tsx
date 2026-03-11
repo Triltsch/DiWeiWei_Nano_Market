@@ -22,6 +22,10 @@ function renderHomeWithAuth(authValue: AuthContextValue): void {
 }
 
 describe("HomePage", () => {
+  /**
+   * Verifies that the shared brand asset is rendered in the page and remains
+   * available from the expected public path.
+   */
   it("renders the logo image in navigation", () => {
     renderHomeWithAuth({
       isLoading: false,
@@ -36,6 +40,10 @@ describe("HomePage", () => {
     expect(logoImages[0].getAttribute("src")).toBe("/logo.png");
   });
 
+  /**
+   * Verifies that the brand link in the header remains the canonical entry
+   * point back to the home route.
+   */
   it("links the header logo to the home route", () => {
     renderHomeWithAuth({
       isLoading: false,
@@ -49,6 +57,10 @@ describe("HomePage", () => {
     expect(logoLink.getAttribute("href")).toBe("/");
   });
 
+  /**
+   * Verifies that unauthenticated visitors are offered the expected auth entry
+   * points in navigation and that search is rendered disabled.
+   */
   it("displays Login and Register for unauthenticated users", () => {
     renderHomeWithAuth({
       isLoading: false,
@@ -58,12 +70,18 @@ describe("HomePage", () => {
       logout: async () => Promise.resolve(),
     });
 
+    const searchButtons = screen.getAllByRole("button", { name: "Search" });
     const loginLink = screen.getByRole("link", { name: "Login" });
     const registerLinks = screen.getAllByRole("link", { name: "Register" });
+    expect(searchButtons[0].getAttribute("aria-disabled")).toBe("true");
     expect(loginLink).toBeTruthy();
     expect(registerLinks.length).toBeGreaterThanOrEqual(1);
   });
 
+  /**
+   * Verifies that authenticated users see the protected navigation targets and
+   * logout action in the header.
+   */
   it("displays Dashboard, Profile, and Logout for authenticated users", () => {
     renderHomeWithAuth({
       isLoading: false,
@@ -81,6 +99,10 @@ describe("HomePage", () => {
     expect(logoutButton).toBeTruthy();
   });
 
+  /**
+   * Verifies that the landing page hero presents the key value proposition and
+   * primary calls to action.
+   */
   it("displays value proposition and CTA buttons", () => {
     renderHomeWithAuth({
       isLoading: false,
@@ -99,6 +121,10 @@ describe("HomePage", () => {
     expect(discoverCta).toBeTruthy();
   });
 
+  /**
+   * Verifies that the mobile menu control is exposed with the required ARIA
+   * state for accessibility.
+   */
   it("provides accessible mobile menu button", () => {
     renderHomeWithAuth({
       isLoading: false,
@@ -114,6 +140,10 @@ describe("HomePage", () => {
     expect(menuButton?.getAttribute("aria-expanded")).toBe("false");
   });
 
+  /**
+   * Verifies that the language selector placeholder is visible and defaults to
+   * German.
+   */
   it("displays language selector", () => {
     renderHomeWithAuth({
       isLoading: false,
@@ -127,9 +157,13 @@ describe("HomePage", () => {
       name: /select language/i,
     });
     expect(languageSelects.length).toBeGreaterThanOrEqual(1);
-    expect(languageSelects[0].getAttribute("value")).toBe("de");
+    expect((languageSelects[0] as HTMLSelectElement).value).toBe("de");
   });
 
+  /**
+   * Verifies that the feature-card section renders the three marketed value
+   * propositions for the landing page.
+   */
   it("displays feature cards section", () => {
     renderHomeWithAuth({
       isLoading: false,
@@ -151,6 +185,10 @@ describe("HomePage", () => {
     expect(schnellerZugriff).toBeTruthy();
   });
 
+  /**
+   * Verifies that the creator-focused secondary call to action is present and
+   * actionable.
+   */
   it("displays creator CTA section", () => {
     renderHomeWithAuth({
       isLoading: false,
@@ -169,6 +207,10 @@ describe("HomePage", () => {
     expect(creatorCTA).toBeTruthy();
   });
 
+  /**
+   * Verifies that the legal footer navigation is present for terms and privacy
+   * discovery.
+   */
   it("displays footer links", () => {
     renderHomeWithAuth({
       isLoading: false,
