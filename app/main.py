@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from app.config import get_settings
 from app.modules.audit.router import get_audit_router
@@ -69,13 +70,10 @@ def create_app() -> FastAPI:
         return {"status": "ok", "version": settings.APP_VERSION}
 
     @app.get("/")
-    async def root() -> dict:
-        """Root endpoint"""
-        return {
-            "name": settings.APP_NAME,
-            "version": settings.APP_VERSION,
-            "docs": "/docs",
-        }
+    async def root() -> RedirectResponse:
+        """Redirect root to frontend landing page"""
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        return RedirectResponse(url=frontend_url, status_code=307)
 
     return app
 

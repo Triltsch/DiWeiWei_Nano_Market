@@ -113,6 +113,7 @@ services:
       # Override for Docker Compose (use service names, not localhost)
       DATABASE_URL: "postgresql://${POSTGRES_USER:-diwei_user}:${POSTGRES_PASSWORD:-diwei_password}@postgres:5432/${POSTGRES_DB:-diwei_nano_market}"
       REDIS_URL: "redis://redis:6379/0"
+      FRONTEND_URL: "http://localhost:3000"
       REDIS_HOST: "redis"
       REDIS_PORT: "6379"
       # Pass PostgreSQL credentials for entrypoint script

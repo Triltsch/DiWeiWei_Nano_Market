@@ -35,8 +35,9 @@ COPY app/ /app/app/
 COPY scripts/ /app/scripts/
 COPY pyproject.toml /app/
 
-# Make entrypoint script executable
-RUN chmod +x /app/scripts/docker-entrypoint.sh
+# Normalize line endings and make entrypoint script executable
+RUN sed -i 's/\r$//' /app/scripts/docker-entrypoint.sh \
+    && chmod +x /app/scripts/docker-entrypoint.sh
 
 # Set PATH to use local Python packages
 ENV PATH=/root/.local/bin:$PATH
