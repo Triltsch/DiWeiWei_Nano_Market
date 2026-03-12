@@ -4,7 +4,7 @@
  * functionality for both authenticated and unauthenticated users.
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
@@ -137,6 +137,34 @@ describe("HomePage", () => {
     const buttons = screen.getAllByRole("button");
     const menuButton = buttons.find((btn) => btn.getAttribute("aria-label")?.includes("menu"));
     expect(menuButton).toBeTruthy();
+    expect(menuButton?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  /**
+   * Verifies that clicking the logo/home link while the mobile menu is open
+   * closes the menu. This prevents the UI from getting stuck in an open-menu
+   * state after navigating home.
+   */
+  it("closes the mobile menu when the logo home link is clicked", () => {
+    renderHomeWithAuth({
+      isLoading: false,
+      isAuthenticated: false,
+      user: null,
+      login: async () => Promise.resolve(),
+      logout: async () => Promise.resolve(),
+    });
+
+    // Open the mobile menu via the hamburger button
+    const menuButton = screen
+      .getAllByRole("button")
+      .find((btn) => btn.getAttribute("aria-label")?.includes("menu"));
+    expect(menuButton).toBeTruthy();
+    fireEvent.click(menuButton!);
+    expect(menuButton?.getAttribute("aria-expanded")).toBe("true");
+
+    // Click the logo home link – this should close the menu
+    const logoLink = screen.getByRole("link", { name: "DiWeiWei Nano Market Home" });
+    fireEvent.click(logoLink);
     expect(menuButton?.getAttribute("aria-expanded")).toBe("false");
   });
 

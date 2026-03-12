@@ -59,17 +59,18 @@ export function GlobalNav(): JSX.Element {
       className="sticky top-0 z-50 bg-white border-b border-neutral-200 shadow-sm"
       aria-label="Global navigation"
     >
-      <div className="container-main flex items-center justify-between min-h-56 py-3">
+      <div className="container-main flex items-center justify-between min-h-14 py-3">
         {/* Logo */}
         <Link
           to="/"
           className="flex items-center gap-4 text-primary-600 font-semibold hover:text-primary-700 transition-colors"
           aria-label="DiWeiWei Nano Market Home"
+          onClick={() => setMobileMenuOpen(false)}
         >
           <img
             src="/logo.png"
             alt="DiWeiWei Nano Market Logo"
-            className="h-56 w-auto object-contain"
+            className="h-12 w-auto object-contain"
           />
           <span className="hidden sm:inline text-2xl font-bold">DiWeiWei Nano Market</span>
         </Link>

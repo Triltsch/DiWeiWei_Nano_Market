@@ -2622,3 +2622,16 @@ Code review revealed the project expects:
 - **Problem**: Validation messages were visible but not announced by assistive technologies because inputs lacked `aria-describedby` / `aria-invalid` wiring.
 - **Learning**: Accessible forms require semantic linkage between each control and its error message. Visible error text alone does not satisfy WCAG expectations for screen reader users.
 
+
+## Review Follow-up Insights - PR #59 Second Pass
+
+### Key Learnings
+
+#### 1. **Navigation Bar Logo Sizing: Use Standard Spacing-Scale Heights**
+- **Problem**: The GlobalNav logo used `h-56` (14rem = 224px) and `min-h-56` on the container, creating an extremely tall navigation bar. The reviewer flagged this as visually wrong and noted `min-h-56` may be invalid depending on the Tailwind configuration's `minHeight` theme entries.
+- **Learning**: Navigation bar logos should use `h-10`–`h-14` (2.5–3.5rem / 40–56px). The container naturally inherits height from its children with padding, so an explicit `min-h` can be set to the same scale token as the logo height (e.g., `h-12` logo → `min-h-14` container for padding comfort). For hero/landing-page logos with intentional large display, larger tokens are appropriate; but the two contexts are distinct.
+
+#### 2. **Mobile Menu State Must Reset on Any Navigation Action Including Branding Links**
+- **Problem**: All nav links had `onClick={() => setMobileMenuOpen(false)}` to close the mobile menu on route change, but the brand/logo `<Link to="/">` was missing this handler. Navigating home while the menu was open left the menu visible.
+- **Learning**: Any interactive element that triggers a route change within a mobile menu layout must also explicitly reset the menu state. It is easy to miss the brand link because it lives outside the explicit "menu" region. A preferable long-term pattern is to close the menu reactively via a `useEffect` on `location.pathname` so that no individual link handler can be overlooked.
+- **Test added**: `closes the mobile menu when the logo home link is clicked` in `pages.test.tsx` covers this specific regression path.
