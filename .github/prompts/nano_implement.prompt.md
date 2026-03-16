@@ -14,6 +14,7 @@ Perform the necessary steps in the following order:
 
 ## Access issue details
 
+- Use GitHub exclusively via MCP tools for all repository, issue, PR, comment, and metadata interactions. Do not use web scraping/fetching or manual browser parsing for GitHub content when MCP is available.
 - If an issue is given to be implemented, access the issue tracker using the MCP interface and read the issue description as well as all comments to get the full context about the issue.
 - If you are asked to implement an issue step only, look for hints left by a prior agent instance in the issue comments. Implement that step only.
 - Check if we are working on the `main` branch. Warn if not so and offer to switch to `main` branch. If the user wants to switch, switch to the `main` branch.
@@ -39,8 +40,10 @@ Perform the necessary steps in the following order:
   - Prevents false passes due to missing infrastructure (e.g., Redis connection errors)
   - Fails fast with clear messaging if services cannot start
   - Only use raw `Test` task if you've manually confirmed Docker services are running and healthy
+  - If `docker compose up` fails or any container enters `unhealthy`/`restarting`, abort immediately, print `docker compose ps` and relevant container logs, and treat validation as failed (do not continue waiting loops)
 - Fix any failing tests including all warnings. Repeat until all tests pass.
 - **Important for Windows/PowerShell users**: The `Test: Verified` task is designed for PowerShell on Windows and automatically manages Docker Compose lifecycle. Ensure Docker Desktop is running before executing the task.
+ - Ensure there is exactly one `Test: Verified` task definition in `.vscode/tasks.json` to avoid ambiguous execution.
 
 ## Environment Validation
 
@@ -51,6 +54,7 @@ Perform the necessary steps in the following order:
     - Port mapping consistency (verify `docker-compose.yml` port mappings match application config expectations)
     - Volume naming consistency (ensure no orphaned volumes with old naming schemes that could cause conflicts)
     - Image tag validity (verify pinned image tags are still available on registries; use latest or stable version tags if specific releases become unavailable)
+    - Persistent volume compatibility (if a pinned image was downgraded and startup errors mention data format/header version mismatches, use a newer compatible image tag or recreate only the affected service volume after confirming local data can be discarded)
   - Document any issues found in the terminal output and propose fixes
   - Run `docker compose down` after validation to clean up the test environment
 

@@ -11,6 +11,10 @@ export default defineConfig(({ mode }) => {
     server: {
       host: env.VITE_DEV_SERVER_HOST ?? "localhost",
       port: 5173,
+      watch: {
+        usePolling: env.CHOKIDAR_USEPOLLING === "true",
+        interval: Number(env.CHOKIDAR_INTERVAL ?? 100),
+      },
       proxy: {
         "/api": {
           target: env.VITE_API_BASE_URL ?? "http://localhost:8000",

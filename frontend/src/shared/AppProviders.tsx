@@ -24,6 +24,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 
 import { AuthProvider } from "../features/auth";
+import { LanguageProvider } from "./i18n";
 import { queryClient } from "../shared/queryClient";
 
 interface AppProvidersProps {
@@ -43,7 +44,9 @@ export function AppProviders({ children }: AppProvidersProps): JSX.Element {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <AuthProvider>{children}</AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </LanguageProvider>
       </BrowserRouter>
     </QueryClientProvider>
   );

@@ -4,24 +4,49 @@
  * functionality for both authenticated and unauthenticated users.
  */
 
-import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import * as sharedApi from "../../shared/api";
+import { LanguageProvider } from "../../shared/i18n";
 import { AuthContext, type AuthContextValue } from "../auth/AuthContext";
-import { HomePage } from "./pages";
+import { HomePage, NotFoundPage, SearchPage } from "./pages";
+import { PrivacyPage, TermsPage } from "../legal/pages";
+
+vi.mock("../../shared/api", async () => {
+  const actual = await vi.importActual<typeof import("../../shared/api")>("../../shared/api");
+  return {
+    ...actual,
+    searchNanos: vi.fn(),
+  };
+});
+
+const mockedSearchNanos = vi.mocked(sharedApi.searchNanos);
+
+function LocationProbe(): JSX.Element {
+  const location = useLocation();
+  return <div data-testid="location-probe">{`${location.pathname}${location.search}`}</div>;
+}
 
 function renderHomeWithAuth(authValue: AuthContextValue): void {
   render(
-    <AuthContext.Provider value={authValue}>
-      <MemoryRouter initialEntries={["/"]}>
-        <HomePage />
-      </MemoryRouter>
-    </AuthContext.Provider>
+    <LanguageProvider>
+      <AuthContext.Provider value={authValue}>
+        <MemoryRouter initialEntries={["/"]}>
+          <HomePage />
+        </MemoryRouter>
+      </AuthContext.Provider>
+    </LanguageProvider>
   );
 }
 
 describe("HomePage", () => {
+  beforeEach(() => {
+    mockedSearchNanos.mockReset();
+    window.localStorage.removeItem("diwei_ui_language");
+  });
+
   /**
    * Verifies that the shared brand asset is rendered in the page and remains
    * available from the expected public path.
@@ -59,7 +84,7 @@ describe("HomePage", () => {
 
   /**
    * Verifies that unauthenticated visitors are offered the expected auth entry
-   * points in navigation and that search is rendered disabled.
+  * points in navigation and that search remains available for discovery.
    */
   it("displays Login and Register for unauthenticated users", () => {
     renderHomeWithAuth({
@@ -70,10 +95,11 @@ describe("HomePage", () => {
       logout: async () => Promise.resolve(),
     });
 
-    const searchButtons = screen.getAllByRole("button", { name: "Search" });
-    const loginLink = screen.getByRole("link", { name: "Login" });
-    const registerLinks = screen.getAllByRole("link", { name: "Register" });
-    expect(searchButtons[0].getAttribute("aria-disabled")).toBe("true");
+    const searchLinks = screen.getAllByRole("link", { name: "Suche" });
+    const loginLink = screen.getByRole("link", { name: "Anmelden" });
+    const registerLinks = screen.getAllByRole("link", { name: "Registrieren" });
+    expect(searchLinks.length).toBeGreaterThanOrEqual(1);
+    expect(searchLinks[0].getAttribute("href")).toBe("/search");
     expect(loginLink).toBeTruthy();
     expect(registerLinks.length).toBeGreaterThanOrEqual(1);
   });
@@ -82,7 +108,7 @@ describe("HomePage", () => {
    * Verifies that authenticated users see the protected navigation targets and
    * logout action in the header.
    */
-  it("displays Dashboard, Profile, and Logout for authenticated users", () => {
+  it("displays Übersicht, Profil, and Abmelden for authenticated users", () => {
     renderHomeWithAuth({
       isLoading: false,
       isAuthenticated: true,
@@ -91,9 +117,9 @@ describe("HomePage", () => {
       logout: async () => Promise.resolve(),
     });
 
-    const dashboardLink = screen.getByRole("link", { name: "Dashboard" });
-    const profileLink = screen.getByRole("link", { name: "Profile" });
-    const logoutButton = screen.getByRole("button", { name: "Logout" });
+    const dashboardLink = screen.getByRole("link", { name: "Übersicht" });
+    const profileLink = screen.getByRole("link", { name: "Profil" });
+    const logoutButton = screen.getByRole("button", { name: "Abmelden" });
     expect(dashboardLink).toBeTruthy();
     expect(profileLink).toBeTruthy();
     expect(logoutButton).toBeTruthy();
@@ -135,7 +161,7 @@ describe("HomePage", () => {
     });
 
     const buttons = screen.getAllByRole("button");
-    const menuButton = buttons.find((btn) => btn.getAttribute("aria-label")?.includes("menu"));
+    const menuButton = buttons.find((btn) => btn.getAttribute("aria-label")?.includes("Menü"));
     expect(menuButton).toBeTruthy();
     expect(menuButton?.getAttribute("aria-expanded")).toBe("false");
   });
@@ -157,7 +183,7 @@ describe("HomePage", () => {
     // Open the mobile menu via the hamburger button
     const menuButton = screen
       .getAllByRole("button")
-      .find((btn) => btn.getAttribute("aria-label")?.includes("menu"));
+      .find((btn) => btn.getAttribute("aria-label")?.includes("Menü"));
     expect(menuButton).toBeTruthy();
     fireEvent.click(menuButton!);
     expect(menuButton?.getAttribute("aria-expanded")).toBe("true");
@@ -182,10 +208,52 @@ describe("HomePage", () => {
     });
 
     const languageSelects = screen.getAllByRole("combobox", {
-      name: /select language/i,
+      name: /sprache ausw\u00e4hlen/i,
     });
     expect(languageSelects.length).toBeGreaterThanOrEqual(1);
     expect((languageSelects[0] as HTMLSelectElement).value).toBe("de");
+  });
+
+  it("switches logo image from German to English when language is changed", () => {
+    renderHomeWithAuth({
+      isLoading: false,
+      isAuthenticated: false,
+      user: null,
+      login: async () => Promise.resolve(),
+      logout: async () => Promise.resolve(),
+    });
+
+    const logoImages = screen.getAllByAltText("DiWeiWei Nano Market Logo");
+    expect(logoImages[0].getAttribute("src")).toBe("/logo.png");
+
+    const languageSelect = screen.getAllByRole("combobox", {
+      name: /sprache ausw\u00e4hlen/i,
+    })[0] as HTMLSelectElement;
+
+    fireEvent.change(languageSelect, { target: { value: "en" } });
+
+    const updatedLogoImages = screen.getAllByAltText("DiWeiWei Nano Market Logo");
+    expect(updatedLogoImages[0].getAttribute("src")).toBe("/logo_en.png");
+  });
+
+  it("switches navigation labels to English when language is changed", () => {
+    renderHomeWithAuth({
+      isLoading: false,
+      isAuthenticated: false,
+      user: null,
+      login: async () => Promise.resolve(),
+      logout: async () => Promise.resolve(),
+    });
+
+    const languageSelect = screen.getAllByRole("combobox", {
+      name: /sprache ausw\u00e4hlen/i,
+    })[0] as HTMLSelectElement;
+
+    fireEvent.change(languageSelect, { target: { value: "en" } });
+
+    expect(screen.getAllByRole("link", { name: "Search" }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("link", { name: "Login" })).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "Register" }).length).toBeGreaterThanOrEqual(1);
   });
 
   /**
@@ -252,5 +320,288 @@ describe("HomePage", () => {
     const privacyLink = screen.getByRole("link", { name: "Datenschutz" });
     expect(termsLink).toBeTruthy();
     expect(privacyLink).toBeTruthy();
+  });
+});
+
+describe("SearchPage", () => {
+  const authValue: AuthContextValue = {
+    isLoading: false,
+    isAuthenticated: false,
+    user: null,
+    login: async () => Promise.resolve(),
+    logout: async () => Promise.resolve(),
+  };
+
+  function renderSearch(initialEntry = "/search"): void {
+    render(
+      <LanguageProvider>
+        <AuthContext.Provider value={authValue}>
+          <MemoryRouter initialEntries={[initialEntry]}>
+            <Routes>
+              <Route
+                path="/search"
+                element={
+                  <>
+                    <SearchPage />
+                    <LocationProbe />
+                  </>
+                }
+              />
+            </Routes>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </LanguageProvider>
+    );
+  }
+
+  beforeEach(() => {
+    mockedSearchNanos.mockReset();
+    window.localStorage.removeItem("diwei_ui_language");
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("uses URL query/filter params as initial state and requests first page", async () => {
+    mockedSearchNanos.mockResolvedValue({
+      items: [
+        {
+          id: "nano-1",
+          title: "React Basics",
+          creator: "Alice",
+          averageRating: 4.5,
+          durationMinutes: 15,
+        },
+      ],
+      total: 1,
+    });
+
+    renderSearch("/search?q=react&level=beginner&language=en");
+
+    await waitFor(() => {
+      expect(mockedSearchNanos).toHaveBeenCalledWith({
+        query: "react",
+        filters: {
+          category: "",
+          level: "beginner",
+          duration: "",
+          language: "en",
+        },
+        limit: 20,
+        offset: 0,
+      });
+    });
+
+    expect(screen.getByDisplayValue("react")).toBeTruthy();
+    expect(screen.getByText("React Basics")).toBeTruthy();
+  });
+
+  it("updates URL and triggers debounced search input", async () => {
+    mockedSearchNanos.mockResolvedValue({ items: [], total: 0 });
+
+    renderSearch();
+    await waitFor(() => {
+      expect(mockedSearchNanos).toHaveBeenCalledTimes(1);
+    });
+
+    const keywordInput = screen.getByLabelText("Suchbegriff");
+    fireEvent.change(keywordInput, { target: { value: "python" } });
+
+    expect(screen.getByTestId("location-probe").textContent).toBe("/search?q=python");
+
+    await waitFor(() => {
+      expect(mockedSearchNanos).toHaveBeenCalledTimes(2);
+      expect(mockedSearchNanos).toHaveBeenLastCalledWith({
+        query: "python",
+        filters: {
+          category: "",
+          level: "",
+          duration: "",
+          language: "",
+        },
+        limit: 20,
+        offset: 0,
+      });
+    });
+  });
+
+  it("shows configured empty state message when no nanos are found", async () => {
+    mockedSearchNanos.mockResolvedValue({ items: [], total: 0 });
+
+    renderSearch();
+
+    const emptyState = await screen.findByText(
+      "Keine Nano-Lerneinheiten gefunden. Bitte versuchen Sie andere Suchbegriffe."
+    );
+    expect(emptyState).toBeTruthy();
+  });
+
+  it("loads additional pages when load more is clicked", async () => {
+    mockedSearchNanos
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "nano-1",
+            title: "First Nano",
+            creator: "Alice",
+            averageRating: 4.8,
+            durationMinutes: 10,
+          },
+        ],
+        total: 2,
+      })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "nano-2",
+            title: "Second Nano",
+            creator: "Bob",
+            averageRating: 4.2,
+            durationMinutes: 20,
+          },
+        ],
+        total: 2,
+      });
+
+    renderSearch();
+
+    await screen.findByText("First Nano");
+
+    const loadMoreButton = screen.getByRole("button", { name: "Mehr laden" });
+    fireEvent.click(loadMoreButton);
+
+    await waitFor(() => {
+      expect(mockedSearchNanos).toHaveBeenNthCalledWith(2, {
+        query: "",
+        filters: {
+          category: "",
+          level: "",
+          duration: "",
+          language: "",
+        },
+        limit: 20,
+        offset: 1,
+      });
+    });
+
+    expect(screen.getByText("Second Nano")).toBeTruthy();
+  });
+});
+
+describe("NotFoundPage", () => {
+  const authValue: AuthContextValue = {
+    isLoading: false,
+    isAuthenticated: false,
+    user: null,
+    login: async () => Promise.resolve(),
+    logout: async () => Promise.resolve(),
+  };
+
+  beforeEach(() => {
+    window.localStorage.removeItem("diwei_ui_language");
+  });
+
+  it("switches not-found copy from German to English", () => {
+    render(
+      <LanguageProvider>
+        <AuthContext.Provider value={authValue}>
+          <MemoryRouter initialEntries={["/unknown-route"]}>
+            <Routes>
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </LanguageProvider>
+    );
+
+    expect(screen.getByRole("heading", { name: "Seite nicht gefunden" })).toBeTruthy();
+
+    const languageSelect = screen.getAllByRole("combobox", {
+      name: /sprache ausw\u00e4hlen/i,
+    })[0] as HTMLSelectElement;
+
+    fireEvent.change(languageSelect, { target: { value: "en" } });
+
+    expect(screen.getByRole("heading", { name: "Page Not Found" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Back to Home" })).toBeTruthy();
+  });
+});
+
+describe("TermsPage", () => {
+  const authValue: AuthContextValue = {
+    isLoading: false,
+    isAuthenticated: false,
+    user: null,
+    login: async () => Promise.resolve(),
+    logout: async () => Promise.resolve(),
+  };
+
+  beforeEach(() => {
+    window.localStorage.removeItem("diwei_ui_language");
+  });
+
+  it("switches terms content from German to English", () => {
+    render(
+      <LanguageProvider>
+        <AuthContext.Provider value={authValue}>
+          <MemoryRouter initialEntries={["/terms"]}>
+            <>
+              <HomePage />
+              <TermsPage />
+            </>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </LanguageProvider>
+    );
+
+    expect(screen.getByRole("heading", { name: "Nutzungsbedingungen" })).toBeTruthy();
+
+    const languageSelect = screen.getAllByRole("combobox", {
+      name: /sprache ausw\u00e4hlen/i,
+    })[0] as HTMLSelectElement;
+
+    fireEvent.change(languageSelect, { target: { value: "en" } });
+
+    expect(screen.getByRole("heading", { name: "Terms of Service" })).toBeTruthy();
+  });
+});
+
+describe("PrivacyPage", () => {
+  const authValue: AuthContextValue = {
+    isLoading: false,
+    isAuthenticated: false,
+    user: null,
+    login: async () => Promise.resolve(),
+    logout: async () => Promise.resolve(),
+  };
+
+  beforeEach(() => {
+    window.localStorage.removeItem("diwei_ui_language");
+  });
+
+  it("switches privacy content from German to English", () => {
+    render(
+      <LanguageProvider>
+        <AuthContext.Provider value={authValue}>
+          <MemoryRouter initialEntries={["/privacy"]}>
+            <>
+              <HomePage />
+              <PrivacyPage />
+            </>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </LanguageProvider>
+    );
+
+    expect(screen.getByRole("heading", { name: "Datenschutzerklärung" })).toBeTruthy();
+
+    const languageSelect = screen.getAllByRole("combobox", {
+      name: /sprache ausw\u00e4hlen/i,
+    })[0] as HTMLSelectElement;
+
+    fireEvent.change(languageSelect, { target: { value: "en" } });
+
+    expect(screen.getByRole("heading", { name: "Privacy Policy" })).toBeTruthy();
   });
 });
