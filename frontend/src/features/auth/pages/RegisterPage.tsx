@@ -152,7 +152,7 @@ export function RegisterPage(): JSX.Element {
           </div>
           <p className="text-sm text-neutral-600">
             {t("register_password_strength")} {" "}
-            <span className="font-semibold capitalize">{passwordStrength.label}</span>
+            <span className="font-semibold">{t(`register_strength_${passwordStrength.label}` as Parameters<typeof t>[0])}</span>
           </p>
           {errors.password && (
             <p id="register-password-error" className="text-sm text-red-600">

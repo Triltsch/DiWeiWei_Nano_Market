@@ -16,8 +16,10 @@ export interface SearchRequest {
 
 export interface SearchNano {
   id: string;
-  title: string;
-  creator: string;
+  /** Null when the API returns no title; the UI renders a localised fallback. */
+  title: string | null;
+  /** Null when the API returns no creator; the UI renders a localised fallback. */
+  creator: string | null;
   averageRating: number | null;
   durationMinutes: number | null;
 }
@@ -80,8 +82,9 @@ function mapSearchNano(rawItem: RawSearchNano, index: number): SearchNano {
 
   return {
     id: asString(rawItem.id) ?? asString(rawItem.nano_id) ?? fallbackId,
-    title: asString(rawItem.title) ?? asString(rawItem.name) ?? "Untitled Nano",
-    creator: asString(rawItem.creator_name) ?? asString(rawItem.creator) ?? "Unknown Creator",
+    // Return null for missing title/creator – the UI renders localised fallbacks via t().
+    title: asString(rawItem.title) ?? asString(rawItem.name) ?? null,
+    creator: asString(rawItem.creator_name) ?? asString(rawItem.creator) ?? null,
     averageRating:
       asNumber(rawItem.average_rating) ?? asNumber(rawItem.avg_rating) ?? asNumber(rawItem.rating),
     durationMinutes: asNumber(rawItem.duration_minutes) ?? asNumber(rawItem.duration),
@@ -105,6 +108,15 @@ function mapSearchResponse(rawData: RawSearchResponse): SearchResponse {
   };
 }
 
+/**
+ * Calls GET /api/v1/search on the backend discovery endpoint.
+ *
+ * NOTE: The backend route /api/v1/search is not yet implemented. Until the
+ * corresponding backend story is delivered, this function will receive a 404
+ * response which will be surfaced as an error in the UI (see SearchPage error
+ * state).  The endpoint path is intentionally kept here so the frontend is
+ * ready for the backend integration without further path changes.
+ */
 export async function searchNanos(request: SearchRequest): Promise<SearchResponse> {
   const params = {
     q: request.query || undefined,

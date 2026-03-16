@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type PropsWithChildren } from "react";
+﻿import { useEffect, useRef, useState, type PropsWithChildren } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import {
@@ -186,44 +186,51 @@ export function HomePage(): JSX.Element {
   );
 }
 
+/** Number of search results loaded per page / "load more" batch. */
+const PAGE_SIZE = 20;
+
+/** Debounce delay (ms) for the keyword search input. */
+const DEBOUNCE_MS = 300;
+
 export function SearchPage(): JSX.Element {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const initialState = useMemo(() => {
-    return {
-      query: searchParams.get("q") ?? "",
-      filters: {
-        category: searchParams.get("category") ?? "",
-        level: searchParams.get("level") ?? "",
-        duration: searchParams.get("duration") ?? "",
-        language: searchParams.get("language") ?? "",
-      },
-    };
-  }, [searchParams]);
-
-  const [queryInput, setQueryInput] = useState(initialState.query);
-  const [debouncedQuery, setDebouncedQuery] = useState(initialState.query);
-  const [filters, setFilters] = useState<SearchFilters>(initialState.filters);
+  // Initialise state from URL on first mount.
+  const [queryInput, setQueryInput] = useState(() => searchParams.get("q") ?? "");
+  const [debouncedQuery, setDebouncedQuery] = useState(() => searchParams.get("q") ?? "");
+  const [filters, setFilters] = useState<SearchFilters>(() => ({
+    category: searchParams.get("category") ?? "",
+    level: searchParams.get("level") ?? "",
+    duration: searchParams.get("duration") ?? "",
+    language: searchParams.get("language") ?? "",
+  }));
   const [results, setResults] = useState<SearchNano[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [lastPageCount, setLastPageCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
-  const pageSize = 20;
-  const debounceMs = 300;
+  /**
+   * Tracks the last URLSearchParams string we wrote ourselves so the
+   * bidirectional-sync effect can distinguish our own writes from external
+   * navigation (browser back/forward) and avoid an update loop.
+   */
+  const lastWrittenSearch = useRef<string>("");
 
+  // Debounce the raw keyword input before triggering a search fetch.
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setDebouncedQuery(queryInput.trim());
-    }, debounceMs);
+    }, DEBOUNCE_MS);
 
     return () => {
       window.clearTimeout(timeout);
     };
   }, [queryInput]);
 
+  // Keep the URL in sync whenever the search inputs change (write direction).
   useEffect(() => {
     const nextParams = new URLSearchParams();
 
@@ -243,20 +250,23 @@ export function SearchPage(): JSX.Element {
       nextParams.set("language", filters.language);
     }
 
+    lastWrittenSearch.current = nextParams.toString();
     setSearchParams(nextParams, { replace: true });
   }, [filters, queryInput, setSearchParams]);
 
+  // Fetch the first page whenever the debounced query or filters change.
   useEffect(() => {
     let isActive = true;
 
     const fetchFirstPage = async (): Promise<void> => {
       setIsLoading(true);
+      setSearchError(null);
 
       try {
         const response = await searchNanos({
           query: debouncedQuery,
           filters,
-          limit: pageSize,
+          limit: PAGE_SIZE,
           offset: 0,
         });
 
@@ -267,6 +277,10 @@ export function SearchPage(): JSX.Element {
         setResults(response.items);
         setTotal(response.total);
         setLastPageCount(response.items.length);
+      } catch {
+        if (isActive) {
+          setSearchError(t("search_error"));
+        }
       } finally {
         if (isActive) {
           setIsLoading(false);
@@ -279,9 +293,43 @@ export function SearchPage(): JSX.Element {
     return () => {
       isActive = false;
     };
-  }, [debouncedQuery, filters]);
+  }, [debouncedQuery, filters, t]);
 
-  const hasMore = total === null ? lastPageCount === pageSize : results.length < total;
+  /**
+   * Bidirectional URL sync (read direction).
+   * Updates local state when searchParams change externally, e.g. browser
+   * back/forward navigation. The `lastWrittenSearch` ref prevents a feedback
+   * loop with our own `setSearchParams` calls above.
+   */
+  useEffect(() => {
+    if (searchParams.toString() === lastWrittenSearch.current) {
+      // This change originated from our own write – skip.
+      return;
+    }
+
+    const newQuery = searchParams.get("q") ?? "";
+    const newFilters: SearchFilters = {
+      category: searchParams.get("category") ?? "",
+      level: searchParams.get("level") ?? "",
+      duration: searchParams.get("duration") ?? "",
+      language: searchParams.get("language") ?? "",
+    };
+
+    setQueryInput((prev) => (prev === newQuery ? prev : newQuery));
+    setFilters((prev) => {
+      if (
+        prev.category === newFilters.category &&
+        prev.level === newFilters.level &&
+        prev.duration === newFilters.duration &&
+        prev.language === newFilters.language
+      ) {
+        return prev; // Stable reference – avoids unnecessary re-renders.
+      }
+      return newFilters;
+    });
+  }, [searchParams]);
+
+  const hasMore = total === null ? lastPageCount === PAGE_SIZE : results.length < total;
 
   const handleFilterChange = (field: keyof SearchFilters, value: string): void => {
     setFilters((current) => ({
@@ -300,13 +348,15 @@ export function SearchPage(): JSX.Element {
       const response = await searchNanos({
         query: debouncedQuery,
         filters,
-        limit: pageSize,
+        limit: PAGE_SIZE,
         offset: results.length,
       });
 
       setResults((current) => [...current, ...response.items]);
       setTotal(response.total);
       setLastPageCount(response.items.length);
+    } catch {
+      setSearchError(t("search_error"));
     } finally {
       setIsLoadingMore(false);
     }
@@ -371,9 +421,9 @@ export function SearchPage(): JSX.Element {
                 onChange={(event) => handleFilterChange("duration", event.target.value)}
               >
                 <option value="">{t("search_duration_all")}</option>
-                <option value="0-15">0-15 min</option>
-                <option value="15-30">15-30 min</option>
-                <option value="30+">30+ min</option>
+                <option value="0-15">{t("search_duration_0_15")}</option>
+                <option value="15-30">{t("search_duration_15_30")}</option>
+                <option value="30+">{t("search_duration_30_plus")}</option>
               </select>
             </label>
 
@@ -408,7 +458,13 @@ export function SearchPage(): JSX.Element {
               </div>
             )}
 
-            {!isLoading && results.length === 0 && (
+            {searchError && (
+              <div className="card-elevated" role="alert">
+                <p className="text-red-600">{searchError}</p>
+              </div>
+            )}
+
+            {!isLoading && !searchError && results.length === 0 && (
               <div className="card-elevated">
                 <p className="text-neutral-700">{t("search_empty")}</p>
               </div>
@@ -419,10 +475,13 @@ export function SearchPage(): JSX.Element {
                 <ul className="space-y-3">
                   {results.map((item) => (
                     <li key={item.id} className="card-elevated space-y-2">
-                      <h3 className="text-lg font-semibold text-neutral-900">{item.title}</h3>
+                      <h3 className="text-lg font-semibold text-neutral-900">
+                        {item.title ?? t("search_title_fallback")}
+                      </h3>
                       <div className="grid gap-2 text-sm text-neutral-700 sm:grid-cols-2">
                         <p>
-                          <span className="font-medium">{t("search_creator_label")}</span> {item.creator}
+                          <span className="font-medium">{t("search_creator_label")}</span>{" "}
+                          {item.creator ?? t("search_creator_fallback")}
                         </p>
                         <p>
                           <span className="font-medium">{t("search_avg_rating_label")}</span>{" "}
@@ -463,7 +522,6 @@ export function SearchPage(): JSX.Element {
     </PageLayout>
   );
 }
-
 export function NanoDetailsPage(): JSX.Element {
   const { t } = useTranslation();
   const params = useParams<{ id: string }>();
