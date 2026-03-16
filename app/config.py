@@ -69,6 +69,7 @@ class Settings(BaseSettings):
     POSTGRES_DB: Optional[str] = None
 
     # Meilisearch settings
+    MEILI_URL: str = "http://localhost:7700"
     MEILI_MASTER_KEY: Optional[str] = None
 
     # Upload settings

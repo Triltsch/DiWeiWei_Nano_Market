@@ -2663,3 +2663,19 @@ Code review revealed the project expects:
 - **Problem**: All nav links had `onClick={() => setMobileMenuOpen(false)}` to close the mobile menu on route change, but the brand/logo `<Link to="/">` was missing this handler. Navigating home while the menu was open left the menu visible.
 - **Learning**: Any interactive element that triggers a route change within a mobile menu layout must also explicitly reset the menu state. It is easy to miss the brand link because it lives outside the explicit "menu" region. A preferable long-term pattern is to close the menu reactively via a `useEffect` on `location.pathname` so that no individual link handler can be overlooked.
 - **Test added**: `closes the mobile menu when the logo home link is clicked` in `pages.test.tsx` covers this specific regression path.
+
+## Sprint 4 Story 3.1: Full-Text Search Backend with Meilisearch (Issue #61)
+
+### Key Learnings
+
+#### 1. **FastAPI route tests must patch the symbol used by the router, not only the original service module export**
+- **Problem**: Search route tests patched `app.modules.search.service.search_nanos`, but the router imported `search_nanos` directly at module import time. Requests still executed the real search path and returned `503` when Meilisearch was unavailable.
+- **Learning**: When a router uses `from module import function`, tests must patch the router-local reference actually invoked at runtime, e.g. `app.modules.search.router.search_nanos`. Patching only the original defining module is insufficient once the symbol has been bound in the importing module.
+
+#### 2. **Required FastAPI query parameters with `Annotated[..., Query(...)]` should not use `= ...` defaults**
+- **Problem**: Declaring the required `q` parameter as `q: Annotated[str, Query(...)] = ...` triggered a validation/encoding edge case that surfaced an `ellipsis` object in FastAPI's error serialization for missing queries.
+- **Learning**: For required query parameters in modern FastAPI signatures, prefer `q: Annotated[str, Query(...)]` with no explicit default. This keeps the parameter required while avoiding accidental `Ellipsis` leakage into validation error handling.
+
+#### 3. **Search integration should separate Meilisearch transport concerns from response-shaping logic**
+- **Problem**: It was tempting to mix ORM lookups, index transport, and response formatting in one function, which made the feature harder to validate and mock.
+- **Learning**: Keep the Meilisearch client focused on request construction and transport, and keep `search_nanos()` responsible for API-level validation and response shaping. This separation makes it easier to test pagination/filter behavior independently from the external search engine.
