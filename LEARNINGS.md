@@ -1,5 +1,35 @@
 # Learnings - DiWeiWei Nano-Marktplatz Projekt
 
+# Learnings - DiWeiWei Nano-Marktplatz Projekt
+
+## Review Follow-up Insights - PR #65 (Issue #60: Landing Page & Logo i18n)
+
+### Key Learnings
+
+#### 1. **Async fetch handlers in React effects must always have a `catch` block**
+- **Problem**: `searchNanos()` in `SearchPage` was called without error handling. Any network failure would leave the component stuck in `isLoading: true` with no user feedback.
+- **Learning**: Every `async` function called inside a `useEffect` must have a `try/catch` that sets visible error state (`setSearchError`). Use a cancellation guard (`let isActive = true`) so that stale catch branches do not update unmounted component state. Error state should be cleared at the start of each fetch cycle to avoid stale messages.
+
+#### 2. **Magic numbers in components should be hoisted as named module-level constants**
+- **Problem**: `pageSize: 20` and `debounceMs: 300` were hardcoded inline at call sites, making them invisible to reviewers and hard to tune.
+- **Learning**: Numeric thresholds that influence UX behaviour (page size, debounce interval) belong at module level where their name documents intent. `const PAGE_SIZE = 20` and `const DEBOUNCE_MS = 300` are immediately readable and cover all call sites in one edit.
+
+#### 3. **`setSearchParams` writes need a guard ref to avoid bidirectional URL sync loops**
+- **Problem**: Writing to `searchParams` triggered the `useEffect([searchParams])` read-direction sync, which updated state and retriggered the write, causing infinite renders.
+- **Learning**: Keep a `lastWrittenSearch = useRef("")` that is set immediately before every `setSearchParams` call. The read effect checks `searchParams.toString() === lastWrittenSearch.current` and returns early when it detects its own write, breaking the loop cleanly without requiring deep object comparisons.
+
+#### 4. **User-facing strings returned from utility helpers must still go through `t()`**
+- **Problem**: `passwordStrength.label` returned raw English strings (`"weak"`, `"medium"`, `"strong"`) that were rendered directly in JSX, bypassing the i18n layer.
+- **Learning**: Any derivative label that ends up in the UI — even one produced by a helper function — must be mapped through `t()`. Use a predictable key naming convention (e.g., `register_strength_weak`) so that template literals with a type cast (`t(\`register_strength_${label}\` as TranslationKey)`) can cover all variants without a verbose switch/object map.
+
+#### 5. **Duplicate DOM `id` attributes arise when the same component is rendered twice**
+- **Problem**: `LanguageSelector` had `id="language-selector"` hardcoded. `GlobalNav` renders it once for desktop and once for the mobile drawer — producing two elements with the same `id`, which violates HTML uniqueness rules and breaks `htmlFor` label association for one instance.
+- **Learning**: Components that may appear more than once on the page must never use static `id` strings. React 18's `useId()` generates a stable, unique ID per component instance. Replace `id="…"` and `htmlFor="…"` with `const selectorId = useId()` and `id={selectorId}` / `htmlFor={selectorId}`.
+
+#### 6. **Null-safe field access in rendered lists requires translated fallbacks**
+- **Problem**: `SearchNano.title` and `.creator` were typed as `string` but the API can return `null`. Hardcoded English fallbacks (`"Untitled Nano"`, `"Unknown Creator"`) were patched directly in `mapSearchNano`, breaking i18n.
+- **Learning**: Optional backend fields should be typed `string | null` from the boundary inward. Provide localized fallbacks only at the render site: `{item.title ?? t("search_title_fallback")}`. This keeps the data layer honest and the presentation layer responsible for display concerns.
+
 ## Sprint 3 Story 8.2: Landing Page & Global Navigation (Issue #54)
 
 ### Context
