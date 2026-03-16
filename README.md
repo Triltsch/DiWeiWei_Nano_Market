@@ -1,10 +1,12 @@
 # DiWeiWei Nano-Marktplatz
 
+![DiWeiWei Nano Market Logo](logo/logo.png)
+
 Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und umfassenden Tests.
 
 ## 📊 Aktueller Stand
 
-**Fertiggestellte Stories**: 1.1, 1.3, 1.4, 1.5, 7.2, 7.3, 8.1, 2.2, 2.4 ✅
+**Fertiggestellte Stories**: 1.1, 1.3, 1.4, 1.5, 7.2, 7.3, 8.1, 8.2, 2.2, 2.4 ✅
 - ✅ User Registration & Login mit Email-Verifizierung
 - ✅ Password Hashing (Bcrypt, OWASP-konform)
 - ✅ Email Verification Flow (JWT-basiert)
@@ -16,6 +18,7 @@ Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und 
 - ✅ React Query + App Provider Composition inkl. Sample Query Hook (S2-FE-05)
 - ✅ Nano Metadata Capture (Story 2.2) - GET/POST metadata endpoints with validation
 - ✅ Nano Status Workflow (Story 2.4) - PATCH endpoint for status transitions with state machine validation
+- ✅ Landing Page & Global Navigation (Story 8.2) - Responsive navbar with hamburger menu, active route highlighting, language selector placeholder, WCAG 2.1 AA compliance
 
 **Qualität**:
 - 266/266 Tests bestanden (100%)
@@ -106,31 +109,53 @@ npm run build
 
 ## 📋 Implementierte Features
 
-### Authentifizierung & Sicherheit
-- **User Registration**: Email-Validierung, Passwort-Stärke-Prüfung
-- **Login**: JWT-basiert (Access + Refresh Token)
-- **Email Verification**: Pflicht vor erstem Login (JWT-Token, 24h gültig)
-- **Account Lockout**: 3 Fehlversuche → 60 Min. Sperre
-- **Password Hashing**: Bcrypt (Cost: 12)
-- **Audit Logging**: Alle Auth-Events mit IP, User-Agent, Timestamps
+### Sprint 1 – Foundation & Security
+- **Story 1.1 / Issue #2 – User Registration & Login**
+  - Registrierung mit eindeutiger E-Mail, Username-Regeln und Passwortvalidierung
+  - E-Mail-Verifizierung mit 24h Token-Laufzeit und Resend-Flow
+  - Login mit JWT Access Token (15 Min.) und Refresh Token (7 Tage)
+  - Account-Lockout nach mehrfachen Fehlversuchen sowie Logout-/Session-Handling
+- **Story 1.3 / Issue #4 – Password Hashing Implementation**
+  - Sichere Passwort-Hashing- und Verify-Logik auf Basis von bcrypt
+  - Durchsetzung der Passwort-Policy inkl. Stärkevalidierung
+  - Keine Speicherung oder Protokollierung von Klartext-Passwörtern
+- **Story 1.4 / Issue #5 – DSGVO Compliance Basics**
+  - Consent-Tracking für Nutzungsbedingungen und Datenschutz
+  - Datenexport im maschinenlesbaren Format
+  - Löschanforderungen mit Grace-Period sowie Privacy-/ToS-Verknüpfung im Flow
+- **Story 1.5 / Issue #6 – Audit Logging Framework**
+  - Zentrale, strukturierte und unveränderliche Audit-Logs in der Datenbank
+  - Logging von Auth-, Datenzugriffs- und Änderungsereignissen
+  - Abfrage-/Filterpfade für Admin- und Security-Auswertungen
 
-### Nano Upload (Stories 7.2, 7.3)
-- **ZIP Upload API**: `POST /api/v1/uploads/zip`
-  - Authentifizierung erforderlich
-  - Max. 50 MB Dateigröße
-  - Validierung: ZIP-Format, index.html erforderlich
-  - Async Upload mit Hash-Berechnung
-- **Domain Model**: `NanoUpload` mit Alembic Migrations
-  - Status Tracking (uploaded, processing, published, failed)
-  - Versioning Support
-  - File Hashing (SHA256)
+### Sprint 2 – Platform, Upload & Frontend Foundation
+- **Story 7.2 / Issues #27, #29 – Infrastruktur & Developer Setup**
+  - Docker-Compose-Provisionierung für PostgreSQL und MinIO mit Health Checks und Persistent Volumes
+  - Dokumentierter Migrations-Workflow und Developer-Setup für lokale Entwicklung
+- **Story 7.3 / Issue #23 – MinIO Storage Integration & Upload-Basis**
+  - Objektpersistenz für Uploads in MinIO mit privater Ablage und deterministischen Keys
+  - Fehlerpfade für Storage-Probleme und lokale Compose-Kompatibilität
+  - Grundlage für ZIP-Upload-Verarbeitung und Dateiverknüpfung zu Nano-Entwürfen
+- **Story 8.1 / Issues #30, #31, #32, #33, #34 – Frontend Foundation**
+  - React-18-/Vite-/TypeScript-Bootstrap mit Strict-TS-Basis
+  - Tailwind-CSS-Konfiguration mit Design-Tokens und Baseline-Styles
+  - Routing-Skeleton für Kernrouten und Fallback-Seiten
+  - Zentraler Axios-Client mit vorbereiteten JWT-Interceptor-Hookpoints
+  - Frontend-Compose-Integration und produktionsfähiger Build-Output
 
-### Frontend Foundation (Story 8.1)
-- **Routing Skeleton** mit Basis-Routen (`/`, `/search`, `/nano/:id`, `/login`, `/register`, `/dashboard`, `/profile`, `/admin`)
-- **API-Client Layer** mit zentralem Axios-Client und vorbereiteten Auth-Interceptor-Hookpoints
-- **React Query Setup** mit globalem `QueryClient` und sinnvollen Defaults (stale/gc/retry)
-- **Provider Composition** über `AppProviders` im App-Root (`QueryClientProvider` + `BrowserRouter`)
-- **Smoke Query Path** über `useUserProfile` Hook als Referenz für künftige Data-Fetching-Flows
+### Sprint 3 – Core Nano Management & Landing Page
+- **Story 2.2 / Issue #53 – Nano Metadata Capture**
+  - Persistente Nano-Metadaten in PostgreSQL mit Validierung und GET/POST-Endpunkten
+  - Unterstützung für Titel, Beschreibung, Kategorie, Level, Dauer, Sprache und weitere Metadaten
+  - Editierbarkeit im Draft-Zustand als Grundlage für den Veröffentlichungsworkflow
+- **Story 2.4 / Issue #52 – Nano Status Workflow**
+  - Statusmodell für Nanos inklusive valider Zustandsübergänge
+  - Veröffentlichung nur bei vollständigen Metadaten
+  - Rechteprüfung pro Creator sowie Audit-Logging bei Statuswechseln
+- **Story 8.2 / Issue #54 – Landing Page & Global Navigation**
+  - Öffentliche Landing Page mit Hero-Bereich, Value Proposition und CTA-Buttons
+  - Responsive globale Navigation mit Auth-Zuständen, Active Route Highlighting und Mobile-Menü
+  - Sprachumschalter-Platzhalter, WCAG-orientierte Semantik und Docker-/Dev-Frontend-Anbindung
 
 ## 🐳 Docker Services
 

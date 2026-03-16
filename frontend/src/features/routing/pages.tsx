@@ -1,14 +1,13 @@
 import type { PropsWithChildren } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import {
   LoginPage as LoginAuthPage,
   RegisterPage as RegisterAuthPage,
   VerifyEmailPage as VerifyEmailAuthPage,
-  useAuth,
 } from "../auth";
 import { PrivacyPage as PrivacyLegalPage, TermsPage as TermsLegalPage } from "../legal/pages";
-import { AppShell } from "../../shared/ui/AppShell";
+import { GlobalNav } from "../../shared/ui/GlobalNav";
 
 interface PlaceholderPageProps {
   title: string;
@@ -16,52 +15,11 @@ interface PlaceholderPageProps {
 }
 
 function PageLayout({ children }: PropsWithChildren): JSX.Element {
-  const navigate = useNavigate();
-  const { isAuthenticated, user, logout } = useAuth();
-  const accountLabel =
-    typeof user?.username === "string"
-      ? user.username
-      : typeof user?.email === "string"
-        ? user.email
-        : "Account";
-
   return (
-    <AppShell
-      headerStart={
-        <>
-          <Link to="/" className="text-primary-600 font-semibold">
-            DiWeiWei Nano Market
-          </Link>
-          <Link to="/search">Search</Link>
-          {isAuthenticated && <Link to="/dashboard">Dashboard</Link>}
-        </>
-      }
-      headerEnd={
-        isAuthenticated ? (
-          <>
-            <span>{accountLabel}</span>
-            <button
-              type="button"
-              className="btn-outline"
-              onClick={() => {
-                void logout().then(() => {
-                  navigate("/login");
-                });
-              }}
-            >
-              Logout
-            </button>
-          </>
-        ) : (
-          <>
-            <Link to="/login">Login</Link>
-            <Link to="/register">Register</Link>
-          </>
-        )
-      }
-    >
-      {children}
-    </AppShell>
+    <>
+      <GlobalNav />
+      <main className="container-main space-y-6 pb-8">{children}</main>
+    </>
   );
 }
 
@@ -79,40 +37,155 @@ function PlaceholderPage({ title, description }: PlaceholderPageProps): JSX.Elem
 export function HomePage(): JSX.Element {
   return (
     <PageLayout>
-      <section className="space-y-6">
-        <div className="card-elevated space-y-2">
-          <h1 className="text-primary-600">DiWeiWei Nano Market</h1>
-          <p className="text-base text-neutral-600">Frontend routing baseline for Story 8.1.</p>
+      {/* Hero Section */}
+      <section className="space-y-8 py-12 md:py-20">
+        <div className="space-y-6 text-center">
+          <div className="flex justify-center">
+            <img
+              src="/logo.png"
+              alt="DiWeiWei Nano Market Logo"
+              className="h-[25rem] w-auto max-w-full object-contain shadow-lg"
+            />
+          </div>
+          <div className="space-y-4">
+            <h1 className="text-4xl md:text-5xl font-bold text-neutral-900">
+              DiWeiWei Nano Market
+            </h1>
+            <p className="text-xl text-neutral-600 max-w-2xl mx-auto leading-relaxed">
+              Der Marktplatz für Nano-Lerneinheiten. Hochwertige Schulungsinhalte austauschen,
+              entdecken und weiterentwickeln – alles in einem Ökosystem für lebenslanges Lernen.
+            </p>
+          </div>
+
+          {/* Call-to-Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+            <Link
+              to="/register"
+              className="px-8 py-3 rounded-lg text-center font-semibold bg-primary-600 text-white hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg"
+            >
+              Jetzt Registrieren
+            </Link>
+            <Link
+              to="/search"
+              className="px-8 py-3 rounded-lg text-center font-semibold bg-neutral-200 text-neutral-900 hover:bg-neutral-300 transition-colors shadow-md hover:shadow-lg"
+            >
+              Lerneinheiten Entdecken
+            </Link>
+          </div>
         </div>
-        <nav className="card-elevated">
-          <h2 className="text-secondary-600">Available Placeholder Routes</h2>
-          <ul className="mt-3 list-disc list-inside text-neutral-700 space-y-1">
-            <li>
-              <Link to="/search">/search</Link>
-            </li>
-            <li>
-              <Link to="/nano/demo">/nano/:id</Link>
-            </li>
-            <li>
-              <Link to="/login">/login</Link>
-            </li>
-            <li>
-              <Link to="/register">/register</Link>
-            </li>
-            <li>
-              <Link to="/verify-email">/verify-email</Link>
-            </li>
-            <li>
-              <Link to="/dashboard">/dashboard</Link>
-            </li>
-            <li>
-              <Link to="/profile">/profile</Link>
-            </li>
-            <li>
-              <Link to="/admin">/admin</Link>
-            </li>
-          </ul>
-        </nav>
+      </section>
+
+      {/* Feature Cards Section */}
+      <section className="space-y-8">
+        <h2 className="text-3xl font-bold text-center text-neutral-900">Warum DiWeiWei?</h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Feature Card 1 */}
+          <article className="card-elevated space-y-3 hover:shadow-lg transition-shadow">
+            <div className="h-12 w-12 rounded-lg bg-primary-100 flex items-center justify-center">
+              <svg
+                className="h-6 w-6 text-primary-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-neutral-900">Hochwertige Inhalte</h3>
+            <p className="text-neutral-600">
+              Kurierte Nano-Lerneinheiten von Experten für schnelles, gezieltes Lernen.
+            </p>
+          </article>
+
+          {/* Feature Card 2 */}
+          <article className="card-elevated space-y-3 hover:shadow-lg transition-shadow">
+            <div className="h-12 w-12 rounded-lg bg-secondary-100 flex items-center justify-center">
+              <svg
+                className="h-6 w-6 text-secondary-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-neutral-900">Einfach Teilbar</h3>
+            <p className="text-neutral-600">
+              Inhalte schnell hochladen, verwalten und mit der Community teilen.
+            </p>
+          </article>
+
+          {/* Feature Card 3 */}
+          <article className="card-elevated space-y-3 hover:shadow-lg transition-shadow">
+            <div className="h-12 w-12 rounded-lg bg-accent-100 flex items-center justify-center">
+              <svg
+                className="h-6 w-6 text-accent-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-neutral-900">Schneller Zugriff</h3>
+            <p className="text-neutral-600">
+              Mobil-optimiert und blitzschnell. Lernen Sie jederzeit und überall.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      {/* Secondary CTA Section */}
+      <section className="rounded-lg bg-gradient-to-r from-primary-50 to-secondary-50 p-8 md:p-12 text-center space-y-4">
+        <h2 className="text-2xl font-bold text-neutral-900">
+          Sie sind Inhalts-Creator oder Trainer?
+        </h2>
+        <p className="text-neutral-600 max-w-xl mx-auto">
+          Teilen Sie Ihre Expertise als Nano-Lerneinheiten und erreichen Sie ein globales Publikum.
+        </p>
+        <div>
+          <Link
+            to="/register"
+            className="inline-block px-6 py-2 rounded-lg font-semibold bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+          >
+            Als Creator Beitreten
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer Info */}
+      <section className="border-t border-neutral-200 pt-8 space-y-4 text-center text-sm text-neutral-600">
+        <div className="flex flex-col sm:flex-row justify-center gap-4">
+          <Link to="/terms" className="hover:text-primary-600 transition-colors">
+            Nutzungsbedingungen
+          </Link>
+          <span className="hidden sm:inline">•</span>
+          <Link to="/privacy" className="hover:text-primary-600 transition-colors">
+            Datenschutz
+          </Link>
+        </div>
+        <p>
+          © 2026 DiWeiWei Nano Market. Alle Rechte vorbehalten. | Sprint 3 Launch
+        </p>
       </section>
     </PageLayout>
   );

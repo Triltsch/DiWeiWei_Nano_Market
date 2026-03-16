@@ -13,6 +13,7 @@ RUN npm ci
 
 # Copy source code and configuration files
 COPY frontend/src ./src
+COPY frontend/public ./public
 COPY frontend/index.html ./
 COPY frontend/tsconfig*.json ./
 COPY frontend/vite.config.ts ./

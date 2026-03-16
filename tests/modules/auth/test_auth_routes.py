@@ -295,12 +295,10 @@ async def test_health_check_endpoint(client: TestClient):
 
 
 @pytest.mark.asyncio
-async def test_root_endpoint(client: TestClient):
-    """Test root endpoint"""
-    response = client.get("/")
+async def test_root_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    """Test root endpoint redirects to frontend landing page"""
+    monkeypatch.setenv("FRONTEND_URL", "http://localhost:5173")
+    response = client.get("/", follow_redirects=False)
 
-    assert response.status_code == 200
-    data = response.json()
-    assert "name" in data
-    assert "version" in data
-    assert "docs" in data
+    assert response.status_code == 307
+    assert response.headers["location"] == "http://localhost:5173"

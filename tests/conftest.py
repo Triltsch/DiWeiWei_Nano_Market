@@ -154,6 +154,7 @@ def app(db_session, mock_redis, mock_minio_storage):
     from contextlib import asynccontextmanager
 
     from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import RedirectResponse
 
     from app.config import get_settings
     from app.modules.audit.router import get_audit_router
@@ -196,12 +197,9 @@ def app(db_session, mock_redis, mock_minio_storage):
         return {"status": "ok", "version": settings.APP_VERSION}
 
     @app.get("/")
-    async def root() -> dict:
-        return {
-            "name": settings.APP_NAME,
-            "version": settings.APP_VERSION,
-            "docs": "/docs",
-        }
+    async def root() -> RedirectResponse:
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        return RedirectResponse(url=frontend_url, status_code=307)
 
     async def override_get_db():
         yield db_session

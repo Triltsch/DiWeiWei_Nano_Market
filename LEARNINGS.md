@@ -1,5 +1,58 @@
 # Learnings - DiWeiWei Nano-Marktplatz Projekt
 
+## Sprint 3 Story 8.2: Landing Page & Global Navigation (Issue #54)
+
+### Context
+Implemented the public landing page and global navigation, then discovered several environment-specific integration issues between local Vite development, Docker-served frontend, and the backend root route. Also refined brand asset sizing after seeing the actual non-square logo in the rendered UI.
+
+### Key Learnings
+
+#### 1. **Backend Root Route Should Redirect Based on Environment, Not Hardcode One Frontend Port**
+- **Problem**: Backend `/` originally returned JSON, then was changed to redirect to a single frontend URL.
+- **Issue**: Local Vite dev uses `http://localhost:5173`, while Docker-served frontend uses `http://localhost:3000`.
+- **Solution**: Use `FRONTEND_URL` environment variable with sensible default for local dev (`5173`) and override it in Docker Compose (`3000`).
+- **Learning**: When backend serves as an entrypoint into the web UI, root redirects must be environment-aware. Pattern: default to local dev URL in code, override explicitly in Compose/infra config for containerized runs.
+
+#### 2. **Windows CRLF in Shell Entrypoints Breaks Linux Containers with Misleading Error**
+- **Problem**: App container failed with `exec /app/scripts/docker-entrypoint.sh: no such file or directory` even though the file existed.
+- **Root Cause**: Script had Windows CRLF line endings, which break Linux shebang execution.
+- **Solution**: Normalize line endings in the Docker image build with:
+  ```dockerfile
+  RUN sed -i 's/\r$//' /app/scripts/docker-entrypoint.sh && chmod +x /app/scripts/docker-entrypoint.sh
+  ```
+- **Learning**: On Windows-developed repositories, shell scripts copied into Linux containers can fail at runtime despite existing on disk. Pattern: normalize CRLF -> LF during Docker build for all shell entrypoints.
+
+#### 3. **Vite `public/` Assets Must Be Explicitly Copied in Docker Multi-Stage Builds**
+- **Problem**: Frontend worked locally, but Docker-served UI returned 404 for `/logo.png`.
+- **Root Cause**: `frontend/public` was not copied into the builder stage, so Vite build output lacked static public assets.
+- **Solution**: Add:
+  ```dockerfile
+  COPY frontend/public ./public
+  ```
+  to the frontend builder stage.
+- **Learning**: Vite local dev can mask missing Docker build inputs because it serves from workspace files directly. In multi-stage Docker builds, `public/` must be copied explicitly or static assets silently disappear in production.
+
+#### 4. **Non-Square Brand Assets Must Use Fixed Height with Auto Width**
+- **Problem**: Logo looked distorted after increasing size because both width and height were set explicitly.
+- **Root Cause**: The project logo is not square, but Tailwind classes used equal `h-*` and `w-*` values.
+- **Solution**: Switch to fixed height plus automatic width, e.g. `h-56 w-auto`, and add `max-w-full` where needed.
+- **Learning**: For logos and brand marks, preserve aspect ratio unless the asset is truly square. Pattern: size with one dimension only (`h-* w-auto`) and let the browser maintain proportions.
+
+#### 5. **Story 8.1 README Summaries Should Be Mapped from Multiple GitHub Issues, Not One Generic Line**
+- **Observation**: Frontend foundation work was implemented across several Sprint 2 issues (`#30`, `#31`, `#32`, `#33`, `#34`), not one monolithic ticket.
+- **Improvement**: Updated README feature summary to derive implemented features from the actual GitHub issues and story mapping rather than broad manual grouping.
+- **Learning**: When a story is decomposed into sub-issues, documentation should reflect the implementation granularity. Pattern: use issue metadata as source of truth for release/README summaries.
+
+### Implementation Notes
+- Added responsive `GlobalNav` and landing page hero/CTA sections.
+- Changed backend root route to redirect to frontend landing page.
+- Added `FRONTEND_URL` override in Docker Compose for containerized mode.
+- Fixed Linux container startup by normalizing entrypoint line endings.
+- Fixed Docker frontend asset packaging by copying `frontend/public`.
+- Adjusted logo sizing to preserve non-square aspect ratio.
+
+---
+
 ## Sprint 3 Story 8.3: CORS Configuration Fix (Issue #55 Follow-up)
 
 ### Context
@@ -2569,3 +2622,16 @@ Code review revealed the project expects:
 - **Problem**: Validation messages were visible but not announced by assistive technologies because inputs lacked `aria-describedby` / `aria-invalid` wiring.
 - **Learning**: Accessible forms require semantic linkage between each control and its error message. Visible error text alone does not satisfy WCAG expectations for screen reader users.
 
+
+## Review Follow-up Insights - PR #59 Second Pass
+
+### Key Learnings
+
+#### 1. **Navigation Bar Logo Sizing: Use Standard Spacing-Scale Heights**
+- **Problem**: The GlobalNav logo used `h-56` (14rem = 224px) and `min-h-56` on the container, creating an extremely tall navigation bar. The reviewer flagged this as visually wrong and noted `min-h-56` may be invalid depending on the Tailwind configuration's `minHeight` theme entries.
+- **Learning**: Navigation bar logos should use `h-10`–`h-14` (2.5–3.5rem / 40–56px). The container naturally inherits height from its children with padding, so an explicit `min-h` can be set to the same scale token as the logo height (e.g., `h-12` logo → `min-h-14` container for padding comfort). For hero/landing-page logos with intentional large display, larger tokens are appropriate; but the two contexts are distinct.
+
+#### 2. **Mobile Menu State Must Reset on Any Navigation Action Including Branding Links**
+- **Problem**: All nav links had `onClick={() => setMobileMenuOpen(false)}` to close the mobile menu on route change, but the brand/logo `<Link to="/">` was missing this handler. Navigating home while the menu was open left the menu visible.
+- **Learning**: Any interactive element that triggers a route change within a mobile menu layout must also explicitly reset the menu state. It is easy to miss the brand link because it lives outside the explicit "menu" region. A preferable long-term pattern is to close the menu reactively via a `useEffect` on `location.pathname` so that no individual link handler can be overlooked.
+- **Test added**: `closes the mobile menu when the logo home link is clicked` in `pages.test.tsx` covers this specific regression path.
