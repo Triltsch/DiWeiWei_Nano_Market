@@ -187,9 +187,9 @@ class TestCreateDraftNano:
         storage = MagicMock()
         storage.timeout = 1
 
-        with patch("asyncio.wait_for") as mock_wait_for:
-            # Simulate asyncio.wait_for raising TimeoutError
-            mock_wait_for.side_effect = TimeoutError("Upload operation exceeded timeout")
+        with patch("asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread:
+            # Simulate timeout during threaded upload execution
+            mock_to_thread.side_effect = TimeoutError("Upload operation exceeded timeout")
 
             with pytest.raises(StorageError) as exc_info:
                 await create_draft_nano(

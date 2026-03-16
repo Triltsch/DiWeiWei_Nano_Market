@@ -12,6 +12,7 @@ export {
   setupResponseInterceptor,
 } from "./interceptors";
 export { useUserProfile } from "./useUserProfile";
+export { searchNanos } from "./search";
 export {
   clearAuthSession,
   getAccessToken,
@@ -21,3 +22,4 @@ export {
   updateAuthTokens,
 } from "./authSession";
 export type { AuthTokens, AuthUser } from "./types";
+export type { SearchFilters, SearchNano, SearchRequest, SearchResponse } from "./search";

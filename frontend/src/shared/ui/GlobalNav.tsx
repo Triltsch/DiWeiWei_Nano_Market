@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../features/auth";
+import { useTranslation } from "../i18n";
 import { LanguageSelector } from "./LanguageSelector";
 
 /**
@@ -21,6 +22,7 @@ import { LanguageSelector } from "./LanguageSelector";
  */
 export function GlobalNav(): JSX.Element {
   const { isAuthenticated, user, logout } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -44,7 +46,7 @@ export function GlobalNav(): JSX.Element {
       ? user.username
       : typeof user?.email === "string"
         ? user.email
-        : "Account";
+        : t("nav_fallback_account");
 
   const navLinkClass = (path: string): string => {
     const base = "px-3 py-2 rounded-md text-sm font-medium transition-colors";
@@ -57,46 +59,34 @@ export function GlobalNav(): JSX.Element {
   return (
     <nav
       className="sticky top-0 z-50 bg-white border-b border-neutral-200 shadow-sm"
-      aria-label="Global navigation"
+      aria-label={t("nav_aria_global")}
     >
       <div className="container-main flex items-center justify-between min-h-14 py-3">
         {/* Logo */}
         <Link
           to="/"
           className="flex items-center gap-4 text-primary-600 font-semibold hover:text-primary-700 transition-colors"
-          aria-label="DiWeiWei Nano Market Home"
+          aria-label={t("nav_home_aria")}
           onClick={() => setMobileMenuOpen(false)}
         >
           <img
-            src="/logo.png"
-            alt="DiWeiWei Nano Market Logo"
-            className="h-12 w-auto object-contain"
+            src={t("logo_src")}
+            alt={t("logo_alt")}
+            className="h-16 w-auto object-contain"
           />
-          <span className="hidden sm:inline text-2xl font-bold">DiWeiWei Nano Market</span>
         </Link>
 
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-6">
           {/* Main nav items */}
           <div className="flex items-center gap-2">
-            {isAuthenticated ? (
-              <Link
-                to="/search"
-                className={navLinkClass("/search")}
-                aria-current={isActive("/search") ? "page" : undefined}
-              >
-                Search
-              </Link>
-            ) : (
-              <button
-                type="button"
-                className={`${navLinkClass("/search")} cursor-not-allowed opacity-60`}
-                aria-disabled="true"
-                disabled
-              >
-                Search
-              </button>
-            )}
+            <Link
+              to="/search"
+              className={navLinkClass("/search")}
+              aria-current={isActive("/search") ? "page" : undefined}
+            >
+              {t("nav_search")}
+            </Link>
             {isAuthenticated && (
               <>
                 <Link
@@ -104,14 +94,14 @@ export function GlobalNav(): JSX.Element {
                   className={navLinkClass("/dashboard")}
                   aria-current={isActive("/dashboard") ? "page" : undefined}
                 >
-                  Dashboard
+                  {t("nav_dashboard")}
                 </Link>
                 <Link
                   to="/profile"
                   className={navLinkClass("/profile")}
                   aria-current={isActive("/profile") ? "page" : undefined}
                 >
-                  Profile
+                  {t("nav_profile")}
                 </Link>
               </>
             )}
@@ -132,7 +122,7 @@ export function GlobalNav(): JSX.Element {
                   className="px-3 py-2 rounded-md text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors"
                   onClick={handleLogout}
                 >
-                  Logout
+                  {t("nav_logout")}
                 </button>
               </>
             ) : (
@@ -142,14 +132,14 @@ export function GlobalNav(): JSX.Element {
                   className={navLinkClass("/login")}
                   aria-current={isActive("/login") ? "page" : undefined}
                 >
-                  Login
+                  {t("nav_login")}
                 </Link>
                 <Link
                   to="/register"
                   className={navLinkClass("/register")}
                   aria-current={isActive("/register") ? "page" : undefined}
                 >
-                  Register
+                  {t("nav_register")}
                 </Link>
               </>
             )}
@@ -163,11 +153,11 @@ export function GlobalNav(): JSX.Element {
             type="button"
             className="p-2 rounded-md hover:bg-neutral-100 transition-colors"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-label={mobileMenuOpen ? t("nav_menu_close") : t("nav_menu_open")}
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-menu"
           >
-            <span className="sr-only">{mobileMenuOpen ? "Close menu" : "Open menu"}</span>
+            <span className="sr-only">{mobileMenuOpen ? t("nav_menu_close") : t("nav_menu_open")}</span>
             <svg
               className="h-6 w-6"
               fill="none"
@@ -201,28 +191,17 @@ export function GlobalNav(): JSX.Element {
           id="mobile-menu"
           className="md:hidden border-t border-neutral-200 bg-neutral-50"
           role="region"
-          aria-label="Mobile navigation"
+          aria-label={t("nav_mobile_region")}
         >
           <div className="container-main py-4 space-y-2">
-            {isAuthenticated ? (
-              <Link
-                to="/search"
-                className={navLinkClass("/search")}
-                onClick={() => setMobileMenuOpen(false)}
-                aria-current={isActive("/search") ? "page" : undefined}
-              >
-                Search
-              </Link>
-            ) : (
-              <button
-                type="button"
-                className={`${navLinkClass("/search")} w-full text-left cursor-not-allowed opacity-60`}
-                aria-disabled="true"
-                disabled
-              >
-                Search
-              </button>
-            )}
+            <Link
+              to="/search"
+              className={navLinkClass("/search")}
+              onClick={() => setMobileMenuOpen(false)}
+              aria-current={isActive("/search") ? "page" : undefined}
+            >
+              {t("nav_search")}
+            </Link>
             {isAuthenticated && (
               <>
                 <Link
@@ -231,7 +210,7 @@ export function GlobalNav(): JSX.Element {
                   onClick={() => setMobileMenuOpen(false)}
                   aria-current={isActive("/dashboard") ? "page" : undefined}
                 >
-                  Dashboard
+                  {t("nav_dashboard")}
                 </Link>
                 <Link
                   to="/profile"
@@ -239,7 +218,7 @@ export function GlobalNav(): JSX.Element {
                   onClick={() => setMobileMenuOpen(false)}
                   aria-current={isActive("/profile") ? "page" : undefined}
                 >
-                  Profile
+                  {t("nav_profile")}
                 </Link>
               </>
             )}
@@ -255,7 +234,7 @@ export function GlobalNav(): JSX.Element {
                     className="w-full text-left px-3 py-2 rounded-md text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 transition-colors"
                     onClick={handleLogout}
                   >
-                    Logout
+                    {t("nav_logout")}
                   </button>
                 </>
               ) : (
@@ -266,7 +245,7 @@ export function GlobalNav(): JSX.Element {
                     onClick={() => setMobileMenuOpen(false)}
                     aria-current={isActive("/login") ? "page" : undefined}
                   >
-                    Login
+                    {t("nav_login")}
                   </Link>
                   <Link
                     to="/register"
@@ -274,7 +253,7 @@ export function GlobalNav(): JSX.Element {
                     onClick={() => setMobileMenuOpen(false)}
                     aria-current={isActive("/register") ? "page" : undefined}
                   >
-                    Register
+                    {t("nav_register")}
                   </Link>
                 </>
               )}

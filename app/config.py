@@ -56,8 +56,20 @@ class Settings(BaseSettings):
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
     MINIO_BUCKET_NAME: str = "nanos"
+    MINIO_ROOT_USER: Optional[str] = None
+    MINIO_ROOT_PASSWORD: Optional[str] = None
+    MINIO_IMAGE_TAG: Optional[str] = None
+    MINIO_MC_IMAGE_TAG: Optional[str] = None
     MINIO_SECURE: bool = False  # Use HTTPS in production
     MINIO_REGION: str = "us-east-1"
+
+    # Docker Compose database service settings
+    POSTGRES_USER: Optional[str] = None
+    POSTGRES_PASSWORD: Optional[str] = None
+    POSTGRES_DB: Optional[str] = None
+
+    # Meilisearch settings
+    MEILI_MASTER_KEY: Optional[str] = None
 
     # Upload settings
     UPLOAD_MAX_RETRIES: int = 3

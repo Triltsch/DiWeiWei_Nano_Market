@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 
+import { useTranslation } from "../../../shared/i18n";
 import { registerUser } from "../api";
 import {
   getPasswordStrength,
@@ -19,6 +20,7 @@ interface RegisterFormValues {
 }
 
 export function RegisterPage(): JSX.Element {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [formError, setFormError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -58,20 +60,20 @@ export function RegisterPage(): JSX.Element {
 
       navigate(`/verify-email?email=${encodeURIComponent(values.email)}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Registration failed.";
+      const message = error instanceof Error ? error.message : t("register_error_default");
       setFormError(message);
     }
   });
 
   return (
     <section className="card-elevated max-w-xl mx-auto space-y-4">
-      <h1 className="text-primary-600">Register</h1>
-      <p className="text-neutral-600">Create your account to start using DiWeiWei Nano Market.</p>
+      <h1 className="text-primary-600">{t("register_title")}</h1>
+      <p className="text-neutral-600">{t("register_subtitle")}</p>
 
       <form className="space-y-4" onSubmit={onSubmit} noValidate>
         <div className="space-y-1">
           <label htmlFor="register-email" className="font-medium text-neutral-700">
-            Email
+            {t("register_email_label")}
           </label>
           <input
             id="register-email"
@@ -80,10 +82,10 @@ export function RegisterPage(): JSX.Element {
             aria-invalid={Boolean(errors.email)}
             aria-describedby={errors.email ? "register-email-error" : undefined}
             {...register("email", {
-              required: "Email is required",
+              required: t("register_email_required"),
               pattern: {
                 value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                message: "Please enter a valid email address",
+                message: t("register_email_invalid"),
               },
             })}
           />
@@ -96,7 +98,7 @@ export function RegisterPage(): JSX.Element {
 
         <div className="space-y-1">
           <label htmlFor="register-username" className="font-medium text-neutral-700">
-            Username
+            {t("register_username_label")}
           </label>
           <input
             id="register-username"
@@ -105,12 +107,12 @@ export function RegisterPage(): JSX.Element {
             aria-invalid={Boolean(errors.username)}
             aria-describedby={errors.username ? "register-username-error" : undefined}
             {...register("username", {
-              required: "Username is required",
-              minLength: { value: 3, message: "Username must be at least 3 characters" },
-              maxLength: { value: 20, message: "Username must be at most 20 characters" },
+              required: t("register_username_required"),
+              minLength: { value: 3, message: t("register_username_min") },
+              maxLength: { value: 20, message: t("register_username_max") },
               pattern: {
                 value: /^[a-zA-Z0-9_]+$/,
-                message: "Only letters, numbers, and underscore are allowed",
+                message: t("register_username_pattern"),
               },
             })}
           />
@@ -123,7 +125,7 @@ export function RegisterPage(): JSX.Element {
 
         <div className="space-y-1">
           <label htmlFor="register-password" className="font-medium text-neutral-700">
-            Password
+            {t("register_password_label")}
           </label>
           <div className="flex gap-2">
             <input
@@ -133,11 +135,11 @@ export function RegisterPage(): JSX.Element {
               aria-invalid={Boolean(errors.password)}
               aria-describedby={errors.password ? "register-password-error" : undefined}
               {...register("password", {
-                required: "Password is required",
+                required: t("register_password_required"),
                 validate: (value) =>
                   meetsPasswordPolicy(value)
                     ? true
-                    : "Password does not meet the required policy",
+                    : t("register_password_policy"),
               })}
             />
             <button
@@ -145,11 +147,12 @@ export function RegisterPage(): JSX.Element {
               className="btn-outline"
               onClick={() => setShowPassword((previous) => !previous)}
             >
-              {showPassword ? "Hide" : "Show"}
+              {showPassword ? t("auth_hide_password") : t("auth_show_password")}
             </button>
           </div>
           <p className="text-sm text-neutral-600">
-            Strength: <span className="font-semibold capitalize">{passwordStrength.label}</span>
+            {t("register_password_strength")} {" "}
+            <span className="font-semibold capitalize">{passwordStrength.label}</span>
           </p>
           {errors.password && (
             <p id="register-password-error" className="text-sm text-red-600">
@@ -160,7 +163,7 @@ export function RegisterPage(): JSX.Element {
 
         <div className="space-y-1">
           <label htmlFor="register-confirm-password" className="font-medium text-neutral-700">
-            Confirm Password
+            {t("register_confirm_password_label")}
           </label>
           <div className="flex gap-2">
             <input
@@ -172,8 +175,8 @@ export function RegisterPage(): JSX.Element {
                 errors.confirmPassword ? "register-confirm-password-error" : undefined
               }
               {...register("confirmPassword", {
-                required: "Please confirm your password",
-                validate: (value) => value === password || "Passwords do not match",
+                required: t("register_confirm_required"),
+                validate: (value) => value === password || t("register_confirm_mismatch"),
               })}
             />
             <button
@@ -181,7 +184,7 @@ export function RegisterPage(): JSX.Element {
               className="btn-outline"
               onClick={() => setShowConfirmPassword((previous) => !previous)}
             >
-              {showConfirmPassword ? "Hide" : "Show"}
+              {showConfirmPassword ? t("auth_hide_password") : t("auth_show_password")}
             </button>
           </div>
           {errors.confirmPassword && (
@@ -192,7 +195,7 @@ export function RegisterPage(): JSX.Element {
         </div>
 
         <div className="space-y-1 text-sm text-neutral-700">
-          <p className="font-medium">Password requirements</p>
+          <p className="font-medium">{t("register_requirements_title")}</p>
           <ul className="list-disc list-inside">
             {PASSWORD_REQUIREMENTS.map((requirement) => (
               <li key={requirement}>{requirement}</li>
@@ -207,12 +210,12 @@ export function RegisterPage(): JSX.Element {
               aria-invalid={Boolean(errors.acceptTerms)}
               aria-describedby={errors.acceptTerms ? "register-terms-error" : undefined}
               {...register("acceptTerms", {
-                validate: (value) => value || "You must accept the Terms of Service",
+                validate: (value) => value || t("register_accept_terms_required"),
               })}
             />
-            I accept the
+            {t("register_accept_terms_prefix")}
             <a href="/terms" target="_blank" rel="noreferrer" className="underline">
-              Terms of Service
+              {t("register_accept_terms_link")}
             </a>
           </label>
           {errors.acceptTerms && (
@@ -227,12 +230,12 @@ export function RegisterPage(): JSX.Element {
               aria-invalid={Boolean(errors.acceptPrivacy)}
               aria-describedby={errors.acceptPrivacy ? "register-privacy-error" : undefined}
               {...register("acceptPrivacy", {
-                validate: (value) => value || "You must accept the Privacy Policy",
+                validate: (value) => value || t("register_accept_privacy_required"),
               })}
             />
-            I accept the
+            {t("register_accept_privacy_prefix")}
             <a href="/privacy" target="_blank" rel="noreferrer" className="underline">
-              Privacy Policy
+              {t("register_accept_privacy_link")}
             </a>
           </label>
           {errors.acceptPrivacy && (
@@ -249,12 +252,12 @@ export function RegisterPage(): JSX.Element {
         )}
 
         <button type="submit" className="btn-primary w-full" disabled={!isValid || isSubmitting}>
-          {isSubmitting ? "Creating account..." : "Create account"}
+          {isSubmitting ? t("register_submitting") : t("register_submit")}
         </button>
       </form>
 
       <p className="text-sm text-neutral-700">
-        Already have an account? <Link to="/login">Go to login</Link>
+        {t("register_has_account")} <Link to="/login">{t("register_go_login")}</Link>
       </p>
     </section>
   );
