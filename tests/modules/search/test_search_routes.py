@@ -56,7 +56,7 @@ class TestSearchRoutes:
 
         Expected: 400 Bad Request for invalid page values.
         """
-        with patch("app.modules.search.service.search_nanos") as mock_search:
+        with patch("app.modules.search.router.search_nanos") as mock_search:
             mock_search.side_effect = Exception("Should not be called")
 
             response = client.get("/api/v1/search?q=test&page=0")
@@ -94,7 +94,7 @@ class TestSearchRoutes:
         assert response.status_code == 422
 
     @pytest.mark.unit
-    @patch("app.modules.search.service.search_nanos")
+    @patch("app.modules.search.router.search_nanos")
     def test_get_search_endpoint_success(self, mock_search, client):
         """
         Test successful search request.
@@ -159,7 +159,7 @@ class TestSearchRoutes:
         assert data["meta"]["pagination"]["total_results"] == 1
 
     @pytest.mark.unit
-    @patch("app.modules.search.service.search_nanos")
+    @patch("app.modules.search.router.search_nanos")
     def test_get_search_endpoint_with_filters(self, mock_search, client):
         """
         Test search request with category, level, and duration filters.
@@ -209,7 +209,7 @@ class TestSearchRoutes:
         assert call_kwargs["limit"] == 20
 
     @pytest.mark.unit
-    @patch("app.modules.search.service.search_nanos")
+    @patch("app.modules.search.router.search_nanos")
     def test_get_search_endpoint_pagination(self, mock_search, client):
         """
         Test search endpoint with pagination parameters.
@@ -252,7 +252,7 @@ class TestSearchRoutes:
         assert data["meta"]["pagination"]["has_prev_page"] is True
 
     @pytest.mark.unit
-    @patch("app.modules.search.service.search_nanos")
+    @patch("app.modules.search.router.search_nanos")
     def test_get_search_endpoint_service_unavailable(self, mock_search, client):
         """
         Test search endpoint when search service is unavailable.
@@ -272,7 +272,7 @@ class TestSearchRoutes:
         assert "detail" in error_data
 
     @pytest.mark.unit
-    @patch("app.modules.search.service.search_nanos")
+    @patch("app.modules.search.router.search_nanos")
     def test_get_search_endpoint_malformed_filter(self, mock_search, client):
         """
         Test search endpoint with invalid filter values.
@@ -291,7 +291,7 @@ class TestSearchRoutes:
         assert response.status_code in [400, 422]
 
     @pytest.mark.unit
-    @patch("app.modules.search.service.search_nanos")
+    @patch("app.modules.search.router.search_nanos")
     def test_get_search_endpoint_case_insensitive_query(self, mock_search, client):
         """
         Test that search query is case-insensitive.
@@ -332,7 +332,7 @@ class TestSearchRoutes:
         assert call_kwargs["query"] == "EXCEL"
 
     @pytest.mark.unit
-    @patch("app.modules.search.service.search_nanos")
+    @patch("app.modules.search.router.search_nanos")
     def test_get_search_endpoint_partial_match(self, mock_search, client):
         """
         Test partial match search (e.g., 'Exce' matches 'Excel').
