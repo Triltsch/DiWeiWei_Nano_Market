@@ -1,7 +1,5 @@
 # Learnings - DiWeiWei Nano-Marktplatz Projekt
 
-# Learnings - DiWeiWei Nano-Marktplatz Projekt
-
 ## Review Follow-up Insights - PR #65 (Issue #60: Landing Page & Logo i18n)
 
 ### Key Learnings

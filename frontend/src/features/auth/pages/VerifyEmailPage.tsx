@@ -63,7 +63,7 @@ export function VerifyEmailPage(): JSX.Element {
         clearTimeout(timeoutId);
       }
     };
-  }, [verificationToken, navigate]);
+  }, [verificationToken, navigate, t]);
 
   useEffect(() => {
     if (cooldownSeconds <= 0) {

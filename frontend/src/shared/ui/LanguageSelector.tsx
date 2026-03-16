@@ -3,7 +3,6 @@ import { type ChangeEvent, useCallback, useId } from "react";
 import { useLanguage, useTranslation, type SupportedLanguage } from "../i18n";
 
 /**
-/**
  * LanguageSelector Component
  *
  * Provides language selection dropdown for multi-language support.

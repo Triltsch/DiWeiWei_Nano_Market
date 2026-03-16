@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, type PropsWithChildren } from "react";
+import { useEffect, useRef, useState, type PropsWithChildren } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import {
@@ -316,6 +316,7 @@ export function SearchPage(): JSX.Element {
     };
 
     setQueryInput((prev) => (prev === newQuery ? prev : newQuery));
+    setDebouncedQuery((prev) => (prev === newQuery ? prev : newQuery));
     setFilters((prev) => {
       if (
         prev.category === newFilters.category &&
