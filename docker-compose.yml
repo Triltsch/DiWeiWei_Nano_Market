@@ -146,17 +146,32 @@ services:
       - diwei_dev
     restart: unless-stopped
 
-  # Frontend - React + Vite static asset serving
+  # Frontend - React + Vite dev server with bind-mount live reload
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      target: development
     container_name: diwei_dev_frontend
+    environment:
+      VITE_DEV_SERVER_HOST: "0.0.0.0"
+      VITE_API_BASE_URL: "http://app:8000"
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "300"
     ports:
-      - "127.0.0.1:3000:80"
+      - "127.0.0.1:3000:5173"
     depends_on:
       app:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5173/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - ./frontend:/frontend:cached
+      - frontend_node_modules:/frontend/node_modules
     networks:
       - diwei_dev
     restart: unless-stopped
@@ -166,6 +181,7 @@ volumes:
   redis_data:
   minio_data:
   meilisearch_data:
+  frontend_node_modules:
 
 networks:
   diwei_dev:

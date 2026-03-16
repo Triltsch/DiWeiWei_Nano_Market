@@ -59,17 +59,25 @@ Run all checks:
 npm run lint && npm run format && npm run typecheck && npm test -- --run
 ```
 
-## Docker Deployment
+## Docker Development
 
 Frontend is included in the Docker Compose stack:
 
 ```bash
-docker compose up frontend  # Builds and serves static assets on :3000
+docker compose up frontend  # Starts Vite dev server with live reload on :3000
 ```
 
-The `Dockerfile.frontend` uses multi-stage build:
-1. Build stage: Node.js 20 Alpine - runs TypeScript check and Vite build
-2. Serve stage: Nginx Alpine - serves `/dist` content with SPA routing
+The Compose frontend service is optimized for day-to-day UI development:
+
+- Source code is bind-mounted from `./frontend` into the container
+- `node_modules` lives in a named Docker volume to avoid host/container conflicts
+- Vite file watching uses polling so changes are detected reliably on Docker Desktop / Windows
+- The browser still uses `http://localhost:3000`, while the Vite dev server runs on port `5173` inside the container
+- API proxying is configured to reach the backend service at `http://app:8000`
+
+The `Dockerfile.frontend` now supports two modes:
+1. `development` stage: Node.js 20 Alpine - runs Vite dev server for Compose live reload
+2. `builder` + `production` stages: builds and serves `/dist` with Nginx for static production-style delivery
 
 ## Structure
 
