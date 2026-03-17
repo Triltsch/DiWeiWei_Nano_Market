@@ -6,7 +6,7 @@ Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und 
 
 ## 📊 Aktueller Stand
 
-**Fertiggestellte Stories**: 1.1, 1.3, 1.4, 1.5, 7.2, 7.3, 8.1, 8.2, 8.4, 2.2, 2.4 ✅
+**Fertiggestellte Stories**: 1.1, 1.3, 1.4, 1.5, 7.2, 7.3, 8.1, 8.2, 8.4, 2.2, 2.4, 7.4 ✅
 - ✅ User Registration & Login mit Email-Verifizierung
 - ✅ Password Hashing (Bcrypt, OWASP-konform)
 - ✅ Email Verification Flow (JWT-basiert)
@@ -20,6 +20,7 @@ Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und 
 - ✅ Nano Status Workflow (Story 2.4) - PATCH endpoint for status transitions with state machine validation
 - ✅ Landing Page & Global Navigation (Story 8.2) - Responsive navbar with hamburger menu, active route highlighting, language selector placeholder, WCAG 2.1 AA compliance
 - ✅ Nano Discovery Page & Search UI (Story 8.4) - `/search` with debounce, filters, loading/empty states, URL sync, and load-more pagination
+- ✅ Redis Cache Setup für Search (Story 7.4) - deterministische Cache-Keys, 30-Minuten TTL, Invalidierung bei Nano-Datenänderungen, degraded mode ohne API-Ausfall
 
 **Qualität**:
 - 266/266 Tests bestanden (100%)
@@ -158,11 +159,19 @@ npm run build
   - Responsive globale Navigation mit Auth-Zuständen, Active Route Highlighting und Mobile-Menü
   - Sprachumschalter-Platzhalter, WCAG-orientierte Semantik und Docker-/Dev-Frontend-Anbindung
 
+### Sprint 4 – Search Infrastruktur
+- **Story 7.4 / Issue #62 – Redis Cache Setup (Self-Hosted) für Search**
+  - Redis-basierter Search-Response-Cache für `/api/v1/search` mit TTL = 30 Minuten
+  - Deterministische Cache-Key-Strategie auf Basis aller Suchparameter (`q`, `category`, `level`, `duration`, `page`, `limit`)
+  - Cache-Invalidierung bei Nano-Metadaten- und Statusänderungen
+  - Degraded Mode: Redis-Ausfall führt nicht zu API-Ausfall (Live-Search über Meilisearch als Fallback)
+  - Observability-Hooks via strukturierte Cache hit/miss/store/invalidate Logs
+
 ## 🐳 Docker Services
 
 **docker-compose.yml** - Vollständige Entwicklungsumgebung:
 - PostgreSQL 13 (Port 5432)
-- Redis 7 (Port 6380)
+- Redis 7 (Port 6379)
 - MinIO (Port 9000/9001)
 - Meilisearch v1.6.0 (Port 7700)
 - FastAPI App (Port 8000)
@@ -181,7 +190,7 @@ docker-compose down
 **Zugriff**:
 - API: http://localhost:8000
 - Swagger: http://localhost:8000/docs
-- MinIO Console: http://localhost:9001 (minioadmin/minioadmin123)
+- MinIO Console: http://localhost:9001 (minioadmin/minioadmin)
 - Meilisearch: http://localhost:7700
 
 **Umgebungsvariablen**: Siehe `.env.example` für alle Konfigurationsoptionen.
@@ -235,6 +244,7 @@ docker-compose down
 - **[doc/AUDIT_LOGGING.md](./doc/AUDIT_LOGGING.md)** - Audit logging framework (40+ event types)
 - **[doc/FRONTEND_S2_SETUP.md](./doc/FRONTEND_S2_SETUP.md)** - React + Vite + Tailwind setup (Story 8.1)
 - **[doc/REACT_QUERY_SETUP.md](./doc/REACT_QUERY_SETUP.md)** - TanStack Query integration
+- **[doc/SEARCH_CACHE.md](./doc/SEARCH_CACHE.md)** - Redis-Cache-Strategie für Search (TTL, Keys, Invalidierung, degraded mode)
 
 ## 🔒 Sicherheitsfeatures
 
