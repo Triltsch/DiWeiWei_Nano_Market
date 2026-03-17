@@ -43,6 +43,7 @@ def get_search_router(prefix: str = "/api/v1/search", tags: list[str] | None = N
         - `category`: Optional category filter (exact match)
         - `level`: Optional competency level filter (1=Basic, 2=Intermediate, 3=Advanced)
         - `duration`: Optional duration filter (0-15, 15-30, or 30+ minutes)
+        - `language`: Optional content language filter (ISO 639-1, e.g. `de`, `en`)
         - `page`: Page number (1-indexed, default 1)
         - `limit`: Results per page (default 20, max 100)
 
@@ -92,6 +93,7 @@ def get_search_router(prefix: str = "/api/v1/search", tags: list[str] | None = N
                                     "category": None,
                                     "level": None,
                                     "duration": None,
+                                    "language": None,
                                 },
                             },
                             "timestamp": "2026-03-16T12:34:56Z",
@@ -118,6 +120,13 @@ def get_search_router(prefix: str = "/api/v1/search", tags: list[str] | None = N
                 description="Optional duration filter (0-15, 15-30, or 30+)",
             ),
         ] = None,
+        language: Annotated[
+            Optional[str],
+            Query(
+                pattern=r"^[a-z]{2}$",
+                description="Optional content language filter (ISO 639-1, e.g. de, en)",
+            ),
+        ] = None,
         page: Annotated[int, Query(ge=1, description="Page number")] = 1,
         limit: Annotated[int, Query(ge=1, le=100, description="Results per page")] = 20,
         db: AsyncSession = Depends(get_db),
@@ -129,6 +138,7 @@ def get_search_router(prefix: str = "/api/v1/search", tags: list[str] | None = N
             category=category,
             level=level,
             duration=duration,
+            language=language,
             page=page,
             limit=limit,
         )

@@ -75,6 +75,17 @@ class TestSearchNanosService:
         assert exc_info.value.status_code == 400
         assert "duration" in exc_info.value.detail.lower()
 
+    @pytest.mark.asyncio
+    async def test_search_invalid_language(self):
+        """Invalid language codes are rejected with HTTP 400."""
+        mock_db = AsyncMock(spec=AsyncSession)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await search_nanos(db=mock_db, query="python", language="EN")
+
+        assert exc_info.value.status_code == 400
+        assert "language" in exc_info.value.detail.lower()
+
     @pytest.mark.unit
     def test_build_search_cache_key_is_deterministic(self):
         """Cache key generation is deterministic and parameter-complete."""
@@ -83,6 +94,7 @@ class TestSearchNanosService:
             category="Programming",
             level=2,
             duration="15-30",
+            language="de",
             page=1,
             limit=20,
         )
@@ -91,6 +103,7 @@ class TestSearchNanosService:
             category="Programming",
             level=2,
             duration="15-30",
+            language="de",
             page=1,
             limit=20,
         )
@@ -100,6 +113,7 @@ class TestSearchNanosService:
         assert "category=Programming" in key_a
         assert "level=2" in key_a
         assert "duration=15-30" in key_a
+        assert "language=de" in key_a
         assert "page=1" in key_a
         assert "limit=20" in key_a
 
@@ -156,7 +170,7 @@ class TestSearchNanosService:
             '{"success":true,"data":[],"meta":{"pagination":{"current_page":1,'
             '"page_size":20,"total_results":0,"total_pages":0,"has_next_page":false,'
             '"has_prev_page":false},"query":{"search_query":"python","category":null,'
-            '"level":null,"duration":null}},"timestamp":"2026-03-16T12:34:56Z"}'
+            '"level":null,"duration":null,"language":null}},"timestamp":"2026-03-16T12:34:56Z"}'
         )
 
         mock_redis = AsyncMock()
@@ -230,24 +244,24 @@ class TestSearchNanosService:
         mock_db = AsyncMock(spec=AsyncSession)
 
         result = await search_nanos(db=mock_db, query="test", page=1, limit=20)
-        assert result.meta["pagination"]["current_page"] == 1
-        assert result.meta["pagination"]["total_pages"] == 3
-        assert result.meta["pagination"]["has_next_page"] is True
-        assert result.meta["pagination"]["has_prev_page"] is False
+        assert result.meta.pagination.current_page == 1
+        assert result.meta.pagination.total_pages == 3
+        assert result.meta.pagination.has_next_page is True
+        assert result.meta.pagination.has_prev_page is False
 
         # Middle page should have both previous and next page
         result = await search_nanos(db=mock_db, query="test", page=2, limit=20)
-        assert result.meta["pagination"]["current_page"] == 2
-        assert result.meta["pagination"]["total_pages"] == 3
-        assert result.meta["pagination"]["has_next_page"] is True
-        assert result.meta["pagination"]["has_prev_page"] is True
+        assert result.meta.pagination.current_page == 2
+        assert result.meta.pagination.total_pages == 3
+        assert result.meta.pagination.has_next_page is True
+        assert result.meta.pagination.has_prev_page is True
 
         # Last page should have previous page but no next page
         result = await search_nanos(db=mock_db, query="test", page=3, limit=20)
-        assert result.meta["pagination"]["current_page"] == 3
-        assert result.meta["pagination"]["total_pages"] == 3
-        assert result.meta["pagination"]["has_next_page"] is False
-        assert result.meta["pagination"]["has_prev_page"] is True
+        assert result.meta.pagination.current_page == 3
+        assert result.meta.pagination.total_pages == 3
+        assert result.meta.pagination.has_next_page is False
+        assert result.meta.pagination.has_prev_page is True
 
     @pytest.mark.asyncio
     @patch("app.modules.search.service.get_redis")
@@ -271,6 +285,7 @@ class TestSearchNanosService:
             category="Programming",
             level=2,
             duration="15-30",
+            language="en",
             page=1,
             limit=20,
         )
@@ -281,6 +296,7 @@ class TestSearchNanosService:
         assert call_kwargs["category"] == "Programming"
         assert call_kwargs["level"] == 2
         assert call_kwargs["duration"] == "15-30"
+        assert call_kwargs["language"] == "en"
 
     @pytest.mark.asyncio
     @patch("app.modules.search.service.get_redis")

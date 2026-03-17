@@ -90,7 +90,7 @@ The `Dockerfile.frontend` now supports two modes:
 React Router v6 routes are wired in `src/app/router.tsx` with implemented auth flow:
 
 - `/` landing page
-- `/search` discovery/search UI (debounced keyword search, filter sidebar, loading/empty states, load-more pagination, URL query sync)
+- `/search` discovery/search UI (debounced keyword search, backend-aligned filters, load-more pagination backed by page-based API metadata, URL query sync)
 - `/nano/:id`
 - `/register` registration form (React Hook Form + client validation)
 - `/login` login form with remember-email support

@@ -6,8 +6,10 @@ Redis cache for `GET /api/v1/search` responses to reduce repeated Meilisearch ro
 ## Cache Key Strategy
 - Prefix: `search:v1`
 - Deterministic canonical key built from all query parameters:
-  - `q`, `category`, `level`, `duration`, `page`, `limit`
+  - `q`, `category`, `level`, `duration`, `language`, `page`, `limit`
 - Canonicalization uses sorted query parameter encoding to ensure identical requests always map to the same key.
+
+See [doc/SEARCH_OPERATIONS.md](./SEARCH_OPERATIONS.md) for the full frontend/backend search contract, pagination semantics, and Sprint-4 QA gate details.
 
 ## TTL
 - `SEARCH_CACHE_TTL_SECONDS` default: `1800` (30 minutes)
