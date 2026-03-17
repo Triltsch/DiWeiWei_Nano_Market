@@ -29,6 +29,7 @@ from app.modules.nanos.schemas import (
     NanoMetadataResponse,
     StatusUpdateRequest,
 )
+from app.modules.search.service import invalidate_search_cache
 
 
 async def get_nano_metadata(nano_id: UUID, db: AsyncSession) -> NanoMetadataResponse:
@@ -281,6 +282,9 @@ async def update_nano_metadata(
     await db.commit()
     await db.refresh(nano)
 
+    # Invalidate search cache to prevent stale discovery results after metadata changes
+    await invalidate_search_cache(reason="nano_metadata_updated")
+
     return nano, updated_fields
 
 
@@ -377,6 +381,9 @@ async def update_nano_status(
 
     # Commit audit log changes to ensure they persist beyond request scope
     await db.commit()
+
+    # Invalidate search cache because status changes affect search visibility
+    await invalidate_search_cache(reason="nano_status_updated")
 
     return nano, old_status, new_status
 
