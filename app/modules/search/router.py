@@ -114,7 +114,7 @@ def get_search_router(prefix: str = "/api/v1/search", tags: list[str] | None = N
         duration: Annotated[
             Optional[str],
             Query(
-                pattern="^(0-15|15-30|30+)$",
+                pattern=r"^(0-15|15-30|30\+)$",
                 description="Optional duration filter (0-15, 15-30, or 30+)",
             ),
         ] = None,

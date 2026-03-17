@@ -1,25 +1,15 @@
 """
 Tests for search API routes.
 
-Integration tests for the search endpoint, including request validation,
+Unit and contract tests for the search endpoint, including request validation,
 response format, and HTTP status codes.
 """
 
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-
-from app.main import create_app
-
-
-@pytest.fixture
-def client():
-    """Create a test client for the FastAPI application."""
-    app = create_app()
-    return TestClient(app)
 
 
 class TestSearchRoutes:
@@ -388,16 +378,25 @@ class TestSearchRoutes:
         assert "Excel" in data["data"][0]["title"]
 
 
-class TestSearchEndpointIntegration:
+class TestSearchEndpointContract:
     """
-    Integration tests for the search endpoint with real database.
+    Contract tests for the search endpoint with Meilisearch patched.
 
-    Marked with @pytest.mark.integration to run only with Docker services.
+    These tests patch ``MeilisearchClient`` and the ``get_db`` dependency so
+    there is no dependency on real Docker services.  They verify the
+    integration contract between the router/service layer and the rest of the
+    application (response structure, status codes, header passing) without
+    exercising the live Meilisearch or PostgreSQL stacks.
+
+    For true end-to-end integration tests that seed Nano data into PostgreSQL
+    and run a live Meilisearch index, add those tests with
+    ``@pytest.mark.integration`` once full data-sync infrastructure is in
+    place.
     """
 
-    @pytest.mark.integration
+    @pytest.mark.unit
     @patch("app.modules.search.service.MeilisearchClient")
-    def test_search_integration_with_published_nanos(self, mock_client_class, client):
+    def test_search_contract_with_published_nanos(self, mock_client_class, client):
         """
         Test that only published Nanos are returned in search results.
 

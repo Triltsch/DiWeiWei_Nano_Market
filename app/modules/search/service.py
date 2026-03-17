@@ -10,11 +10,9 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.models import Category, Nano, NanoStatus, User
 from app.modules.search.schemas import SearchNano, SearchResponse
 
 settings = get_settings()
@@ -81,9 +79,10 @@ class MeilisearchClient:
         # Only published Nanos
         filters.append("status = 'published'")
 
-        # Category filter
+        # Category filter — escape single quotes to prevent Meilisearch filter injection
         if category:
-            filters.append(f"category = '{category}'")
+            safe_category = category.replace("'", "\\'")
+            filters.append(f"category = '{safe_category}'")
 
         # Competency level filter
         if level is not None and level in [1, 2, 3]:
