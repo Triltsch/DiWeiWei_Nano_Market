@@ -72,7 +72,12 @@ async def seeded_search_index() -> AsyncGenerator[list[dict[str, Any]], None]:
         headers=_build_meili_headers(),
         timeout=10.0,
     ) as meili_client:
-        health_response = await meili_client.get("/health")
+        try:
+            health_response = await meili_client.get("/health")
+        except httpx.HTTPError:
+            pytest.skip(
+                "Meilisearch is not reachable; run the verified Docker-backed test task"
+            )
         if health_response.status_code != 200:
             pytest.skip("Meilisearch is not reachable; run the verified Docker-backed test task")
 
