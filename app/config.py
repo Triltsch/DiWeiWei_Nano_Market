@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     MEILI_URL: str = "http://localhost:7700"
     MEILI_MASTER_KEY: Optional[str] = None
 
+    # Search cache settings (Redis)
+    SEARCH_CACHE_TTL_SECONDS: int = 1800  # 30 minutes
+    SEARCH_CACHE_KEY_PREFIX: str = "search:v1"
+
     # Upload settings
     UPLOAD_MAX_RETRIES: int = 3
     UPLOAD_TIMEOUT_SECONDS: int = 600

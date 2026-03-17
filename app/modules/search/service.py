@@ -2,11 +2,13 @@
 Business logic for search functionality.
 
 This module provides service functions for full-text search using Meilisearch,
-including query processing, filtering, and pagination.
+including query processing, Redis caching (TTL 30 minutes), and pagination.
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import urlencode
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -15,8 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.modules.search.schemas import SearchNano, SearchResponse
+from app.redis_client import get_redis
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class MeilisearchClient:
@@ -98,10 +102,7 @@ class MeilisearchClient:
             elif duration == "30+":
                 filters.append("duration_minutes > 30")
 
-        # Combine filters with AND
-        filter_expression = " AND ".join(filters) if filters else None
-
-        # Calculate offset for pagination
+        filter_expression = " AND ".join(filters)
         offset = (page - 1) * limit
 
         try:
@@ -109,20 +110,95 @@ class MeilisearchClient:
                 "q": query,
                 "offset": offset,
                 "limit": limit,
-                "sort": ["_rank:desc", "average_rating:desc"],  # Relevance + quality ranking
+                "sort": ["_rank:desc", "average_rating:desc"],
+                "filter": [filter_expression],
             }
-
-            if filter_expression:
-                search_params["filter"] = [filter_expression]
-
-            result = index.search(**search_params)
-
-            return result
+            return index.search(**search_params)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Search operation failed",
             ) from e
+
+
+def build_search_cache_key(
+    query: str,
+    category: Optional[str],
+    level: Optional[int],
+    duration: Optional[str],
+    page: int,
+    limit: int,
+) -> str:
+    """Build a deterministic Redis cache key for search parameters."""
+    key_params = {
+        "q": query.strip(),
+        "category": category or "",
+        "level": "" if level is None else str(level),
+        "duration": duration or "",
+        "page": str(page),
+        "limit": str(limit),
+    }
+    canonical = urlencode(sorted(key_params.items()))
+    return f"{settings.SEARCH_CACHE_KEY_PREFIX}:{canonical}"
+
+
+async def _get_cached_search_response(cache_key: str) -> Optional[SearchResponse]:
+    """Fetch and deserialize search response from Redis cache."""
+    try:
+        redis_client = await get_redis()
+        payload = await redis_client.get(cache_key)
+        if not payload:
+            return None
+
+        logger.info("search_cache_hit", extra={"cache_key": cache_key})
+        return SearchResponse.model_validate_json(payload)
+    except Exception:
+        logger.warning("search_cache_unavailable_on_get", extra={"cache_key": cache_key})
+        return None
+
+
+async def _set_cached_search_response(cache_key: str, response: SearchResponse) -> None:
+    """Store search response in Redis cache with configured TTL."""
+    try:
+        redis_client = await get_redis()
+        await redis_client.setex(
+            cache_key,
+            settings.SEARCH_CACHE_TTL_SECONDS,
+            response.model_dump_json(),
+        )
+        logger.info("search_cache_store", extra={"cache_key": cache_key})
+    except Exception:
+        logger.warning("search_cache_unavailable_on_set", extra={"cache_key": cache_key})
+
+
+async def invalidate_search_cache(reason: str) -> int:
+    """Invalidate all cached search entries.
+
+    This broad invalidation strategy is applied on Nano data changes to keep
+    search results consistent. It is safe to call in degraded mode (Redis down).
+
+    Args:
+        reason: Context for observability/logging.
+
+    Returns:
+        Number of deleted cache keys.
+    """
+    try:
+        redis_client = await get_redis()
+        pattern = f"{settings.SEARCH_CACHE_KEY_PREFIX}:*"
+        keys = await redis_client.keys(pattern)
+        if not keys:
+            return 0
+
+        deleted = await redis_client.delete(*keys)
+        logger.info(
+            "search_cache_invalidate",
+            extra={"reason": reason, "deleted_keys": int(deleted)},
+        )
+        return int(deleted)
+    except Exception:
+        logger.warning("search_cache_unavailable_on_invalidate", extra={"reason": reason})
+        return 0
 
 
 async def search_nanos(
@@ -154,7 +230,6 @@ async def search_nanos(
     """
     _ = db
 
-    # Validate pagination parameters
     if page < 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -173,21 +248,34 @@ async def search_nanos(
             detail="query parameter is required and cannot be empty",
         )
 
-    # Validate level parameter
     if level is not None and level not in [1, 2, 3]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="level must be 1 (Basic), 2 (Intermediate), or 3 (Advanced)",
         )
 
-    # Validate duration parameter
     if duration is not None and duration not in ["0-15", "15-30", "30+"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="duration must be one of: '0-15', '15-30', '30+'",
         )
 
-    # Create Meilisearch client
+    normalized_query = query.strip()
+    cache_key = build_search_cache_key(
+        query=normalized_query,
+        category=category,
+        level=level,
+        duration=duration,
+        page=page,
+        limit=limit,
+    )
+
+    cached_response = await _get_cached_search_response(cache_key)
+    if cached_response is not None:
+        return cached_response
+
+    logger.info("search_cache_miss", extra={"cache_key": cache_key})
+
     try:
         client = MeilisearchClient(settings.MEILI_URL, settings.MEILI_MASTER_KEY)
     except ImportError as e:
@@ -196,9 +284,8 @@ async def search_nanos(
             detail="Search service not configured",
         ) from e
 
-    # Perform search in Meilisearch
     search_result = client.search(
-        query=query.strip(),
+        query=normalized_query,
         category=category,
         level=level,
         duration=duration,
@@ -206,11 +293,9 @@ async def search_nanos(
         limit=limit,
     )
 
-    # Extract hits and estimated total
     hits = search_result.get("hits", [])
     estimated_total = search_result.get("estimatedTotalHits", 0)
 
-    # Build search results from hits
     results: list[SearchNano] = []
     for hit in hits:
         try:
@@ -234,15 +319,12 @@ async def search_nanos(
             )
             results.append(nano)
         except (ValueError, TypeError, ValidationError):
-            # Skip malformed results
             continue
 
-    # Calculate pagination metadata
-    total_pages = (estimated_total + limit - 1) // limit  # Ceiling division
+    total_pages = (estimated_total + limit - 1) // limit
     has_next_page = page < total_pages
     has_prev_page = page > 1
 
-    # Build response
     response = SearchResponse(
         success=True,
         data=results,
@@ -256,7 +338,7 @@ async def search_nanos(
                 "has_prev_page": has_prev_page,
             },
             "query": {
-                "search_query": query,
+                "search_query": normalized_query,
                 "category": category,
                 "level": level,
                 "duration": duration,
@@ -265,4 +347,5 @@ async def search_nanos(
         timestamp=datetime.now(timezone.utc),
     )
 
+    await _set_cached_search_response(cache_key, response)
     return response

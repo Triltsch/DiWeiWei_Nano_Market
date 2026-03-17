@@ -13,7 +13,7 @@ from app.modules.auth.router import get_auth_router
 from app.modules.nanos.router import get_nanos_router
 from app.modules.search.router import get_search_router
 from app.modules.upload.router import get_upload_router
-from app.redis_client import close_redis, get_redis
+from app.redis_client import check_redis_health, close_redis, get_redis
 
 settings = get_settings()
 
@@ -68,8 +68,15 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health_check() -> dict:
-        """Health check endpoint"""
-        return {"status": "ok", "version": settings.APP_VERSION}
+        """Health check endpoint with Redis status."""
+        redis_healthy = await check_redis_health()
+        return {
+            "status": "ok" if redis_healthy else "degraded",
+            "version": settings.APP_VERSION,
+            "services": {
+                "redis": "up" if redis_healthy else "down",
+            },
+        }
 
     @app.get("/")
     async def root() -> RedirectResponse:

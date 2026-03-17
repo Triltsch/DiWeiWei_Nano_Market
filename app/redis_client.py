@@ -58,6 +58,19 @@ async def close_redis() -> None:
         _redis_client = None
 
 
+async def check_redis_health() -> bool:
+    """Check Redis health with a ping command.
+
+    Returns:
+        True when Redis responds successfully, False otherwise.
+    """
+    try:
+        client = await get_redis()
+        return bool(await client.ping())
+    except Exception:
+        return False
+
+
 async def store_refresh_token(user_id: str, token: str, expires_in_seconds: int) -> None:
     """Store refresh token in Redis with expiration.
 
