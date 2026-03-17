@@ -1,5 +1,6 @@
 """Redis client for token storage and blacklist management"""
 
+import asyncio
 from typing import Optional
 
 import redis.asyncio as redis
@@ -66,7 +67,7 @@ async def check_redis_health() -> bool:
     """
     try:
         client = await get_redis()
-        return bool(await client.ping())
+        return bool(await asyncio.wait_for(client.ping(), timeout=1.0))
     except Exception:
         return False
 

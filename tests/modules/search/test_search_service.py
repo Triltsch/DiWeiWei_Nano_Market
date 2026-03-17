@@ -235,6 +235,20 @@ class TestSearchNanosService:
         assert result.meta["pagination"]["has_next_page"] is True
         assert result.meta["pagination"]["has_prev_page"] is False
 
+        # Middle page should have both previous and next page
+        result = await search_nanos(db=mock_db, query="test", page=2, limit=20)
+        assert result.meta["pagination"]["current_page"] == 2
+        assert result.meta["pagination"]["total_pages"] == 3
+        assert result.meta["pagination"]["has_next_page"] is True
+        assert result.meta["pagination"]["has_prev_page"] is True
+
+        # Last page should have previous page but no next page
+        result = await search_nanos(db=mock_db, query="test", page=3, limit=20)
+        assert result.meta["pagination"]["current_page"] == 3
+        assert result.meta["pagination"]["total_pages"] == 3
+        assert result.meta["pagination"]["has_next_page"] is False
+        assert result.meta["pagination"]["has_prev_page"] is True
+
     @pytest.mark.asyncio
     @patch("app.modules.search.service.get_redis")
     @patch("app.modules.search.service.MeilisearchClient")
@@ -271,16 +285,20 @@ class TestSearchNanosService:
     @pytest.mark.asyncio
     @patch("app.modules.search.service.get_redis")
     async def test_invalidate_search_cache_deletes_prefixed_keys(self, mock_get_redis):
-        """Invalidation removes all configured search cache keys."""
+        """Invalidation removes all configured search cache keys via scan_iter."""
         mock_redis = AsyncMock()
-        mock_redis.keys = AsyncMock(return_value=["search:v1:a", "search:v1:b"])
+
+        async def _scan_iter(**_kwargs):
+            for key in ["search:v1:a", "search:v1:b"]:
+                yield key
+
+        mock_redis.scan_iter = _scan_iter
         mock_redis.delete = AsyncMock(return_value=2)
         mock_get_redis.return_value = mock_redis
 
         deleted = await invalidate_search_cache(reason="test")
 
         assert deleted == 2
-        mock_redis.keys.assert_awaited_once()
         mock_redis.delete.assert_awaited_once_with("search:v1:a", "search:v1:b")
 
     @pytest.mark.asyncio

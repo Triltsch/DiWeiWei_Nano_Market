@@ -7,6 +7,7 @@ including query processing, Redis caching (TTL 30 minutes), and pagination.
 
 import logging
 from datetime import datetime, timezone
+from hashlib import sha256
 from typing import Optional
 from urllib.parse import urlencode
 from uuid import UUID
@@ -21,6 +22,11 @@ from app.redis_client import get_redis
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+
+def _cache_key_hash(cache_key: str) -> str:
+    """Return a short hash for safe cache key logging without raw user input."""
+    return sha256(cache_key.encode("utf-8")).hexdigest()[:12]
 
 
 class MeilisearchClient:
@@ -144,21 +150,23 @@ def build_search_cache_key(
 
 async def _get_cached_search_response(cache_key: str) -> Optional[SearchResponse]:
     """Fetch and deserialize search response from Redis cache."""
+    cache_key_hash = _cache_key_hash(cache_key)
     try:
         redis_client = await get_redis()
         payload = await redis_client.get(cache_key)
         if not payload:
             return None
 
-        logger.info("search_cache_hit", extra={"cache_key": cache_key})
+        logger.info("search_cache_hit", extra={"cache_key_hash": cache_key_hash})
         return SearchResponse.model_validate_json(payload)
     except Exception:
-        logger.warning("search_cache_unavailable_on_get", extra={"cache_key": cache_key})
+        logger.warning("search_cache_unavailable_on_get", extra={"cache_key_hash": cache_key_hash})
         return None
 
 
 async def _set_cached_search_response(cache_key: str, response: SearchResponse) -> None:
     """Store search response in Redis cache with configured TTL."""
+    cache_key_hash = _cache_key_hash(cache_key)
     try:
         redis_client = await get_redis()
         await redis_client.setex(
@@ -166,9 +174,9 @@ async def _set_cached_search_response(cache_key: str, response: SearchResponse) 
             settings.SEARCH_CACHE_TTL_SECONDS,
             response.model_dump_json(),
         )
-        logger.info("search_cache_store", extra={"cache_key": cache_key})
+        logger.info("search_cache_store", extra={"cache_key_hash": cache_key_hash})
     except Exception:
-        logger.warning("search_cache_unavailable_on_set", extra={"cache_key": cache_key})
+        logger.warning("search_cache_unavailable_on_set", extra={"cache_key_hash": cache_key_hash})
 
 
 async def invalidate_search_cache(reason: str) -> int:
@@ -186,16 +194,23 @@ async def invalidate_search_cache(reason: str) -> int:
     try:
         redis_client = await get_redis()
         pattern = f"{settings.SEARCH_CACHE_KEY_PREFIX}:*"
-        keys = await redis_client.keys(pattern)
-        if not keys:
-            return 0
+        deleted = 0
+        batch: list[str] = []
 
-        deleted = await redis_client.delete(*keys)
+        async for key in redis_client.scan_iter(match=pattern, count=200):
+            batch.append(key)
+            if len(batch) >= 200:
+                deleted += int(await redis_client.delete(*batch))
+                batch = []
+
+        if batch:
+            deleted += int(await redis_client.delete(*batch))
+
         logger.info(
             "search_cache_invalidate",
-            extra={"reason": reason, "deleted_keys": int(deleted)},
+            extra={"reason": reason, "deleted_keys": deleted},
         )
-        return int(deleted)
+        return deleted
     except Exception:
         logger.warning("search_cache_unavailable_on_invalidate", extra={"reason": reason})
         return 0
@@ -274,7 +289,7 @@ async def search_nanos(
     if cached_response is not None:
         return cached_response
 
-    logger.info("search_cache_miss", extra={"cache_key": cache_key})
+    logger.info("search_cache_miss", extra={"cache_key_hash": _cache_key_hash(cache_key)})
 
     try:
         client = MeilisearchClient(settings.MEILI_URL, settings.MEILI_MASTER_KEY)

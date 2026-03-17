@@ -71,3 +71,10 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Redis-Ausfälle dürfen Search nicht blockieren: Cache `get/set/invalidate` defensiv kapseln, Live-Search als Fallback (degraded mode).
 - Healthcheck sollte Degraded-Zustand sichtbar machen (`status: degraded`, `services.redis: down`) statt nur pauschal `ok`.
 - Tests für Search-Service immer Redis mocken, wenn Meilisearch-Aufrufe asserted werden; sonst werden Tests durch reale Cache-Hits flakey.
+
+## Review-Nachtrag PR #67
+
+- Für Redis-Key-Löschung in produktionsnahen Pfaden nie `KEYS` verwenden; stattdessen `SCAN`/`scan_iter` mit Batch-Deletes, um Blocking-Latenzen zu vermeiden.
+- Cache-Logging darf keine Roh-Keys mit User-Query enthalten; stattdessen nur gehashte Key-Fingerprints loggen.
+- Health-Endpunkte dürfen bei Redis-Störung nicht hängen: `ping()` mit kurzem Timeout kapseln (z. B. `asyncio.wait_for`).
+- Pagination-Tests müssen mindestens erste, mittlere und letzte Seite abdecken, damit `has_next_page`/`has_prev_page` nicht regressieren.
