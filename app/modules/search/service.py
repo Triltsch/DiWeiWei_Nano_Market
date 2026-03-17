@@ -10,6 +10,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -151,6 +152,8 @@ async def search_nanos(
     Raises:
         HTTPException: If search service is unavailable or query is invalid
     """
+    _ = db
+
     # Validate pagination parameters
     if page < 1:
         raise HTTPException(
@@ -208,9 +211,13 @@ async def search_nanos(
     estimated_total = search_result.get("estimatedTotalHits", 0)
 
     # Build search results from hits
-    search_nanos = []
+    results: list[SearchNano] = []
     for hit in hits:
         try:
+            published_at_value = hit.get("published_at")
+            if not published_at_value:
+                published_at_value = datetime.now(timezone.utc).isoformat()
+
             nano = SearchNano(
                 id=UUID(hit.get("id")),
                 title=hit.get("title"),
@@ -222,13 +229,11 @@ async def search_nanos(
                 format=hit.get("format"),
                 average_rating=hit.get("average_rating"),
                 rating_count=hit.get("rating_count"),
-                published_at=datetime.fromisoformat(
-                    hit.get("published_at", datetime.now(timezone.utc).isoformat())
-                ),
+                published_at=published_at_value,
                 thumbnail_url=hit.get("thumbnail_url"),
             )
-            search_nanos.append(nano)
-        except (ValueError, TypeError) as e:
+            results.append(nano)
+        except (ValueError, TypeError, ValidationError):
             # Skip malformed results
             continue
 
@@ -240,7 +245,7 @@ async def search_nanos(
     # Build response
     response = SearchResponse(
         success=True,
-        data=search_nanos,
+        data=results,
         meta={
             "pagination": {
                 "current_page": page,

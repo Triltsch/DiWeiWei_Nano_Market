@@ -2701,3 +2701,11 @@ Code review revealed the project expects:
 #### 8. **Label test classes accurately to reflect what they actually test**
 - **Problem**: `TestSearchEndpointIntegration` was marked `@pytest.mark.integration` and described as requiring "real database / Docker services", but in reality it patched `MeilisearchClient` and did not use the shared DB fixture. This misled coverage analysis and confused future maintainers about which services were required.
 - **Learning**: Label test classes and marks to accurately reflect the real testing scope. If a test patches all external dependencies, it is a unit or contract test — not an integration test. Only mark a test `@pytest.mark.integration` when it actually exercises a live external service (real DB, real Redis, real search engine, etc.).
+
+#### 9. **Prefer model-driven timestamp parsing over manual `fromisoformat()` in API adapters**
+- **Problem**: `datetime.fromisoformat()` can be brittle when incoming timestamp strings vary in RFC 3339 formatting details (notably trailing `Z` in external-service payloads), which risks dropping otherwise valid search hits.
+- **Learning**: When data is already being validated by Pydantic, pass timestamp strings directly to the model field and let Pydantic normalize/parse them. This keeps parsing behavior consistent across formats and reduces custom datetime edge-case code.
+
+#### 10. **Malformed external search hits should be isolated, not fail the entire endpoint**
+- **Problem**: While the code intended to "skip malformed results", it initially handled only `ValueError`/`TypeError`. Pydantic model construction can raise `ValidationError`, which could otherwise bubble up and fail the whole request.
+- **Learning**: When transforming external engine hits into internal models, catch all expected validation exceptions (`ValueError`, `TypeError`, `ValidationError`) at per-hit granularity and continue processing remaining hits. This preserves endpoint availability under partial data-quality issues.
