@@ -2663,3 +2663,49 @@ Code review revealed the project expects:
 - **Problem**: All nav links had `onClick={() => setMobileMenuOpen(false)}` to close the mobile menu on route change, but the brand/logo `<Link to="/">` was missing this handler. Navigating home while the menu was open left the menu visible.
 - **Learning**: Any interactive element that triggers a route change within a mobile menu layout must also explicitly reset the menu state. It is easy to miss the brand link because it lives outside the explicit "menu" region. A preferable long-term pattern is to close the menu reactively via a `useEffect` on `location.pathname` so that no individual link handler can be overlooked.
 - **Test added**: `closes the mobile menu when the logo home link is clicked` in `pages.test.tsx` covers this specific regression path.
+
+## Sprint 4 Story 3.1: Full-Text Search Backend with Meilisearch (Issue #61)
+
+### Key Learnings
+
+#### 1. **FastAPI route tests must patch the symbol used by the router, not only the original service module export**
+- **Problem**: Search route tests patched `app.modules.search.service.search_nanos`, but the router imported `search_nanos` directly at module import time. Requests still executed the real search path and returned `503` when Meilisearch was unavailable.
+- **Learning**: When a router uses `from module import function`, tests must patch the router-local reference actually invoked at runtime, e.g. `app.modules.search.router.search_nanos`. Patching only the original defining module is insufficient once the symbol has been bound in the importing module.
+
+#### 2. **Required FastAPI query parameters with `Annotated[..., Query(...)]` should not use `= ...` defaults**
+- **Problem**: Declaring the required `q` parameter as `q: Annotated[str, Query(...)] = ...` triggered a validation/encoding edge case that surfaced an `ellipsis` object in FastAPI's error serialization for missing queries.
+- **Learning**: For required query parameters in modern FastAPI signatures, prefer `q: Annotated[str, Query(...)]` with no explicit default. This keeps the parameter required while avoiding accidental `Ellipsis` leakage into validation error handling.
+
+#### 3. **Search integration should separate Meilisearch transport concerns from response-shaping logic**
+- **Problem**: It was tempting to mix ORM lookups, index transport, and response formatting in one function, which made the feature harder to validate and mock.
+- **Learning**: Keep the Meilisearch client focused on request construction and transport, and keep `search_nanos()` responsible for API-level validation and response shaping. This separation makes it easier to test pagination/filter behavior independently from the external search engine.
+
+### PR #66 Code Review Learnings
+
+#### 4. **Unused imports must be cleaned up before submitting a PR**
+- **Problem**: `select`, `Category`, `Nano`, `NanoStatus`, and `User` were imported in `service.py` as placeholders for planned ORM queries that were not yet implemented. Similarly, `json` and `AsyncMock` were left in `test_search_routes.py` from an earlier iteration.
+- **Learning**: Delete unused imports before opening a PR. Lint tools (isort, flake8) catch these, but the formatter (Black) does not. Add a pre-commit checklist item: "run `ruff check` or `flake8 --select F401` to confirm no unused imports remain." Do not include forward-looking scaffolding imports unless the code that needs them is in the same commit.
+
+#### 5. **Regex patterns inside `Query(pattern=...)` must escape regex metacharacters**
+- **Problem**: The `duration` pattern `^(0-15|15-30|30+)$` was intended to match the literal string `30+`, but `+` is a regex quantifier meaning "one or more of the preceding character". This caused `30+` to be rejected (not enough `0`-repetitions to match) while `300` would pass (though `3` is not in the pattern, just `30` followed by one or more `0`).
+- **Learning**: Always escape regex metacharacters in validation patterns. For small fixed sets of allowed values (`0-15`, `15-30`, `30+`) a `Literal` type or `Enum` is cleaner and self-documenting: FastAPI automatically generates the allowed values in the OpenAPI schema. Use raw strings (`r"..."`) for all regex patterns to avoid double-escaping.
+
+#### 6. **User-supplied strings interpolated into filter expressions are an injection vector**
+- **Problem**: The `category` value from the query string was interpolated directly into the Meilisearch filter string (`category = '{category}'`). A value containing a single quote or ` OR status = 'draft'` would break the filter or bypass the `status = 'published'` constraint.
+- **Learning**: Never interpolate user-supplied strings directly into filter/query DSL expressions. Options in order of preference: (a) validate the value against an allowlist of known categories, (b) escape the value by replacing `'` with `\'` before interpolation, or (c) use an SDK method that constructs filters safely. For this project, single-quote escaping (`category.replace("'", "\\'")`) was applied as a safe minimum.
+
+#### 7. **Test fixtures that call `create_app()` directly bypass all shared test infrastructure**
+- **Problem**: The local `client` fixture in `test_search_routes.py` constructed the full production app via `create_app()`. This triggered the real lifespan startup (attempting a Redis connection), used the real `get_db` dependency, and ignored all the shared mocks and overrides set up in `tests/conftest.py`. Tests appeared to pass in isolation but were fragile in CI where Redis is not available.
+- **Learning**: Route tests should always use the shared `client` fixture from `conftest.py`. When a new router is added, register it in the `app` fixture in `conftest.py` alongside existing routers. Never create a test-local `TestClient(create_app())` — this pattern defeats the purpose of the shared test infrastructure and produces tests that depend on external services.
+
+#### 8. **Label test classes accurately to reflect what they actually test**
+- **Problem**: `TestSearchEndpointIntegration` was marked `@pytest.mark.integration` and described as requiring "real database / Docker services", but in reality it patched `MeilisearchClient` and did not use the shared DB fixture. This misled coverage analysis and confused future maintainers about which services were required.
+- **Learning**: Label test classes and marks to accurately reflect the real testing scope. If a test patches all external dependencies, it is a unit or contract test — not an integration test. Only mark a test `@pytest.mark.integration` when it actually exercises a live external service (real DB, real Redis, real search engine, etc.).
+
+#### 9. **Prefer model-driven timestamp parsing over manual `fromisoformat()` in API adapters**
+- **Problem**: `datetime.fromisoformat()` can be brittle when incoming timestamp strings vary in RFC 3339 formatting details (notably trailing `Z` in external-service payloads), which risks dropping otherwise valid search hits.
+- **Learning**: When data is already being validated by Pydantic, pass timestamp strings directly to the model field and let Pydantic normalize/parse them. This keeps parsing behavior consistent across formats and reduces custom datetime edge-case code.
+
+#### 10. **Malformed external search hits should be isolated, not fail the entire endpoint**
+- **Problem**: While the code intended to "skip malformed results", it initially handled only `ValueError`/`TypeError`. Pydantic model construction can raise `ValidationError`, which could otherwise bubble up and fail the whole request.
+- **Learning**: When transforming external engine hits into internal models, catch all expected validation exceptions (`ValueError`, `TypeError`, `ValidationError`) at per-hit granularity and continue processing remaining hits. This preserves endpoint availability under partial data-quality issues.
