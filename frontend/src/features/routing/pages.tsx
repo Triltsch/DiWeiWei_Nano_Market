@@ -7,7 +7,12 @@ import {
   VerifyEmailPage as VerifyEmailAuthPage,
 } from "../auth";
 import { PrivacyPage as PrivacyLegalPage, TermsPage as TermsLegalPage } from "../legal/pages";
-import { searchNanos, type SearchFilters, type SearchNano } from "../../shared/api";
+import {
+  normalizeSearchLevel,
+  searchNanos,
+  type SearchFilters,
+  type SearchNano,
+} from "../../shared/api";
 import { useTranslation } from "../../shared/i18n";
 import { GlobalNav } from "../../shared/ui/GlobalNav";
 
@@ -192,19 +197,6 @@ const PAGE_SIZE = 20;
 /** Debounce delay (ms) for the keyword search input. */
 const DEBOUNCE_MS = 300;
 
-function normalizeLevelFilter(level: string | null): string {
-  switch ((level ?? "").trim().toLowerCase()) {
-    case "beginner":
-      return "1";
-    case "intermediate":
-      return "2";
-    case "advanced":
-      return "3";
-    default:
-      return (level ?? "").trim();
-  }
-}
-
 export function SearchPage(): JSX.Element {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -214,7 +206,7 @@ export function SearchPage(): JSX.Element {
   const [debouncedQuery, setDebouncedQuery] = useState(() => searchParams.get("q") ?? "");
   const [filters, setFilters] = useState<SearchFilters>(() => ({
     category: searchParams.get("category") ?? "",
-    level: normalizeLevelFilter(searchParams.get("level")),
+    level: normalizeSearchLevel(searchParams.get("level")) ?? "",
     duration: searchParams.get("duration") ?? "",
     language: searchParams.get("language") ?? "",
   }));
@@ -341,7 +333,7 @@ export function SearchPage(): JSX.Element {
     const newQuery = searchParams.get("q") ?? "";
     const newFilters: SearchFilters = {
       category: searchParams.get("category") ?? "",
-      level: normalizeLevelFilter(searchParams.get("level")),
+      level: normalizeSearchLevel(searchParams.get("level")) ?? "",
       duration: searchParams.get("duration") ?? "",
       language: searchParams.get("language") ?? "",
     };

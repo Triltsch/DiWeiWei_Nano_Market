@@ -92,7 +92,7 @@ function asBoolean(value: unknown): boolean | null {
   return null;
 }
 
-function normalizeLevel(level: string | undefined): string | undefined {
+export function normalizeSearchLevel(level: string | undefined | null): string | undefined {
   if (!level) {
     return undefined;
   }
@@ -195,7 +195,7 @@ export async function searchNanos(request: SearchRequest): Promise<SearchRespons
   const params = {
     q: request.query || undefined,
     category: request.filters.category || undefined,
-    level: normalizeLevel(request.filters.level),
+    level: normalizeSearchLevel(request.filters.level),
     duration: request.filters.duration || undefined,
     language: request.filters.language || undefined,
     page: effectivePage,

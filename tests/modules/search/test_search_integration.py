@@ -14,9 +14,7 @@ import httpx
 import pytest
 
 from app.config import get_settings
-from app.modules.search.service import MeilisearchClient
-
-TEST_INDEX_UID = "nanos_v1"
+from app.modules.search import service as search_service
 
 
 def _build_meili_headers() -> dict[str, str]:
@@ -62,10 +60,20 @@ def _task_uid_from_response(payload: dict[str, Any]) -> int:
     return task_uid
 
 
+def _build_test_index_uid() -> str:
+    """Build a unique, test-scoped index UID to avoid touching shared indexes."""
+    return f"nanos_test_{uuid4().hex[:12]}"
+
+
 @pytest.fixture
-async def seeded_search_index() -> AsyncGenerator[list[dict[str, Any]], None]:
+async def seeded_search_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> AsyncGenerator[dict[str, Any], None]:
     """Create a clean Meilisearch index with representative published/draft docs."""
     settings = get_settings()
+    test_index_uid = _build_test_index_uid()
+
+    monkeypatch.setattr(search_service.settings, "MEILI_INDEX_UID", test_index_uid)
 
     async with httpx.AsyncClient(
         base_url=settings.MEILI_URL,
@@ -75,13 +83,11 @@ async def seeded_search_index() -> AsyncGenerator[list[dict[str, Any]], None]:
         try:
             health_response = await meili_client.get("/health")
         except httpx.HTTPError:
-            pytest.skip(
-                "Meilisearch is not reachable; run the verified Docker-backed test task"
-            )
+            pytest.skip("Meilisearch is not reachable; run the verified Docker-backed test task")
         if health_response.status_code != 200:
             pytest.skip("Meilisearch is not reachable; run the verified Docker-backed test task")
 
-        delete_response = await meili_client.delete(f"/indexes/{TEST_INDEX_UID}")
+        delete_response = await meili_client.delete(f"/indexes/{test_index_uid}")
         if delete_response.status_code not in (202, 404):
             delete_response.raise_for_status()
         if delete_response.status_code == 202:
@@ -89,20 +95,20 @@ async def seeded_search_index() -> AsyncGenerator[list[dict[str, Any]], None]:
 
         create_response = await meili_client.post(
             "/indexes",
-            json={"uid": TEST_INDEX_UID, "primaryKey": "id"},
+            json={"uid": test_index_uid, "primaryKey": "id"},
         )
         create_response.raise_for_status()
         await _wait_for_task(meili_client, _task_uid_from_response(create_response.json()))
 
         filterable_response = await meili_client.put(
-            f"/indexes/{TEST_INDEX_UID}/settings/filterable-attributes",
+            f"/indexes/{test_index_uid}/settings/filterable-attributes",
             json=["status", "category", "competency_level", "duration_minutes", "language"],
         )
         filterable_response.raise_for_status()
         await _wait_for_task(meili_client, _task_uid_from_response(filterable_response.json()))
 
         sortable_response = await meili_client.put(
-            f"/indexes/{TEST_INDEX_UID}/settings/sortable-attributes",
+            f"/indexes/{test_index_uid}/settings/sortable-attributes",
             json=["average_rating"],
         )
         sortable_response.raise_for_status()
@@ -176,16 +182,16 @@ async def seeded_search_index() -> AsyncGenerator[list[dict[str, Any]], None]:
         ]
 
         add_documents_response = await meili_client.post(
-            f"/indexes/{TEST_INDEX_UID}/documents",
+            f"/indexes/{test_index_uid}/documents",
             json=documents,
         )
         add_documents_response.raise_for_status()
         await _wait_for_task(meili_client, _task_uid_from_response(add_documents_response.json()))
 
         try:
-            yield documents
+            yield {"index_uid": test_index_uid, "documents": documents}
         finally:
-            cleanup_response = await meili_client.delete(f"/indexes/{TEST_INDEX_UID}")
+            cleanup_response = await meili_client.delete(f"/indexes/{test_index_uid}")
             if cleanup_response.status_code == 202:
                 await _wait_for_task(meili_client, _task_uid_from_response(cleanup_response.json()))
 
@@ -227,19 +233,27 @@ class TestSearchIntegration:
     @pytest.mark.asyncio
     async def test_search_latency_p95_under_500ms(self, async_client, seeded_search_index):
         """Typical Meilisearch processing times stay below the Sprint-4 p95 target."""
-        _ = seeded_search_index
+        index_uid = seeded_search_index["index_uid"]
         _ = async_client
 
         settings = get_settings()
-        client = MeilisearchClient(settings.MEILI_URL, settings.MEILI_MASTER_KEY)
         queries = ["excel", "python", "Exce", "automation", "basics"]
 
         latencies_ms: list[float] = []
-        for query in queries * 3:
-            result = client.search(query=query, page=1, limit=20)
-            processing_time = result.get("processingTimeMs")
-            if isinstance(processing_time, (int, float)):
-                latencies_ms.append(float(processing_time))
+        async with httpx.AsyncClient(
+            base_url=settings.MEILI_URL,
+            headers=_build_meili_headers(),
+            timeout=10.0,
+        ) as meili_client:
+            for query in queries * 3:
+                response = await meili_client.post(
+                    f"/indexes/{index_uid}/search",
+                    json={"q": query, "limit": 20, "filter": "status = 'published'"},
+                )
+                response.raise_for_status()
+                processing_time = response.json().get("processingTimeMs")
+                if isinstance(processing_time, (int, float)):
+                    latencies_ms.append(float(processing_time))
 
         assert latencies_ms, "Expected Meilisearch processingTimeMs values for latency baseline"
 

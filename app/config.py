@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     # Meilisearch settings
     MEILI_URL: str = "http://localhost:7700"
     MEILI_MASTER_KEY: Optional[str] = None
+    MEILI_INDEX_UID: str = "nanos_v1"
 
     # Search cache settings (Redis)
     SEARCH_CACHE_TTL_SECONDS: int = 1800  # 30 minutes

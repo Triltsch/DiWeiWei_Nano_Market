@@ -32,13 +32,19 @@ def _cache_key_hash(cache_key: str) -> str:
 class MeilisearchClient:
     """Meilisearch API client for search operations."""
 
-    def __init__(self, url: str, master_key: Optional[str] = None):
+    def __init__(
+        self,
+        url: str,
+        master_key: Optional[str] = None,
+        index_name: Optional[str] = None,
+    ):
         """
         Initialize Meilisearch client.
 
         Args:
             url: Meilisearch server URL (e.g., http://localhost:7700)
             master_key: Master key for API authentication
+            index_name: Optional target index UID (defaults to configured setting)
         """
         try:
             import meilisearch
@@ -48,7 +54,7 @@ class MeilisearchClient:
             )
 
         self.client = meilisearch.Client(url, api_key=master_key)
-        self.index_name = "nanos_v1"
+        self.index_name = index_name or settings.MEILI_INDEX_UID
 
     def search(
         self,
