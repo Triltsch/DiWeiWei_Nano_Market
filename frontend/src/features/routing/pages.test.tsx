@@ -375,6 +375,11 @@ describe("SearchPage", () => {
         },
       ],
       total: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
     });
 
     renderSearch("/search?q=react&level=beginner&language=en");
@@ -384,12 +389,12 @@ describe("SearchPage", () => {
         query: "react",
         filters: {
           category: "",
-          level: "beginner",
+          level: "1",
           duration: "",
           language: "en",
         },
         limit: 20,
-        offset: 0,
+        page: 1,
       });
     });
 
@@ -398,12 +403,18 @@ describe("SearchPage", () => {
   });
 
   it("updates URL and triggers debounced search input", async () => {
-    mockedSearchNanos.mockResolvedValue({ items: [], total: 0 });
+    mockedSearchNanos.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPrevPage: false,
+    });
 
     renderSearch();
-    await waitFor(() => {
-      expect(mockedSearchNanos).toHaveBeenCalledTimes(1);
-    });
+    expect(mockedSearchNanos).not.toHaveBeenCalled();
 
     const keywordInput = screen.getByLabelText("Suchbegriff");
     fireEvent.change(keywordInput, { target: { value: "python" } });
@@ -411,7 +422,7 @@ describe("SearchPage", () => {
     expect(screen.getByTestId("location-probe").textContent).toBe("/search?q=python");
 
     await waitFor(() => {
-      expect(mockedSearchNanos).toHaveBeenCalledTimes(2);
+      expect(mockedSearchNanos).toHaveBeenCalledTimes(1);
       expect(mockedSearchNanos).toHaveBeenLastCalledWith({
         query: "python",
         filters: {
@@ -421,13 +432,21 @@ describe("SearchPage", () => {
           language: "",
         },
         limit: 20,
-        offset: 0,
+        page: 1,
       });
     });
   });
 
   it("shows configured empty state message when no nanos are found", async () => {
-    mockedSearchNanos.mockResolvedValue({ items: [], total: 0 });
+    mockedSearchNanos.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPrevPage: false,
+    });
 
     renderSearch();
 
@@ -435,6 +454,7 @@ describe("SearchPage", () => {
       "Keine Nano-Lerneinheiten gefunden. Bitte versuchen Sie andere Suchbegriffe."
     );
     expect(emptyState).toBeTruthy();
+    expect(mockedSearchNanos).not.toHaveBeenCalled();
   });
 
   it("loads additional pages when load more is clicked", async () => {
@@ -450,6 +470,11 @@ describe("SearchPage", () => {
           },
         ],
         total: 2,
+        page: 1,
+        pageSize: 20,
+        totalPages: 2,
+        hasNextPage: true,
+        hasPrevPage: false,
       })
       .mockResolvedValueOnce({
         items: [
@@ -462,9 +487,14 @@ describe("SearchPage", () => {
           },
         ],
         total: 2,
+        page: 2,
+        pageSize: 20,
+        totalPages: 2,
+        hasNextPage: false,
+        hasPrevPage: true,
       });
 
-    renderSearch();
+    renderSearch("/search?q=nano");
 
     await screen.findByText("First Nano");
 
@@ -473,7 +503,7 @@ describe("SearchPage", () => {
 
     await waitFor(() => {
       expect(mockedSearchNanos).toHaveBeenNthCalledWith(2, {
-        query: "",
+        query: "nano",
         filters: {
           category: "",
           level: "",
@@ -481,7 +511,7 @@ describe("SearchPage", () => {
           language: "",
         },
         limit: 20,
-        offset: 1,
+        page: 2,
       });
     });
 

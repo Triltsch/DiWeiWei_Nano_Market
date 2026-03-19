@@ -7,7 +7,12 @@ import {
   VerifyEmailPage as VerifyEmailAuthPage,
 } from "../auth";
 import { PrivacyPage as PrivacyLegalPage, TermsPage as TermsLegalPage } from "../legal/pages";
-import { searchNanos, type SearchFilters, type SearchNano } from "../../shared/api";
+import {
+  normalizeSearchLevel,
+  searchNanos,
+  type SearchFilters,
+  type SearchNano,
+} from "../../shared/api";
 import { useTranslation } from "../../shared/i18n";
 import { GlobalNav } from "../../shared/ui/GlobalNav";
 
@@ -201,16 +206,18 @@ export function SearchPage(): JSX.Element {
   const [debouncedQuery, setDebouncedQuery] = useState(() => searchParams.get("q") ?? "");
   const [filters, setFilters] = useState<SearchFilters>(() => ({
     category: searchParams.get("category") ?? "",
-    level: searchParams.get("level") ?? "",
+    level: normalizeSearchLevel(searchParams.get("level")) ?? "",
     duration: searchParams.get("duration") ?? "",
     language: searchParams.get("language") ?? "",
   }));
   const [results, setResults] = useState<SearchNano[]>([]);
   const [total, setTotal] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [lastPageCount, setLastPageCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
 
   /**
    * Tracks the last URLSearchParams string we wrote ourselves so the
@@ -261,14 +268,25 @@ export function SearchPage(): JSX.Element {
     const fetchFirstPage = async (): Promise<void> => {
       setIsLoading(true);
       setSearchError(null);
+      setCurrentPage(1);
+      setHasNextPage(false);
+
+      if (debouncedQuery.length === 0) {
+        setResults([]);
+        setTotal(0);
+        setLastPageCount(0);
+        setIsLoading(false);
+        return;
+      }
 
       try {
         const response = await searchNanos({
           query: debouncedQuery,
           filters,
           limit: PAGE_SIZE,
-          offset: 0,
+          page: 1,
         });
+        const responsePage = Number.isFinite(response.page) ? response.page : 1;
 
         if (!isActive) {
           return;
@@ -276,9 +294,14 @@ export function SearchPage(): JSX.Element {
 
         setResults(response.items);
         setTotal(response.total);
+        setCurrentPage(responsePage);
         setLastPageCount(response.items.length);
+        setHasNextPage(response.hasNextPage === true);
       } catch {
         if (isActive) {
+          setResults([]);
+          setTotal(null);
+          setLastPageCount(0);
           setSearchError(t("search_error"));
         }
       } finally {
@@ -310,7 +333,7 @@ export function SearchPage(): JSX.Element {
     const newQuery = searchParams.get("q") ?? "";
     const newFilters: SearchFilters = {
       category: searchParams.get("category") ?? "",
-      level: searchParams.get("level") ?? "",
+      level: normalizeSearchLevel(searchParams.get("level")) ?? "",
       duration: searchParams.get("duration") ?? "",
       language: searchParams.get("language") ?? "",
     };
@@ -330,7 +353,7 @@ export function SearchPage(): JSX.Element {
     });
   }, [searchParams]);
 
-  const hasMore = total === null ? lastPageCount === PAGE_SIZE : results.length < total;
+  const hasMore = hasNextPage || (total === null ? lastPageCount === PAGE_SIZE : results.length < total);
 
   const handleFilterChange = (field: keyof SearchFilters, value: string): void => {
     setFilters((current) => ({
@@ -350,12 +373,15 @@ export function SearchPage(): JSX.Element {
         query: debouncedQuery,
         filters,
         limit: PAGE_SIZE,
-        offset: results.length,
+        page: currentPage + 1,
       });
+      const responsePage = Number.isFinite(response.page) ? response.page : currentPage + 1;
 
       setResults((current) => [...current, ...response.items]);
       setTotal(response.total);
+      setCurrentPage(responsePage);
       setLastPageCount(response.items.length);
+      setHasNextPage(response.hasNextPage === true);
     } catch {
       setSearchError(t("search_error"));
     } finally {
@@ -407,9 +433,9 @@ export function SearchPage(): JSX.Element {
                 onChange={(event) => handleFilterChange("level", event.target.value)}
               >
                 <option value="">{t("search_level_all")}</option>
-                <option value="beginner">{t("search_level_beginner")}</option>
-                <option value="intermediate">{t("search_level_intermediate")}</option>
-                <option value="advanced">{t("search_level_advanced")}</option>
+                <option value="1">{t("search_level_beginner")}</option>
+                <option value="2">{t("search_level_intermediate")}</option>
+                <option value="3">{t("search_level_advanced")}</option>
               </select>
             </label>
 

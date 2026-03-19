@@ -213,6 +213,9 @@ docker-compose down
 - `GET /api/v1/audit/logs` - Audit Logs abrufen (Admin)
 - `GET /api/v1/audit/suspicious` - Verdächtige Aktivitäten (Admin)
 
+### Search
+- `GET /api/v1/search` - Volltextsuche für veröffentlichte Nanos mit Filtern, Pagination und Redis-Cache
+
 ## 🛠️ Technologie-Stack
 
 | Komponente | Technologie | Version |
@@ -245,6 +248,7 @@ docker-compose down
 - **[doc/FRONTEND_S2_SETUP.md](./doc/FRONTEND_S2_SETUP.md)** - React + Vite + Tailwind setup (Story 8.1)
 - **[doc/REACT_QUERY_SETUP.md](./doc/REACT_QUERY_SETUP.md)** - TanStack Query integration
 - **[doc/SEARCH_CACHE.md](./doc/SEARCH_CACHE.md)** - Redis-Cache-Strategie für Search (TTL, Keys, Invalidierung, degraded mode)
+- **[doc/SEARCH_OPERATIONS.md](./doc/SEARCH_OPERATIONS.md)** - Search API contract, pagination/filter semantics, performance baseline und QA-Gate
 
 ## 🔒 Sicherheitsfeatures
 

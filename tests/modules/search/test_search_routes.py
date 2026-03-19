@@ -127,6 +127,7 @@ class TestSearchRoutes:
                     "category": None,
                     "level": None,
                     "duration": None,
+                    "language": None,
                 },
             },
             timestamp=datetime.now(timezone.utc),
@@ -176,13 +177,14 @@ class TestSearchRoutes:
                     "category": "Programming",
                     "level": 2,
                     "duration": "15-30",
+                    "language": "en",
                 },
             },
             timestamp=datetime.now(timezone.utc),
         )
 
         response = client.get(
-            "/api/v1/search?q=python&category=Programming&level=2&duration=15-30&page=1&limit=20"
+            "/api/v1/search?q=python&category=Programming&level=2&duration=15-30&language=en&page=1&limit=20"
         )
 
         assert response.status_code == 200
@@ -194,6 +196,7 @@ class TestSearchRoutes:
         assert call_kwargs["category"] == "Programming"
         assert call_kwargs["level"] == 2
         assert call_kwargs["duration"] == "15-30"
+        assert call_kwargs["language"] == "en"
         assert call_kwargs["page"] == 1
         assert call_kwargs["limit"] == 20
 
@@ -226,6 +229,7 @@ class TestSearchRoutes:
                     "category": None,
                     "level": None,
                     "duration": None,
+                    "language": None,
                 },
             },
             timestamp=datetime.now(timezone.utc),
@@ -308,6 +312,7 @@ class TestSearchRoutes:
                     "category": None,
                     "level": None,
                     "duration": None,
+                    "language": None,
                 },
             },
             timestamp=datetime.now(timezone.utc),
@@ -364,6 +369,7 @@ class TestSearchRoutes:
                     "category": None,
                     "level": None,
                     "duration": None,
+                    "language": None,
                 },
             },
             timestamp=datetime.now(timezone.utc),

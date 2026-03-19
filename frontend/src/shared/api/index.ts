@@ -12,7 +12,7 @@ export {
   setupResponseInterceptor,
 } from "./interceptors";
 export { useUserProfile } from "./useUserProfile";
-export { searchNanos } from "./search";
+export { normalizeSearchLevel, searchNanos } from "./search";
 export {
   clearAuthSession,
   getAccessToken,

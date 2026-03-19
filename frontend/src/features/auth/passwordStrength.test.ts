@@ -8,7 +8,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getPasswordStrength, meetsPasswordPolicy } from "./passwordStrength";
+import {
+  getPasswordStrength,
+  meetsPasswordPolicy,
+  PASSWORD_REQUIREMENT_KEYS,
+} from "./passwordStrength";
 
 describe("passwordStrength", () => {
   /**
@@ -43,6 +47,21 @@ describe("passwordStrength", () => {
    */
   it("validates policy requirements", () => {
     expect(meetsPasswordPolicy("StrongPass1!")).toBe(true);
+    expect(meetsPasswordPolicy("sjdsfgJHKJB//%%8&&")).toBe(true);
+    expect(meetsPasswordPolicy("StrongPass1/")).toBe(false);
     expect(meetsPasswordPolicy("weakpass")).toBe(false);
+  });
+
+  /**
+   * Verifies that the exported password requirement keys remain stable so the
+   * registration page can translate each bullet consistently.
+   */
+  it("exports translation keys for password requirements", () => {
+    expect(PASSWORD_REQUIREMENT_KEYS).toEqual([
+      "register_requirement_min_length",
+      "register_requirement_uppercase",
+      "register_requirement_digit",
+      "register_requirement_special",
+    ]);
   });
 });

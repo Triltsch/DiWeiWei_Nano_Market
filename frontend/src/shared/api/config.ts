@@ -5,7 +5,7 @@
  * Provides base URL, request timeout, and other API settings.
  *
  * Environment Variables:
- * - VITE_API_BASE_URL: Base URL for API requests (default: http://localhost:8000)
+ * - VITE_API_BASE_URL: Base URL for browser API requests (default: empty string)
  * - VITE_API_REQUEST_TIMEOUT: Request timeout in milliseconds (default: 30000)
  */
 
@@ -13,9 +13,10 @@ export const API_CONFIG = {
   /**
    * Base URL for API requests
    * Loaded from VITE_API_BASE_URL environment variable
-   * Defaults to localhost:8000 for development
+    * Defaults to empty string because endpoints are already absolute (/api/v1/*)
+    * and should be sent through the current frontend origin for Vite proxying.
    */
-  BASE_URL: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
+    BASE_URL: import.meta.env.VITE_API_BASE_URL ?? "",
 
   /**
    * Request timeout in milliseconds
@@ -40,7 +41,7 @@ export const API_CONFIG = {
 export function validateApiConfig(): void {
   // Check if environment variable was explicitly set (not using default)
   if (!import.meta.env.VITE_API_BASE_URL) {
-    console.warn("API_CONFIG: VITE_API_BASE_URL is not set. Using default: http://localhost:8000");
+    console.warn("API_CONFIG: VITE_API_BASE_URL is not set. Using default: empty string");
   }
 
   if (API_CONFIG.REQUEST_TIMEOUT < 1000) {

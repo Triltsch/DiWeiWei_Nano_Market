@@ -71,6 +71,23 @@ class SearchPaginationMeta(BaseModel):
     has_prev_page: bool = Field(description="Whether there is a previous page")
 
 
+class SearchQueryMeta(BaseModel):
+    """Echo of the normalized search query parameters applied to the request."""
+
+    search_query: str = Field(description="Normalized search query string")
+    category: Optional[str] = Field(None, description="Applied category filter")
+    level: Optional[int] = Field(None, description="Applied competency level filter")
+    duration: Optional[str] = Field(None, description="Applied duration filter")
+    language: Optional[str] = Field(None, description="Applied language filter")
+
+
+class SearchMeta(BaseModel):
+    """Structured response metadata for pagination and applied filters."""
+
+    pagination: SearchPaginationMeta
+    query: SearchQueryMeta
+
+
 class SearchResponse(BaseModel):
     """
     Complete search response with results and metadata.
@@ -86,5 +103,5 @@ class SearchResponse(BaseModel):
 
     success: bool = Field(description="Whether the search was successful")
     data: list[SearchNano] = Field(description="List of Nano search results")
-    meta: dict = Field(description="Pagination metadata and filter information")
+    meta: SearchMeta = Field(description="Pagination metadata and filter information")
     timestamp: datetime = Field(description="ISO 8601 timestamp when the response was generated")

@@ -13,6 +13,63 @@ interface ApiErrorResponse {
   detail?: string;
 }
 
+export type AuthErrorCode =
+  | "connection-error"
+  | "request-failed"
+  | "email-already-registered"
+  | "username-already-taken"
+  | "accept-terms-required"
+  | "accept-privacy-required"
+  | "password-too-short"
+  | "password-uppercase-required"
+  | "password-digit-required"
+  | "password-special-required"
+  | "service-unavailable"
+  | "unknown";
+
+const AUTH_ERROR_CODES: Record<string, AuthErrorCode> = {
+  "Connection error. Please try again.": "connection-error",
+  "Request failed. Please try again.": "request-failed",
+  "Email already registered": "email-already-registered",
+  "Username already taken": "username-already-taken",
+  "You must accept the Terms of Service to register": "accept-terms-required",
+  "You must accept the Privacy Policy to register": "accept-privacy-required",
+  "Password must be at least 8 characters": "password-too-short",
+  "Password must contain at least one uppercase letter": "password-uppercase-required",
+  "Password must contain at least one digit": "password-digit-required",
+  "Password must contain at least one special character": "password-special-required",
+  "Service temporarily unavailable. Please try again later.": "service-unavailable",
+};
+
+function getErrorCode(error: unknown): AuthErrorCode {
+  if (axios.isAxiosError<ApiErrorResponse>(error)) {
+    if (!error.response) {
+      return "connection-error";
+    }
+
+    const detail = error.response.data?.detail;
+    if (detail && detail in AUTH_ERROR_CODES) {
+      return AUTH_ERROR_CODES[detail];
+    }
+
+    if (error.response.status === 503) {
+      return "service-unavailable";
+    }
+
+    return "request-failed";
+  }
+
+  return "unknown";
+}
+
+function getRegisterErrorCode(error: unknown): AuthErrorCode {
+  if (axios.isAxiosError<ApiErrorResponse>(error) && error.response?.status === 409) {
+    return "email-already-registered";
+  }
+
+  return getErrorCode(error);
+}
+
 function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError<ApiErrorResponse>(error)) {
     if (!error.response) {
@@ -30,9 +87,12 @@ function getErrorMessage(error: unknown): string {
 }
 
 export class AuthApiError extends Error {
-  constructor(message: string) {
+  code: AuthErrorCode;
+
+  constructor(message: string, code: AuthErrorCode = "unknown") {
     super(message);
     this.name = "AuthApiError";
+    this.code = code;
   }
 }
 
@@ -48,7 +108,7 @@ export async function registerUser(payload: RegisterPayload): Promise<RegisterRe
 
     return response.data;
   } catch (error) {
-    throw new AuthApiError(getErrorMessage(error));
+    throw new AuthApiError(getErrorMessage(error), getRegisterErrorCode(error));
   }
 }
 
@@ -66,7 +126,7 @@ export async function loginUser(payload: LoginPayload): Promise<AuthTokens> {
       expiresIn: response.data.expires_in,
     };
   } catch (error) {
-    throw new AuthApiError(getErrorMessage(error));
+    throw new AuthApiError(getErrorMessage(error), getErrorCode(error));
   }
 }
 
@@ -86,7 +146,7 @@ export async function refreshToken(refreshTokenValue: string): Promise<AuthToken
       expiresIn: response.data.expires_in,
     };
   } catch (error) {
-    throw new AuthApiError(getErrorMessage(error));
+    throw new AuthApiError(getErrorMessage(error), getErrorCode(error));
   }
 }
 
@@ -96,7 +156,7 @@ export async function logoutUser(refreshTokenValue: string): Promise<void> {
       refresh_token: refreshTokenValue,
     });
   } catch (error) {
-    throw new AuthApiError(getErrorMessage(error));
+    throw new AuthApiError(getErrorMessage(error), getErrorCode(error));
   }
 }
 
@@ -108,7 +168,7 @@ export async function verifyEmail(token: string): Promise<VerificationResponse> 
 
     return response.data;
   } catch (error) {
-    throw new AuthApiError(getErrorMessage(error));
+    throw new AuthApiError(getErrorMessage(error), getErrorCode(error));
   }
 }
 
@@ -121,6 +181,6 @@ export async function resendVerificationEmail(email: string): Promise<Verificati
 
     return response.data;
   } catch (error) {
-    throw new AuthApiError(getErrorMessage(error));
+    throw new AuthApiError(getErrorMessage(error), getErrorCode(error));
   }
 }

@@ -32,13 +32,19 @@ def _cache_key_hash(cache_key: str) -> str:
 class MeilisearchClient:
     """Meilisearch API client for search operations."""
 
-    def __init__(self, url: str, master_key: Optional[str] = None):
+    def __init__(
+        self,
+        url: str,
+        master_key: Optional[str] = None,
+        index_name: Optional[str] = None,
+    ):
         """
         Initialize Meilisearch client.
 
         Args:
             url: Meilisearch server URL (e.g., http://localhost:7700)
             master_key: Master key for API authentication
+            index_name: Optional target index UID (defaults to configured setting)
         """
         try:
             import meilisearch
@@ -48,7 +54,7 @@ class MeilisearchClient:
             )
 
         self.client = meilisearch.Client(url, api_key=master_key)
-        self.index_name = "nanos_v1"
+        self.index_name = index_name or settings.MEILI_INDEX_UID
 
     def search(
         self,
@@ -56,6 +62,7 @@ class MeilisearchClient:
         category: Optional[str] = None,
         level: Optional[int] = None,
         duration: Optional[str] = None,
+        language: Optional[str] = None,
         page: int = 1,
         limit: int = 20,
     ) -> dict:
@@ -67,6 +74,7 @@ class MeilisearchClient:
             category: Optional category filter
             level: Optional competency level filter (1, 2, or 3)
             duration: Optional duration filter ("0-15", "15-30", "30+")
+            language: Optional language filter (ISO 639-1 code, e.g. de, en)
             page: Page number (1-indexed)
             limit: Results per page
 
@@ -108,18 +116,22 @@ class MeilisearchClient:
             elif duration == "30+":
                 filters.append("duration_minutes > 30")
 
+        # Language filter
+        if language:
+            safe_language = language.replace("'", "\\'")
+            filters.append(f"language = '{safe_language}'")
+
         filter_expression = " AND ".join(filters)
         offset = (page - 1) * limit
 
         try:
             search_params = {
-                "q": query,
                 "offset": offset,
                 "limit": limit,
-                "sort": ["_rank:desc", "average_rating:desc"],
-                "filter": [filter_expression],
+                "sort": ["average_rating:desc"],
+                "filter": filter_expression,
             }
-            return index.search(**search_params)
+            return index.search(query, search_params)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -132,6 +144,7 @@ def build_search_cache_key(
     category: Optional[str],
     level: Optional[int],
     duration: Optional[str],
+    language: Optional[str],
     page: int,
     limit: int,
 ) -> str:
@@ -141,6 +154,7 @@ def build_search_cache_key(
         "category": category or "",
         "level": "" if level is None else str(level),
         "duration": duration or "",
+        "language": language or "",
         "page": str(page),
         "limit": str(limit),
     }
@@ -222,6 +236,7 @@ async def search_nanos(
     category: Optional[str] = None,
     level: Optional[int] = None,
     duration: Optional[str] = None,
+    language: Optional[str] = None,
     page: int = 1,
     limit: int = 20,
 ) -> SearchResponse:
@@ -234,6 +249,7 @@ async def search_nanos(
         category: Optional category name filter
         level: Optional competency level filter (1, 2, or 3)
         duration: Optional duration filter ("0-15", "15-30", "30+")
+        language: Optional ISO 639-1 language filter
         page: Page number (1-indexed, default 1)
         limit: Results per page (default 20, max 100)
 
@@ -275,12 +291,21 @@ async def search_nanos(
             detail="duration must be one of: '0-15', '15-30', '30+'",
         )
 
+    if language is not None and (
+        len(language) != 2 or not language.isalpha() or not language.islower()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="language must be a two-letter lowercase ISO 639-1 code",
+        )
+
     normalized_query = query.strip()
     cache_key = build_search_cache_key(
         query=normalized_query,
         category=category,
         level=level,
         duration=duration,
+        language=language,
         page=page,
         limit=limit,
     )
@@ -304,6 +329,7 @@ async def search_nanos(
         category=category,
         level=level,
         duration=duration,
+        language=language,
         page=page,
         limit=limit,
     )
@@ -357,6 +383,7 @@ async def search_nanos(
                 "category": category,
                 "level": level,
                 "duration": duration,
+                "language": language,
             },
         },
         timestamp=datetime.now(timezone.utc),

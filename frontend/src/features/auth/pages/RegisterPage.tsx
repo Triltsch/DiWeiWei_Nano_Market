@@ -2,12 +2,13 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
 
+import type { TranslationKey } from "../../../shared/i18n";
 import { useTranslation } from "../../../shared/i18n";
-import { registerUser } from "../api";
+import { AuthApiError, type AuthErrorCode, registerUser } from "../api";
 import {
   getPasswordStrength,
   meetsPasswordPolicy,
-  PASSWORD_REQUIREMENTS,
+  PASSWORD_REQUIREMENT_KEYS,
 } from "../passwordStrength";
 
 interface RegisterFormValues {
@@ -17,6 +18,51 @@ interface RegisterFormValues {
   confirmPassword: string;
   acceptTerms: boolean;
   acceptPrivacy: boolean;
+}
+
+function getRegisterErrorKey(code: AuthErrorCode): TranslationKey | null {
+  switch (code) {
+    case "connection-error":
+      return "register_error_connection";
+    case "request-failed":
+      return "register_error_request_failed";
+    case "email-already-registered":
+      return "register_error_email_exists";
+    case "username-already-taken":
+      return "register_error_username_exists";
+    case "accept-terms-required":
+      return "register_error_terms";
+    case "accept-privacy-required":
+      return "register_error_privacy";
+    case "password-too-short":
+      return "register_error_password_length";
+    case "password-uppercase-required":
+      return "register_error_password_uppercase";
+    case "password-digit-required":
+      return "register_error_password_digit";
+    case "password-special-required":
+      return "register_error_password_special";
+    case "service-unavailable":
+      return "register_error_service_unavailable";
+    default:
+      return null;
+  }
+}
+
+function getRegisterErrorMessage(
+  error: unknown,
+  t: (key: TranslationKey) => string
+): string {
+  if (error instanceof AuthApiError) {
+    const key = getRegisterErrorKey(error.code);
+    return key ? t(key) : error.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return t("register_error_default");
 }
 
 export function RegisterPage(): JSX.Element {
@@ -30,7 +76,7 @@ export function RegisterPage(): JSX.Element {
     register,
     handleSubmit,
     watch,
-    formState: { errors, isSubmitting, isValid },
+    formState: { errors, isSubmitting },
   } = useForm<RegisterFormValues>({
     mode: "onChange",
     defaultValues: {
@@ -60,8 +106,7 @@ export function RegisterPage(): JSX.Element {
 
       navigate(`/verify-email?email=${encodeURIComponent(values.email)}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : t("register_error_default");
-      setFormError(message);
+      setFormError(getRegisterErrorMessage(error, t));
     }
   });
 
@@ -197,8 +242,8 @@ export function RegisterPage(): JSX.Element {
         <div className="space-y-1 text-sm text-neutral-700">
           <p className="font-medium">{t("register_requirements_title")}</p>
           <ul className="list-disc list-inside">
-            {PASSWORD_REQUIREMENTS.map((requirement) => (
-              <li key={requirement}>{requirement}</li>
+            {PASSWORD_REQUIREMENT_KEYS.map((requirementKey) => (
+              <li key={requirementKey}>{t(requirementKey)}</li>
             ))}
           </ul>
         </div>
@@ -251,7 +296,7 @@ export function RegisterPage(): JSX.Element {
           </p>
         )}
 
-        <button type="submit" className="btn-primary w-full" disabled={!isValid || isSubmitting}>
+        <button type="submit" className="btn-primary w-full" disabled={isSubmitting}>
           {isSubmitting ? t("register_submitting") : t("register_submit")}
         </button>
       </form>

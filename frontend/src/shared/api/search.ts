@@ -11,7 +11,8 @@ export interface SearchRequest {
   query: string;
   filters: SearchFilters;
   limit: number;
-  offset: number;
+  page?: number;
+  offset?: number;
 }
 
 export interface SearchNano {
@@ -27,6 +28,24 @@ export interface SearchNano {
 export interface SearchResponse {
   items: SearchNano[];
   total: number | null;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+interface RawSearchPagination {
+  current_page?: unknown;
+  page_size?: unknown;
+  total_results?: unknown;
+  total_pages?: unknown;
+  has_next_page?: unknown;
+  has_prev_page?: unknown;
+}
+
+interface RawSearchMeta {
+  pagination?: unknown;
 }
 
 interface RawSearchNano {
@@ -44,12 +63,51 @@ interface RawSearchNano {
 }
 
 interface RawSearchResponse {
+  success?: unknown;
+  data?: unknown;
+  meta?: unknown;
   results?: unknown;
   items?: unknown;
   hits?: unknown;
   total?: unknown;
   estimatedTotalHits?: unknown;
   nbHits?: unknown;
+}
+
+function asBoolean(value: unknown): boolean | null {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") {
+      return true;
+    }
+    if (normalized === "false") {
+      return false;
+    }
+  }
+
+  return null;
+}
+
+export function normalizeSearchLevel(level: string | undefined | null): string | undefined {
+  if (!level) {
+    return undefined;
+  }
+
+  const normalized = level.trim().toLowerCase();
+  switch (normalized) {
+    case "beginner":
+      return "1";
+    case "intermediate":
+      return "2";
+    case "advanced":
+      return "3";
+    default:
+      return normalized.length > 0 ? normalized : undefined;
+  }
 }
 
 function asString(value: unknown): string | null {
@@ -92,7 +150,10 @@ function mapSearchNano(rawItem: RawSearchNano, index: number): SearchNano {
 }
 
 function mapSearchResponse(rawData: RawSearchResponse): SearchResponse {
+  const rawMeta = (rawData.meta as RawSearchMeta | undefined) ?? undefined;
+  const rawPagination = (rawMeta?.pagination as RawSearchPagination | undefined) ?? undefined;
   const rawItems =
+    (Array.isArray(rawData.data) && rawData.data) ||
     (Array.isArray(rawData.results) && rawData.results) ||
     (Array.isArray(rawData.items) && rawData.items) ||
     (Array.isArray(rawData.hits) && rawData.hits) ||
@@ -100,32 +161,45 @@ function mapSearchResponse(rawData: RawSearchResponse): SearchResponse {
 
   const items = rawItems.map((entry, index) => mapSearchNano(entry as RawSearchNano, index));
   const total =
-    asNumber(rawData.total) ?? asNumber(rawData.estimatedTotalHits) ?? asNumber(rawData.nbHits);
+    asNumber(rawPagination?.total_results) ??
+    asNumber(rawData.total) ??
+    asNumber(rawData.estimatedTotalHits) ??
+    asNumber(rawData.nbHits);
+  const page = asNumber(rawPagination?.current_page) ?? 1;
+  const pageSize = asNumber(rawPagination?.page_size) ?? items.length;
+  const totalPages = asNumber(rawPagination?.total_pages) ?? 0;
+  const hasNextPage = asBoolean(rawPagination?.has_next_page) ?? false;
+  const hasPrevPage = asBoolean(rawPagination?.has_prev_page) ?? false;
 
   return {
     items,
     total,
+    page,
+    pageSize,
+    totalPages,
+    hasNextPage,
+    hasPrevPage,
   };
 }
 
 /**
  * Calls GET /api/v1/search on the backend discovery endpoint.
- *
- * NOTE: The backend route /api/v1/search is not yet implemented. Until the
- * corresponding backend story is delivered, this function will receive a 404
- * response which will be surfaced as an error in the UI (see SearchPage error
- * state).  The endpoint path is intentionally kept here so the frontend is
- * ready for the backend integration without further path changes.
  */
 export async function searchNanos(request: SearchRequest): Promise<SearchResponse> {
+  const effectivePage =
+    request.page ??
+    (typeof request.offset === "number" && request.limit > 0
+      ? Math.floor(request.offset / request.limit) + 1
+      : 1);
+
   const params = {
     q: request.query || undefined,
     category: request.filters.category || undefined,
-    level: request.filters.level || undefined,
+    level: normalizeSearchLevel(request.filters.level),
     duration: request.filters.duration || undefined,
     language: request.filters.language || undefined,
+    page: effectivePage,
     limit: request.limit,
-    offset: request.offset,
   };
 
   const response = await httpClient.get<RawSearchResponse>("/api/v1/search", { params });

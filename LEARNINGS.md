@@ -78,3 +78,17 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Cache-Logging darf keine Roh-Keys mit User-Query enthalten; stattdessen nur gehashte Key-Fingerprints loggen.
 - Health-Endpunkte dürfen bei Redis-Störung nicht hängen: `ping()` mit kurzem Timeout kapseln (z. B. `asyncio.wait_for`).
 - Pagination-Tests müssen mindestens erste, mittlere und letzte Seite abdecken, damit `has_next_page`/`has_prev_page` nicht regressieren.
+
+## Ergänzung Issue #63 (Search QA/NFR Gate)
+
+- Für das Python-Meilisearch-SDK `index.search(query, options)` verwenden; `q=...` als Keyword wie in REST führt zu Laufzeitfehlern.
+- Latenztests für Suchsysteme besser gegen Engine-Metriken (`processingTimeMs`) statt reiner End-to-End-HTTP-Zeit baselinen, damit CI-Streuung/Container-Overhead nicht zu falschen NFR-Fehlschlägen führt.
+- In Docker-Compose die App-internen Service-URLs explizit setzen (`MEILI_URL=http://meilisearch:7700`), da `localhost` im Container-Kontext auf den App-Container selbst zeigt.
+- PowerShell-Healthchecks in VSCode-Tasks sollten Exit-Codes statt String-Matches auf stdout prüfen; das macht Readiness-Loops stabiler und verhindert „false negative“ Timeouts.
+- Search-Contract-Änderungen (Filterparameter und `meta`-Struktur) immer synchron in Backend-Schemas, Frontend-Mapping und Tests aktualisieren, um Drift zwischen API und UI zu vermeiden.
+
+## Review-Nachtrag PR #68
+
+- Live-Integrationstests gegen externe Services dürfen keine produktiv/standardmäßig genutzten Ressourcen mutieren; immer isolierte, test-spezifische IDs/Namespaces verwenden.
+- Async-Tests dürfen keine blockierenden SDK-Calls in Schleifen ausführen; entweder native async Clients nutzen oder Sync-Aufrufe explizit in Worker-Threads auslagern.
+- Gemeinsame Query-Normalisierung (z. B. Level-Mapping) an einer zentralen Stelle halten und in UI + API-Client wiederverwenden, um Drift zwischen URL-State und Request-Parametern zu vermeiden.
