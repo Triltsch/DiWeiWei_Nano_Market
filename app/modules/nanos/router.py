@@ -12,15 +12,24 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.modules.auth.middleware import get_current_user_id
+from app.modules.auth.middleware import (
+    get_current_user,
+    get_current_user_id,
+    get_optional_current_user,
+)
+from app.modules.auth.tokens import TokenData
 from app.modules.nanos.schemas import (
     MetadataUpdateRequest,
     MetadataUpdateResponse,
+    NanoDetailResponse,
+    NanoDownloadInfoResponse,
     NanoMetadataResponse,
     StatusUpdateRequest,
     StatusUpdateResponse,
 )
 from app.modules.nanos.service import (
+    get_nano_detail,
+    get_nano_download_info,
     get_nano_metadata,
     update_nano_metadata,
     update_nano_status,
@@ -53,7 +62,13 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
         **Returns:**
         - Nano metadata including title, description, categories, status, etc.
 
+        **Visibility Rules:**
+        - Published Nanos are publicly visible
+        - Non-published Nanos are visible only to creator, admin, or moderator
+
         **Error Cases:**
+        - 401: Authentication required for non-published Nano
+        - 403: Authenticated user lacks permission for non-published Nano
         - 404: Nano not found
         """,
         responses={
@@ -86,15 +101,95 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
                     }
                 },
             },
+            401: {"description": "Authentication required for non-published Nano"},
+            403: {"description": "Not authorized to access non-published Nano"},
             404: {"description": "Nano not found"},
         },
     )
     async def get_nano(
         nano_id: UUID,
+        current_user: Annotated[TokenData | None, Depends(get_optional_current_user)],
         db: Annotated[AsyncSession, Depends(get_db)],
     ) -> NanoMetadataResponse:
         """Get Nano metadata by ID."""
-        return await get_nano_metadata(nano_id, db)
+        return await get_nano_metadata(nano_id=nano_id, db=db, current_user=current_user)
+
+    @router.get(
+        "/{nano_id}/detail",
+        response_model=NanoDetailResponse,
+        summary="Get Nano detail view payload",
+        description="""
+        Retrieve Nano detail payload for frontend detail pages with RBAC-aware visibility.
+
+        **Visibility Rules:**
+        - Published Nanos are publicly visible
+        - Non-published Nanos are visible only to creator, admin, or moderator
+
+        **Download Rules:**
+        - Download requires authentication
+        - Download path is only included if current caller is allowed to download
+
+        **Response Contract:**
+        - Unified envelope: `success/data/meta/timestamp`
+
+        **Error Cases:**
+        - 401: Authentication required for non-published Nano
+        - 403: Authenticated user lacks permission for non-published Nano
+        - 404: Nano not found
+        """,
+        responses={
+            200: {"description": "Nano detail retrieved successfully"},
+            401: {"description": "Authentication required for non-published Nano"},
+            403: {"description": "Not authorized to access non-published Nano"},
+            404: {"description": "Nano not found"},
+        },
+    )
+    async def get_nano_detail_view(
+        nano_id: UUID,
+        current_user: Annotated[TokenData | None, Depends(get_optional_current_user)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> NanoDetailResponse:
+        """Get Nano detail payload with visibility and download-access hints."""
+        return await get_nano_detail(nano_id=nano_id, db=db, current_user=current_user)
+
+    @router.get(
+        "/{nano_id}/download-info",
+        response_model=NanoDownloadInfoResponse,
+        summary="Get Nano download path",
+        description="""
+        Resolve download information for a Nano.
+
+        **Access Rules:**
+        - Authentication required
+        - Published Nanos: any authenticated user
+        - Non-published Nanos: creator, admin, moderator only
+
+        **Response Contract:**
+        - Unified envelope: `success/data/meta/timestamp`
+
+        **Error Cases:**
+        - 401: Missing or invalid authentication
+        - 403: Authenticated user not allowed for this Nano
+        - 404: Nano or download path not found
+        """,
+        responses={
+            200: {"description": "Download path resolved successfully"},
+            401: {"description": "Authentication required"},
+            403: {"description": "Not authorized to download this Nano"},
+            404: {"description": "Nano or download path not found"},
+        },
+    )
+    async def get_nano_download(
+        nano_id: UUID,
+        current_user: Annotated[TokenData, Depends(get_current_user)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> NanoDownloadInfoResponse:
+        """Get Nano download path with strict authentication and RBAC checks."""
+        return await get_nano_download_info(
+            nano_id=nano_id,
+            db=db,
+            current_user=current_user,
+        )
 
     @router.post(
         "/{nano_id}/metadata",

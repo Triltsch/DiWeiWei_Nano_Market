@@ -255,6 +255,13 @@ Monitoring-Runbook: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md)
 ### Search
 - `GET /api/v1/search` - Volltextsuche für veröffentlichte Nanos mit Filtern, Pagination und Redis-Cache
 
+### Nanos
+- `GET /api/v1/nanos/{nano_id}` - Nano-Metadaten abrufen (bestehender Metadata-Endpunkt)
+- `GET /api/v1/nanos/{nano_id}/detail` - Nano-Detailansicht im `success/data/meta/timestamp`-Schema mit status-/rollenabhängiger Sichtbarkeit
+- `GET /api/v1/nanos/{nano_id}/download-info` - Download-Informationen abrufen (authentifiziert; nicht veröffentlichte Nanos nur für berechtigte Rollen)
+- `POST /api/v1/nanos/{nano_id}/metadata` - Nano-Metadaten aktualisieren (nur Creator, nur Draft)
+- `PATCH /api/v1/nanos/{nano_id}/status` - Nano-Status gemäß State Machine ändern
+
 ## 🛠️ Technologie-Stack
 
 | Komponente | Technologie | Version |

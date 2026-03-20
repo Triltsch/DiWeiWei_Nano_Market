@@ -5,6 +5,7 @@ This module defines request and response models for the Nano metadata API endpoi
 """
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
@@ -182,6 +183,100 @@ class NanoMetadataResponse(BaseModel):
     uploaded_at: datetime = Field(..., description="Upload timestamp")
     published_at: Optional[datetime] = Field(None, description="Publication timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
+
+
+class NanoDetailMetadata(BaseModel):
+    """Metadata block for Nano detail view response."""
+
+    description: Optional[str] = Field(None, description="Detailed description")
+    duration_minutes: Optional[int] = Field(None, description="Estimated duration in minutes")
+    competency_level: str = Field(..., description="Learning level")
+    language: str = Field(..., description="Content language (ISO 639-1)")
+    format: str = Field(..., description="Content format/type")
+    status: str = Field(..., description="Publishing status")
+    version: str = Field(..., description="Semantic version")
+    categories: list[NanoCategoryResponse] = Field(
+        default_factory=list,
+        description="Assigned categories",
+    )
+    license: str = Field(..., description="Content license")
+    thumbnail_url: Optional[str] = Field(None, description="Thumbnail image URL")
+    uploaded_at: datetime = Field(..., description="Upload timestamp")
+    published_at: Optional[datetime] = Field(None, description="Publication timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+
+
+class NanoDetailCreator(BaseModel):
+    """Creator information block for Nano detail view response."""
+
+    id: UUID = Field(..., description="Creator/owner UUID")
+    username: Optional[str] = Field(None, description="Creator username")
+
+
+class NanoRatingSummary(BaseModel):
+    """Aggregated rating and download summary for Nano detail view response."""
+
+    average_rating: Decimal = Field(description="Average rating (0.00-5.00)")
+    rating_count: int = Field(ge=0, description="Total number of ratings")
+    download_count: int = Field(ge=0, description="Total number of downloads")
+
+
+class NanoDownloadInfo(BaseModel):
+    """Download access information for Nano detail view response."""
+
+    requires_authentication: bool = Field(
+        default=True,
+        description="Whether authentication is required to download the Nano",
+    )
+    can_download: bool = Field(description="Whether the current caller can download the Nano")
+    download_path: Optional[str] = Field(None, description="Resolved internal download path")
+
+
+class NanoDetailData(BaseModel):
+    """Main data payload for Nano detail view endpoint."""
+
+    nano_id: UUID = Field(..., description="Unique identifier for the Nano")
+    title: str = Field(..., description="Nano title")
+    metadata: NanoDetailMetadata = Field(description="Detailed metadata for Nano detail page")
+    creator: NanoDetailCreator = Field(description="Creator information")
+    rating_summary: NanoRatingSummary = Field(description="Aggregated rating and download metrics")
+    download_info: NanoDownloadInfo = Field(description="Download-related access information")
+
+
+class NanoDetailMeta(BaseModel):
+    """Meta block for Nano detail view response envelope."""
+
+    visibility: str = Field(description="Visibility scope of this Nano (public/restricted)")
+    request_user_id: Optional[UUID] = Field(
+        None,
+        description="Authenticated caller user ID, if available",
+    )
+
+
+class NanoDetailResponse(BaseModel):
+    """Unified response envelope for Nano detail view endpoint."""
+
+    success: bool = Field(description="Whether the request was successful")
+    data: NanoDetailData = Field(description="Nano detail payload")
+    meta: NanoDetailMeta = Field(description="Response metadata")
+    timestamp: datetime = Field(description="ISO 8601 timestamp when the response was generated")
+
+
+class NanoDownloadInfoData(BaseModel):
+    """Main data payload for Nano download info endpoint."""
+
+    nano_id: UUID = Field(..., description="Unique identifier for the Nano")
+    can_download: bool = Field(description="Whether the current caller is allowed to download")
+    download_path: str = Field(description="Resolved internal download path")
+
+
+class NanoDownloadInfoResponse(BaseModel):
+    """Unified response envelope for Nano download info endpoint."""
+
+    success: bool = Field(description="Whether the request was successful")
+    data: NanoDownloadInfoData = Field(description="Download info payload")
+    meta: NanoDetailMeta = Field(description="Response metadata")
+    timestamp: datetime = Field(description="ISO 8601 timestamp when the response was generated")
 
 
 class MetadataUpdateResponse(BaseModel):

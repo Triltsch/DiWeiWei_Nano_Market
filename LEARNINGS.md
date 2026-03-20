@@ -106,3 +106,11 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Für Exporter-Container keine Healthchecks verwenden, die auf nicht garantiert vorhandene Tools wie `wget`/`curl` angewiesen sind; lieber image-native Self-Checks oder stabile HTTP-Probes nutzen.
 - VSCode-Readiness-Tasks robuster über Docker-Health + expliziten App-Health-Endpunkt prüfen als über hostseitige Inline-Python-Probes mit indirekter Exit-Code-Auswertung.
 - Monitoring-Dashboards und Alert-Regeln als provisionierte Dateien versionieren; UI-only-Konfiguration driftet sonst schnell von Compose/Dokumentation weg.
+
+## Ergänzung Issue #71 (Nano Detail View API)
+
+- Für Endpunkte mit teils öffentlicher, teils eingeschränkter Sichtbarkeit (`published` vs. non-`published`) optionales Auth-Dependency (`get_optional_current_user`) im Router verwenden, die finalen RBAC-Entscheidungen aber im Service-Layer zentral halten.
+- Download-Zugriff als separaten Endpunkt modellieren und strikt authentifiziert halten; aktueller Contract: Der Detail-Endpunkt gibt die Download-Info als Capability-Hinweis (`can_download`) zurück und – falls `true` – zusätzlich den konkreten `download_path`, der mit dem aus `/nanos/{id}/download-info` übereinstimmen muss.
+- Einheitliches API-Envelope-Schema (`success/data/meta/timestamp`) für neue Read-Endpunkte früh in dedizierten Pydantic-Schemas modellieren, damit Router/Service/Tests denselben Contract erzwingen.
+- Für nicht veröffentlichte Inhalte 401 (kein Token) und 403 (Token ohne Berechtigung) explizit unterscheiden; das vereinfacht Frontend-Routing und verhindert unscharfe Error-States.
+- Service-Layer-Helfer für Zugriffslogik (z. B. `creator/admin/moderator`) kapseln, um RBAC-Regeln zwischen Detail- und Download-Flow ohne Drift wiederzuverwenden.

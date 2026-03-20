@@ -21,30 +21,47 @@ from app.models import (
     NanoCategoryAssignment,
     NanoFormat,
     NanoStatus,
+    User,
+    UserRole,
 )
 from app.modules.audit.service import AuditLogger
+from app.modules.auth.tokens import TokenData
 from app.modules.nanos.schemas import (
     MetadataUpdateRequest,
     NanoCategoryResponse,
+    NanoDetailCreator,
+    NanoDetailData,
+    NanoDetailMeta,
+    NanoDetailMetadata,
+    NanoDetailResponse,
+    NanoDownloadInfo,
+    NanoDownloadInfoData,
+    NanoDownloadInfoResponse,
     NanoMetadataResponse,
+    NanoRatingSummary,
     StatusUpdateRequest,
 )
 from app.modules.search.service import invalidate_search_cache
 
 
-async def get_nano_metadata(nano_id: UUID, db: AsyncSession) -> NanoMetadataResponse:
+async def get_nano_metadata(
+    nano_id: UUID,
+    db: AsyncSession,
+    current_user: TokenData | None,
+) -> NanoMetadataResponse:
     """
     Retrieve full metadata for a Nano.
 
     Args:
         nano_id: UUID of the Nano to retrieve
         db: Database session
+        current_user: Optional authenticated caller context
 
     Returns:
         NanoMetadataResponse with full metadata
 
     Raises:
-        HTTPException: 404 if Nano not found
+        HTTPException: 404 if Nano not found, 401/403 for visibility violations
     """
     # Query Nano
     stmt = select(Nano).where(Nano.id == nano_id)
@@ -56,6 +73,19 @@ async def get_nano_metadata(nano_id: UUID, db: AsyncSession) -> NanoMetadataResp
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Nano with ID {nano_id} not found",
         )
+
+    if nano.status != NanoStatus.PUBLISHED:
+        if current_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to access non-published Nano metadata",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if not _can_access_restricted_nano(nano=nano, current_user=current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not allowed to access this non-published Nano",
+            )
 
     # Load category assignments with categories in a single joined query
     assignments_stmt = (
@@ -102,6 +132,215 @@ async def get_nano_metadata(nano_id: UUID, db: AsyncSession) -> NanoMetadataResp
         published_at=nano.published_at,
         updated_at=nano.updated_at,
     )
+
+
+async def get_nano_detail(
+    nano_id: UUID,
+    db: AsyncSession,
+    current_user: TokenData | None,
+) -> NanoDetailResponse:
+    """
+    Retrieve Nano detail payload with visibility and download access rules.
+
+    Visibility rules:
+    - published: publicly visible
+    - non-published: creator, admin, and moderator only
+
+    Download rules:
+    - authentication required
+    - non-published downloads: creator, admin, moderator only
+
+    Args:
+        nano_id: UUID of the Nano to retrieve
+        db: Database session
+        current_user: Optional authenticated caller context
+
+    Returns:
+        NanoDetailResponse with unified response envelope
+
+    Raises:
+        HTTPException: 404 if Nano not found, 401/403 for visibility violations
+    """
+    stmt = (
+        select(Nano, User.username)
+        .outerjoin(User, Nano.creator_id == User.id)
+        .where(Nano.id == nano_id)
+    )
+    result = await db.execute(stmt)
+    row = result.first()
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Nano with ID {nano_id} not found",
+        )
+
+    nano, creator_username = row
+
+    visibility = "public" if nano.status == NanoStatus.PUBLISHED else "restricted"
+
+    if nano.status != NanoStatus.PUBLISHED:
+        if current_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to access non-published Nano details",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if not _can_access_restricted_nano(nano=nano, current_user=current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not allowed to access this non-published Nano",
+            )
+
+    category_responses = await _get_nano_categories(nano_id=nano_id, db=db)
+
+    competency_level_map = {
+        CompetencyLevel.BASIC: "beginner",
+        CompetencyLevel.INTERMEDIATE: "intermediate",
+        CompetencyLevel.ADVANCED: "advanced",
+    }
+
+    can_download = current_user is not None and (
+        nano.status == NanoStatus.PUBLISHED
+        or _can_access_restricted_nano(nano=nano, current_user=current_user)
+    )
+
+    return NanoDetailResponse(
+        success=True,
+        data=NanoDetailData(
+            nano_id=nano.id,
+            title=nano.title,
+            metadata=NanoDetailMetadata(
+                description=nano.description,
+                duration_minutes=nano.duration_minutes,
+                competency_level=competency_level_map.get(nano.competency_level, "beginner"),
+                language=nano.language,
+                format=nano.format.value.lower(),
+                status=nano.status.value.lower(),
+                version=nano.version,
+                categories=category_responses,
+                license=nano.license.value,
+                thumbnail_url=nano.thumbnail_url,
+                uploaded_at=nano.uploaded_at,
+                published_at=nano.published_at,
+                updated_at=nano.updated_at,
+            ),
+            creator=NanoDetailCreator(
+                id=nano.creator_id,
+                username=creator_username,
+            ),
+            rating_summary=NanoRatingSummary(
+                average_rating=nano.average_rating,
+                rating_count=nano.rating_count,
+                download_count=nano.download_count,
+            ),
+            download_info=NanoDownloadInfo(
+                requires_authentication=True,
+                can_download=can_download,
+                download_path=nano.file_storage_path if can_download else None,
+            ),
+        ),
+        meta=NanoDetailMeta(
+            visibility=visibility,
+            request_user_id=current_user.user_id if current_user else None,
+        ),
+        timestamp=datetime.now(timezone.utc),
+    )
+
+
+async def get_nano_download_info(
+    nano_id: UUID,
+    db: AsyncSession,
+    current_user: TokenData,
+) -> NanoDownloadInfoResponse:
+    """
+    Resolve download path for a Nano with strict authentication and RBAC checks.
+
+    Rules:
+    - authentication always required
+    - published: any authenticated user can download
+    - non-published: creator, admin, and moderator only
+
+    Args:
+        nano_id: UUID of the Nano to resolve download info for
+        db: Database session
+        current_user: Authenticated caller context
+
+    Returns:
+        NanoDownloadInfoResponse with unified response envelope
+
+    Raises:
+        HTTPException: 404 if Nano/path missing, 403 for RBAC violations
+    """
+    stmt = select(Nano).where(Nano.id == nano_id)
+    result = await db.execute(stmt)
+    nano = result.scalar_one_or_none()
+
+    if not nano:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Nano with ID {nano_id} not found",
+        )
+
+    if nano.status != NanoStatus.PUBLISHED and not _can_access_restricted_nano(
+        nano=nano,
+        current_user=current_user,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allowed to download this non-published Nano",
+        )
+
+    if not nano.file_storage_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Download path is not available for this Nano",
+        )
+
+    visibility = "public" if nano.status == NanoStatus.PUBLISHED else "restricted"
+
+    return NanoDownloadInfoResponse(
+        success=True,
+        data=NanoDownloadInfoData(
+            nano_id=nano.id,
+            can_download=True,
+            download_path=nano.file_storage_path,
+        ),
+        meta=NanoDetailMeta(
+            visibility=visibility,
+            request_user_id=current_user.user_id,
+        ),
+        timestamp=datetime.now(timezone.utc),
+    )
+
+
+async def _get_nano_categories(nano_id: UUID, db: AsyncSession) -> list[NanoCategoryResponse]:
+    """Fetch category assignments for a Nano ordered by rank."""
+    assignments_stmt = (
+        select(NanoCategoryAssignment, Category)
+        .join(Category, NanoCategoryAssignment.category_id == Category.id)
+        .where(NanoCategoryAssignment.nano_id == nano_id)
+        .order_by(NanoCategoryAssignment.rank)
+    )
+    assignments_result = await db.execute(assignments_stmt)
+    assignment_category_rows = assignments_result.all()
+
+    return [
+        NanoCategoryResponse(
+            id=category.id,
+            name=category.name,
+            rank=assignment.rank,
+        )
+        for assignment, category in assignment_category_rows
+        if category is not None
+    ]
+
+
+def _can_access_restricted_nano(nano: Nano, current_user: TokenData) -> bool:
+    """Return whether caller can access non-published Nano resources."""
+    if nano.creator_id == current_user.user_id:
+        return True
+    return current_user.role in {UserRole.ADMIN.value, UserRole.MODERATOR.value}
 
 
 async def update_nano_metadata(
