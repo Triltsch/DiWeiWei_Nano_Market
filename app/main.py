@@ -13,6 +13,7 @@ from app.modules.auth.router import get_auth_router
 from app.modules.nanos.router import get_nanos_router
 from app.modules.search.router import get_search_router
 from app.modules.upload.router import get_upload_router
+from app.monitoring import configure_monitoring
 from app.redis_client import check_redis_health, close_redis, get_redis
 
 settings = get_settings()
@@ -65,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(get_upload_router())
     app.include_router(get_nanos_router())
     app.include_router(get_search_router())
+    configure_monitoring(app)
 
     @app.get("/health")
     async def health_check() -> dict:

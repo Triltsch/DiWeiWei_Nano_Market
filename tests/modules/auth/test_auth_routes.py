@@ -295,6 +295,16 @@ async def test_health_check_endpoint(client: TestClient):
 
 
 @pytest.mark.asyncio
+async def test_metrics_endpoint_available(client: TestClient):
+    """Test Prometheus metrics endpoint availability."""
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    assert "# HELP" in response.text
+
+
+@pytest.mark.asyncio
 async def test_root_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch):
     """Test root endpoint redirects to frontend landing page"""
     monkeypatch.setenv("FRONTEND_URL", "http://localhost:5173")

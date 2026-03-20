@@ -99,3 +99,10 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Für CI-nahe Frontend-Validierung `vitest run` statt Watch-Mode verwenden; `npm test` kann lokal grün sein, aber ohne `run` nicht deterministisch terminieren.
 - **PR-Review (Issue #64):** Mock-Call-Assertions in asynchronen Tests immer in `waitFor` wrappen und `toHaveBeenLastCalledWith` + `toHaveBeenCalledTimes` kombinieren — einzelne naïve `expect(mock).toHaveBeenCalledWith(...)` ohne `waitFor` können bei debounced Effekten flaky sein (Race Condition zwischen DOM-Event und Timer-Auflösung).
 - **PR-Review (Issue #64):** Exakte Test-Zählungen (z. B. „295/296 Tests") in Dokumenten/README nicht hart kodieren — Zahlen driften bei jedem neuen Test und führen zu irreführendem Veraltungs-Overhead. Stattdessen CI-Status als autoritative Quelle referenzieren.
+
+## Ergänzung Issue #70 (Prometheus/Grafana Monitoring Baseline)
+
+- Prometheus-Instrumentierung für FastAPI zentral an der App-Fabrik verdrahten und im Test-App-Setup spiegeln, damit `/metrics` in Runtime **und** Tests konsistent verfügbar ist.
+- Für Exporter-Container keine Healthchecks verwenden, die auf nicht garantiert vorhandene Tools wie `wget`/`curl` angewiesen sind; lieber image-native Self-Checks oder stabile HTTP-Probes nutzen.
+- VSCode-Readiness-Tasks robuster über Docker-Health + expliziten App-Health-Endpunkt prüfen als über hostseitige Inline-Python-Probes mit indirekter Exit-Code-Auswertung.
+- Monitoring-Dashboards und Alert-Regeln als provisionierte Dateien versionieren; UI-only-Konfiguration driftet sonst schnell von Compose/Dokumentation weg.
