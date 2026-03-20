@@ -306,7 +306,10 @@ class TestUpdateNanoMetadata:
         assert "competency_level" in data["updated_fields"]
 
         # Verify changes were persisted
-        get_response = await async_client.get(f"/api/v1/nanos/{nano.id}")
+        get_response = await async_client.get(
+            f"/api/v1/nanos/{nano.id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
         assert get_response.status_code == 200
         updated_data = get_response.json()
         assert updated_data["title"] == "Updated Title"
@@ -623,7 +626,10 @@ class TestUpdateNanoMetadata:
         assert "categories" in response.json()["updated_fields"]
 
         # Verify categories were assigned
-        get_response = await async_client.get(f"/api/v1/nanos/{nano.id}")
+        get_response = await async_client.get(
+            f"/api/v1/nanos/{nano.id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
         assert get_response.status_code == 200
         data = get_response.json()
         assert len(data["categories"]) == 2
