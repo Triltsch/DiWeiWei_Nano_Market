@@ -20,6 +20,7 @@ from app.models import (
     NanoFormat,
     NanoStatus,
 )
+from app.modules.auth.tokens import create_access_token
 
 
 class TestGetNanoMetadata:
@@ -654,3 +655,226 @@ class TestUpdateNanoMetadata:
 
         assert response.status_code == 422
         assert "5" in response.text or "maximum" in response.text.lower()
+
+
+class TestNanoDetailViewRoutes:
+    """
+    Test suite for Nano detail view and download info endpoints.
+
+    Covers public/restricted visibility rules and download access control.
+    """
+
+    @pytest.mark.asyncio
+    async def test_get_nano_detail_published_is_public(
+        self, async_client, db_session, verified_user_id
+    ):
+        """Published Nano details are visible without authentication."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Public Nano",
+            description="Publicly visible nano",
+            duration_minutes=20,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+            file_storage_path="nanos/public-nano.zip",
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        response = await async_client.get(f"/api/v1/nanos/{nano.id}/detail")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["success"] is True
+        assert payload["data"]["nano_id"] == str(nano.id)
+        assert payload["data"]["title"] == "Public Nano"
+        assert payload["meta"]["visibility"] == "public"
+        assert payload["data"]["download_info"]["requires_authentication"] is True
+        assert payload["data"]["download_info"]["can_download"] is False
+        assert payload["data"]["download_info"]["download_path"] is None
+        assert payload["timestamp"]
+
+    @pytest.mark.asyncio
+    async def test_get_nano_detail_non_published_requires_authentication(
+        self, async_client, db_session, verified_user_id
+    ):
+        """Non-published Nano details require authentication."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Draft Nano",
+            description="Not public",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.INTERMEDIATE,
+            language="de",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+            file_storage_path="nanos/draft-nano.zip",
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        response = await async_client.get(f"/api/v1/nanos/{nano.id}/detail")
+
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_get_nano_detail_non_published_forbidden_for_other_user(
+        self, async_client, db_session, verified_user_id
+    ):
+        """Authenticated non-owner without elevated role cannot access non-published Nano."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Private Nano",
+            description="Restricted detail view",
+            duration_minutes=25,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.MIXED,
+            status=NanoStatus.PENDING_REVIEW,
+            version="1.0.0",
+            license=LicenseType.CC0,
+            file_storage_path="nanos/private-nano.zip",
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        other_token, _ = create_access_token(uuid.uuid4(), "other@example.com", role="consumer")
+
+        response = await async_client.get(
+            f"/api/v1/nanos/{nano.id}/detail",
+            headers={"Authorization": f"Bearer {other_token}"},
+        )
+
+        assert response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_get_nano_detail_non_published_owner_allowed(
+        self, async_client, db_session, verified_user_id, access_token
+    ):
+        """Creator can access non-published Nano detail view."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Owner Draft Nano",
+            description="Owner visible",
+            duration_minutes=35,
+            competency_level=CompetencyLevel.ADVANCED,
+            language="de",
+            format=NanoFormat.QUIZ,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.PROPRIETARY,
+            file_storage_path="nanos/owner-draft.zip",
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        response = await async_client.get(
+            f"/api/v1/nanos/{nano.id}/detail",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["success"] is True
+        assert payload["meta"]["visibility"] == "restricted"
+        assert payload["data"]["download_info"]["can_download"] is True
+        assert payload["data"]["download_info"]["download_path"] == "nanos/owner-draft.zip"
+
+    @pytest.mark.asyncio
+    async def test_download_info_requires_authentication(
+        self, async_client, db_session, verified_user_id
+    ):
+        """Download info endpoint requires authentication, even for published Nano."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Public Download Nano",
+            duration_minutes=10,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+            file_storage_path="nanos/public-download.zip",
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        response = await async_client.get(f"/api/v1/nanos/{nano.id}/download-info")
+
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_download_info_non_published_forbidden_for_other_user(
+        self, async_client, db_session, verified_user_id
+    ):
+        """Download path for non-published Nano is blocked for unauthorized authenticated users."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Restricted Download Nano",
+            duration_minutes=15,
+            competency_level=CompetencyLevel.INTERMEDIATE,
+            language="de",
+            format=NanoFormat.INTERACTIVE,
+            status=NanoStatus.PENDING_REVIEW,
+            version="1.0.0",
+            license=LicenseType.CC_BY_SA,
+            file_storage_path="nanos/restricted-download.zip",
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        other_token, _ = create_access_token(uuid.uuid4(), "other@example.com", role="consumer")
+
+        response = await async_client.get(
+            f"/api/v1/nanos/{nano.id}/download-info",
+            headers={"Authorization": f"Bearer {other_token}"},
+        )
+
+        assert response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_download_info_published_authenticated_success(
+        self, async_client, db_session, verified_user_id, access_token
+    ):
+        """Authenticated users can resolve download path for published Nanos."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Published Download Nano",
+            duration_minutes=40,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+            file_storage_path="nanos/published-download.zip",
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        response = await async_client.get(
+            f"/api/v1/nanos/{nano.id}/download-info",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["success"] is True
+        assert payload["data"]["nano_id"] == str(nano.id)
+        assert payload["data"]["can_download"] is True
+        assert payload["data"]["download_path"] == "nanos/published-download.zip"
+        assert payload["meta"]["visibility"] == "public"
