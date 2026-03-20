@@ -457,6 +457,32 @@ describe("SearchPage", () => {
     expect(mockedSearchNanos).not.toHaveBeenCalled();
   });
 
+  it("shows a localized error state when the search API request fails", async () => {
+    mockedSearchNanos.mockRejectedValue(new Error("Search backend unavailable"));
+
+    renderSearch();
+
+    const keywordInput = screen.getByLabelText("Suchbegriff");
+    fireEvent.change(keywordInput, { target: { value: "python" } });
+
+    const errorMessage = await screen.findByText(
+      "Suche fehlgeschlagen. Bitte versuchen Sie es erneut."
+    );
+    expect(errorMessage).toBeTruthy();
+
+    expect(mockedSearchNanos).toHaveBeenCalledWith({
+      query: "python",
+      filters: {
+        category: "",
+        level: "",
+        duration: "",
+        language: "",
+      },
+      limit: 20,
+      page: 1,
+    });
+  });
+
   it("loads additional pages when load more is clicked", async () => {
     mockedSearchNanos
       .mockResolvedValueOnce({

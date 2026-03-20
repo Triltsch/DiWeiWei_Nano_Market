@@ -92,3 +92,8 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Live-Integrationstests gegen externe Services dürfen keine produktiv/standardmäßig genutzten Ressourcen mutieren; immer isolierte, test-spezifische IDs/Namespaces verwenden.
 - Async-Tests dürfen keine blockierenden SDK-Calls in Schleifen ausführen; entweder native async Clients nutzen oder Sync-Aufrufe explizit in Worker-Threads auslagern.
 - Gemeinsame Query-Normalisierung (z. B. Level-Mapping) an einer zentralen Stelle halten und in UI + API-Client wiederverwenden, um Drift zwischen URL-State und Request-Parametern zu vermeiden.
+
+## Ergänzung Issue #64 (Search UI/API Integration)
+
+- Für Search-UX nicht nur Contract-Mapping testen, sondern explizit den UI-Error-Path (API-Fehler → lokalisierte Fehlermeldung) im Page-Test absichern.
+- Für CI-nahe Frontend-Validierung `vitest run` statt Watch-Mode verwenden; `npm test` kann lokal grün sein, aber ohne `run` nicht deterministisch terminieren.
