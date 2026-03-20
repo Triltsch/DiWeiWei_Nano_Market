@@ -6,7 +6,7 @@ Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und 
 
 ## 📊 Aktueller Stand
 
-**Fertiggestellte Stories**: 1.1, 1.3, 1.4, 1.5, 7.2, 7.3, 8.1, 8.2, 8.4, 2.2, 2.4, 7.4 ✅
+**Fertiggestellte Stories**: 1.1, 1.3, 1.4, 1.5, 7.2, 7.3, 8.1, 8.2, 8.4, 2.2, 2.4, 7.4, 3.5 ✅
 - ✅ User Registration & Login mit Email-Verifizierung
 - ✅ Password Hashing (Bcrypt, OWASP-konform)
 - ✅ Email Verification Flow (JWT-basiert)
@@ -21,9 +21,10 @@ Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und 
 - ✅ Landing Page & Global Navigation (Story 8.2) - Responsive navbar with hamburger menu, active route highlighting, language selector placeholder, WCAG 2.1 AA compliance
 - ✅ Nano Discovery Page & Search UI (Story 8.4) - `/search` with debounce, filters, loading/empty states, URL sync, and load-more pagination
 - ✅ Redis Cache Setup für Search (Story 7.4) - deterministische Cache-Keys, 30-Minuten TTL, Invalidierung bei Nano-Datenänderungen, degraded mode ohne API-Ausfall
+- ✅ Search UI/API Integration (Story 3.5) - Discovery-UI gegen `GET /api/v1/search`, Request-/Response-Contract-Mapping, API-Fehlerzustände, backend-konsistente Filter/Pagination, Contract-Tests
 
 **Qualität**:
-- 266/266 Tests bestanden (100%)
+- Backend-Tests: alle aktuellen Tests bestanden (pytest; exakte Anzahl siehe CI-Status)
 - Code Coverage erfolgreich (Ziel: >70%)
 - Frontend: Vitest Test-Setup aktiv (`npm test`)
 - Black/isort Code-Formatierung
