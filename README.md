@@ -30,6 +30,36 @@ Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und 
 - Black/isort Code-Formatierung
 - PostgreSQL + SQLite Support
 
+## 📌 Aktueller Planungsstand (März 2026)
+
+- Sprint 4 ist abgeschlossen (Search Infrastruktur + Discovery UI/API Integration)
+- Sprint 5 ist als nächster Sprint geplant und in GitHub-Issues geschnitten
+- Sprint-5-Issues sind dem Milestone **"Sprint 5 done"** zugeordnet
+- Suchtechnologie für MVP ist konsistent auf **Meilisearch** festgelegt
+- Globales DoD-Performanceziel wurde auf **`<500ms p95`** harmonisiert
+
+### Sprint 5 Planung (nächster Sprint)
+
+**Sprintziel:** Creators können Nanos zuverlässig verwalten/veröffentlichen; Nano-Details sind end-to-end nutzbar; Monitoring ist operativ verfügbar.
+
+**Geplante Sprint-5-Issues:**
+- [#70 Sprint 5 — Story 7.5: Prometheus/Grafana Monitoring Baseline](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/70)
+- [#71 Sprint 5 — Story 2.5: Nano Detail View API (Backend)](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/71)
+- [#72 Sprint 5 — Story 8.6: Creator Dashboard (Upload/Manage Nanos)](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/72)
+- [#73 Sprint 5 — Story 8.5: Nano Detail Page (Frontend)](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/73)
+- [#74 Sprint 5 — QA/Operations Gate: Detail+Dashboard+Monitoring Abnahme](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/74)
+
+**Priorisierung innerhalb Sprint 5:**
+1. Enabler/Blocker: Monitoring (Story 7.5)
+2. MVP-Kernfunktion: Nano Detail Backend + Frontend (Story 2.5 + 8.5)
+3. MVP-Kernfunktion: Creator Dashboard (Story 8.6)
+4. Qualität/NFR-Abnahme: QA/Operations Gate
+
+**Konsolidierte Leitplanken für Sprint 5/6:**
+- Search-Stack im MVP: **Meilisearch** (kein Elasticsearch/OpenSearch im MVP-Scope)
+- DoD-Performanceziel (global): **`<500ms p95`**
+- Security/Compliance bleibt Pflichtbestandteil der Story-Abnahme (DoD + Audit-Logging)
+
 ## 🚀 Quick Start
 
 > **📚 For comprehensive setup instructions**, including troubleshooting, migration workflows, and MinIO configuration, see **[doc/DEVELOPER_SETUP.md](./doc/DEVELOPER_SETUP.md)**.
@@ -261,11 +291,17 @@ docker-compose down
 
 ## 🔜 Nächste Schritte
 
-### Geplante Stories
-- **Story 1.2**: User Profile Management (CRUD, Avatar Upload)
-- **Story 1.6**: GDPR Compliance (Datenexport, Löschung, Consent)
-- **Story 2.x**: Nano Unit Management (Publizieren, Versionierung)
-- **Story 3.x**: Marketplace & Discovery (Suche, Empfehlungen)
+### Nächster Sprint (Sprint 5)
+- **Story 7.5**: Prometheus/Grafana Monitoring Baseline
+- **Story 2.5**: Nano Detail View API (Backend)
+- **Story 8.5**: Nano Detail Page (Frontend)
+- **Story 8.6**: Creator Dashboard (Upload/Manage)
+- **QA/Operations Gate**: Sprint-5-Abnahme für Detail/Dashboard/Monitoring
+
+### Ausblick Sprint 6
+- **Story 4.1**: Star Rating
+- **Story 4.2**: Comments / Reviews
+- **Story 4.4**: Rating Moderation
 
 ---
 

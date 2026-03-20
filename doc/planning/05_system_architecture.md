@@ -58,10 +58,10 @@ Nach Analyse des Prototyps und der Anforderungen wird folgende Architektur empfo
                         │
         ┌───────────────┼───────────────┐
         ↓               ↓               ↓
-   ┌─────────┐    ┌──────────┐   ┌─────────┐
-   │  MinIO  │    │Elasticsearch│ Prometheus│
-   │(S3-compat)   │ / Meilisearch│(Metrics) │
-   │ (Nanos) │    │ (Search) │   │ (Logs)  │
+  ┌─────────┐    ┌──────────┐   ┌─────────┐
+  │  MinIO  │    │Meilisearch│   │ Prometheus│
+  │(S3-compat)   │ (Search)   │   │ (Metrics) │
+  │ (Nanos) │    │            │   │  (Logs)   │
    └─────────┘    └──────────┘   └─────────┘
                         │
                    ┌────┴──────┬────────┐
@@ -138,7 +138,7 @@ app/
 ├── infrastructure/
 │   ├── database.py           # DB Connections
 │   ├── s3_service.py         # AWS S3 Integration
-│   ├── elasticsearch.py      # Search Client
+│   ├── meilisearch.py        # Search Client
 │   ├── redis_cache.py        # Caching
 │   └── email_service.py      # Email Sending
 │
@@ -172,52 +172,36 @@ app/
 
 ### 2.3 Search Service
 
-**Technologie:** Elasticsearch oder OpenSearch (AWS)
+**Technologie (MVP gesetzt):** Meilisearch
 
 ```yaml
 # Index: nanos_v1
-mappings:
-  properties:
-    id:
-      type: keyword
-    title:
-      type: text
-      fields:
-        raw:
-          type: keyword
-    description:
-      type: text
-      analyzer: german  # German stemming
-    categories:
-      type: keyword
-    created_at:
-      type: date
-    average_rating:
-      type: float
-    download_count:
-      type: integer
-    creator_id:
-      type: keyword
+searchableAttributes:
+  - title
+  - description
+  - categories
+filterableAttributes:
+  - status
+  - categories
+  - level
+  - duration
+sortableAttributes:
+  - average_rating
+  - created_at
 ```
 
-**Query Logic (Python/Elasticsearch DSL):**
+**Query Logic (Meilisearch Search API):**
 ```python
 # User searches for "Excel pivot"
-query = {
-  "bool": {
-    "must": [
-      {"multi_match": {
-        "query": "Excel pivot",
-        "fields": ["title^2", "description"]
-      }}
-    ],
-    "filter": [
-      {"term": {"status": "published"}},
-      {"range": {"published_at": {"gte": "now-7d"}}}
-    ]
-  }
-}
-# Sorted by: _score (relevance), then average_rating DESC
+response = meili.index("nanos_v1").search(
+    "Excel pivot",
+    {
+        "filter": ["status = published"],
+        "sort": ["average_rating:desc", "created_at:desc"],
+        "limit": 20,
+        "offset": 0,
+    },
+)
 ```
 
 ### 2.4 Chat Service (Real-Time)
@@ -293,22 +277,22 @@ services:
     environment:
       - DATABASE_URL=postgresql://user:pass@postgres/nano_db
       - REDIS_URL=redis://redis:6379
-      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - MEILISEARCH_URL=http://meilisearch:7700
     depends_on:
       - postgres
       - redis
-      - elasticsearch
+      - meilisearch
 
   app2:
     build: .
     environment:
       - DATABASE_URL=postgresql://user:pass@postgres/nano_db
       - REDIS_URL=redis://redis:6379
-      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - MEILISEARCH_URL=http://meilisearch:7700
     depends_on:
       - postgres
       - redis
-      - elasticsearch
+      - meilisearch
 
   postgres:
     image: postgres:15-alpine
@@ -326,13 +310,12 @@ services:
     ports:
       - "6379:6379"
 
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.5.0
+  meilisearch:
+    image: getmeili/meilisearch:latest
     environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
+      - MEILI_MASTER_KEY=${MEILI_KEY}
     ports:
-      - "9200:9200"
+      - "7700:7700"
 
   minio:  # S3-compatible object storage
     image: minio/minio:latest
@@ -584,57 +567,9 @@ nano-marketplace/
 
 ### 4.3 Search Index
 
-**Primary:** Elasticsearch (Self-Hosted) or Meilisearch (Simpler)
+**Primary (MVP gesetzt):** Meilisearch
 
-**Option A: Elasticsearch (Feature-Rich)**
-
-```yaml
-elasticsearch:
-  image: docker.elastic.co/elasticsearch/elasticsearch:8.5.0
-  environment:
-    - discovery.type=single-node
-    - xpack.security.enabled=false
-    - ES_JAVA_OPTS="-Xms512m -Xmx512m"
-  volumes:
-    - elasticsearch_data:/usr/share/elasticsearch/data
-  ports:
-    - "9200:9200"
-```
-
-**Index Configuration:**
-```json
-{
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 0,
-    "analysis": {
-      "analyzer": {
-        "german_analyzer": {
-          "type": "standard",
-          "stopwords": "_german_"
-        }
-      }
-    }
-  },
-  "mappings": {
-    "properties": {
-      "title": {
-        "type": "text",
-        "analyzer": "german_analyzer",
-        "fields": {
-          "keyword": {"type": "keyword"}
-        }
-      },
-      "description": {"type": "text", "analyzer": "german_analyzer"},
-      "categories": {"type": "keyword"},
-      "average_rating": {"type": "float"},
-      "created_at": {"type": "date"}
-    }
-  }
-}
-```
-
-**Option B: Meilisearch (Simpler, Faster Setup)**
+**MVP Setup:**
 
 ```yaml
 meilisearch:
@@ -653,8 +588,10 @@ Benefits:
 - Faster to deploy than Elasticsearch
 
 Trade-offs:
-- Less customizable than Elasticsearch
+- Less customizable than Elasticsearch/OpenSearch
 - Fewer advanced features (no complex filtering)
+
+**Alternative (Phase 2+ only):** Elasticsearch/OpenSearch for advanced query features and scaling needs.
 
 ### 4.4 Cache Layer
 

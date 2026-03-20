@@ -184,9 +184,9 @@ Scenario: User searches for Nanos
 ```
 
 **Effort Estimate:** 12 Personentage  
-**Dependencies:** Elasticsearch setup, Nano indexing pipeline  
+**Dependencies:** Meilisearch setup, Nano indexing pipeline  
 **Done Criteria:**
-- [ ] Elasticsearch cluster operational
+- [ ] Meilisearch service and index operational
 - [ ] Search query tests ≥85% coverage
 - [ ] Performance benchmarks baseline
 
@@ -543,7 +543,7 @@ Phase 2: v3.0.0 (H1 2026)
 - [ ] Integration tests passing
 - [ ] Swagger/API docs updated
 - [ ] Security checklist complete
-- [ ] Performance verified (<100ms p95)
+- [ ] Performance verified (<500ms p95)
 - [ ] Documentation updated
 - [ ] Deployed to staging
 - [ ] QA sign-off
