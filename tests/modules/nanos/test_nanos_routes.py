@@ -61,7 +61,7 @@ class TestGetNanoMetadata:
             competency_level=CompetencyLevel.BASIC,
             language="de",
             format=NanoFormat.VIDEO,
-            status=NanoStatus.DRAFT,
+            status=NanoStatus.PUBLISHED,
             version="1.0.0",
             license=LicenseType.CC_BY,
         )
@@ -81,8 +81,79 @@ class TestGetNanoMetadata:
         assert data["competency_level"] == "beginner"
         assert data["language"] == "de"
         assert data["format"] == "video"
-        assert data["status"] == "draft"
+        assert data["status"] == "published"
         assert data["license"] == "CC-BY"
+
+    @pytest.mark.asyncio
+    async def test_get_nano_metadata_non_published_requires_authentication(
+        self, async_client, db_session
+    ):
+        """Non-published Nano metadata requires authentication."""
+        from app.models import User, UserRole, UserStatus
+
+        user = User(
+            id=uuid.uuid4(),
+            email="creator3@example.com",
+            username="creator3",
+            password_hash="dummy_hash",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            role=UserRole.CREATOR,
+            preferred_language="de",
+            login_attempts=0,
+        )
+        db_session.add(user)
+        await db_session.flush()
+
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=user.id,
+            title="Restricted Nano",
+            description="Restricted metadata",
+            duration_minutes=20,
+            competency_level=CompetencyLevel.BASIC,
+            language="de",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        response = await async_client.get(f"/api/v1/nanos/{nano.id}")
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_get_nano_metadata_non_published_admin_allowed(
+        self, async_client, db_session, verified_user_id
+    ):
+        """Admin role can access non-published metadata."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Draft Nano For Admin",
+            description="Admin-visible metadata",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.INTERMEDIATE,
+            language="en",
+            format=NanoFormat.MIXED,
+            status=NanoStatus.PENDING_REVIEW,
+            version="1.0.0",
+            license=LicenseType.CC0,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        admin_token, _ = create_access_token(uuid.uuid4(), "admin@example.com", role="admin")
+        response = await async_client.get(
+            f"/api/v1/nanos/{nano.id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["nano_id"] == str(nano.id)
 
     @pytest.mark.asyncio
     async def test_get_nano_metadata_not_found(self, async_client):
@@ -140,7 +211,7 @@ class TestGetNanoMetadata:
             competency_level=CompetencyLevel.BASIC,
             language="en",
             format=NanoFormat.TEXT,
-            status=NanoStatus.DRAFT,
+            status=NanoStatus.PUBLISHED,
             version="1.0.0",
             license=LicenseType.CC_BY_SA,
         )
@@ -791,6 +862,39 @@ class TestNanoDetailViewRoutes:
         assert payload["data"]["download_info"]["download_path"] == "nanos/owner-draft.zip"
 
     @pytest.mark.asyncio
+    async def test_get_nano_detail_non_published_admin_allowed(
+        self, async_client, db_session, verified_user_id
+    ):
+        """Admin role can access non-published Nano detail view."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Admin View Nano",
+            description="Restricted but admin-visible",
+            duration_minutes=22,
+            competency_level=CompetencyLevel.BASIC,
+            language="de",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+            file_storage_path="nanos/admin-view.zip",
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        admin_token, _ = create_access_token(uuid.uuid4(), "admin@example.com", role="admin")
+        response = await async_client.get(
+            f"/api/v1/nanos/{nano.id}/detail",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["data"]["download_info"]["can_download"] is True
+        assert payload["data"]["download_info"]["download_path"] == "nanos/admin-view.zip"
+
+    @pytest.mark.asyncio
     async def test_download_info_requires_authentication(
         self, async_client, db_session, verified_user_id
     ):
@@ -878,3 +982,40 @@ class TestNanoDetailViewRoutes:
         assert payload["data"]["can_download"] is True
         assert payload["data"]["download_path"] == "nanos/published-download.zip"
         assert payload["meta"]["visibility"] == "public"
+
+    @pytest.mark.asyncio
+    async def test_download_info_non_published_moderator_allowed(
+        self, async_client, db_session, verified_user_id
+    ):
+        """Moderator role can resolve download info for non-published Nano."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Moderator Download Nano",
+            duration_minutes=50,
+            competency_level=CompetencyLevel.ADVANCED,
+            language="en",
+            format=NanoFormat.INTERACTIVE,
+            status=NanoStatus.PENDING_REVIEW,
+            version="1.0.0",
+            license=LicenseType.CC_BY_SA,
+            file_storage_path="nanos/moderator-download.zip",
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        moderator_token, _ = create_access_token(
+            uuid.uuid4(),
+            "moderator@example.com",
+            role="moderator",
+        )
+        response = await async_client.get(
+            f"/api/v1/nanos/{nano.id}/download-info",
+            headers={"Authorization": f"Bearer {moderator_token}"},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["data"]["can_download"] is True
+        assert payload["data"]["download_path"] == "nanos/moderator-download.zip"
+        assert payload["meta"]["visibility"] == "restricted"

@@ -44,19 +44,24 @@ from app.modules.nanos.schemas import (
 from app.modules.search.service import invalidate_search_cache
 
 
-async def get_nano_metadata(nano_id: UUID, db: AsyncSession) -> NanoMetadataResponse:
+async def get_nano_metadata(
+    nano_id: UUID,
+    db: AsyncSession,
+    current_user: TokenData | None,
+) -> NanoMetadataResponse:
     """
     Retrieve full metadata for a Nano.
 
     Args:
         nano_id: UUID of the Nano to retrieve
         db: Database session
+        current_user: Optional authenticated caller context
 
     Returns:
         NanoMetadataResponse with full metadata
 
     Raises:
-        HTTPException: 404 if Nano not found
+        HTTPException: 404 if Nano not found, 401/403 for visibility violations
     """
     # Query Nano
     stmt = select(Nano).where(Nano.id == nano_id)
@@ -68,6 +73,19 @@ async def get_nano_metadata(nano_id: UUID, db: AsyncSession) -> NanoMetadataResp
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Nano with ID {nano_id} not found",
         )
+
+    if nano.status != NanoStatus.PUBLISHED:
+        if current_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to access non-published Nano metadata",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if not _can_access_restricted_nano(nano=nano, current_user=current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not allowed to access this non-published Nano",
+            )
 
     # Load category assignments with categories in a single joined query
     assignments_stmt = (

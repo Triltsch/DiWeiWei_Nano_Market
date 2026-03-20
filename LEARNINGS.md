@@ -110,7 +110,7 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 ## Ergänzung Issue #71 (Nano Detail View API)
 
 - Für Endpunkte mit teils öffentlicher, teils eingeschränkter Sichtbarkeit (`published` vs. non-`published`) optionales Auth-Dependency (`get_optional_current_user`) im Router verwenden, die finalen RBAC-Entscheidungen aber im Service-Layer zentral halten.
-- Download-Zugriff als separaten Endpunkt modellieren und strikt authentifiziert halten; Detail-Endpunkt darf Download-Info nur als Capability-Hinweis (`can_download`) zurückgeben, nicht als implizite Freigabe.
+- Download-Zugriff als separaten Endpunkt modellieren und strikt authentifiziert halten; aktueller Contract: Der Detail-Endpunkt gibt die Download-Info als Capability-Hinweis (`can_download`) zurück und – falls `true` – zusätzlich den konkreten `download_path`, der mit dem aus `/nanos/{id}/download-info` übereinstimmen muss.
 - Einheitliches API-Envelope-Schema (`success/data/meta/timestamp`) für neue Read-Endpunkte früh in dedizierten Pydantic-Schemas modellieren, damit Router/Service/Tests denselben Contract erzwingen.
 - Für nicht veröffentlichte Inhalte 401 (kein Token) und 403 (Token ohne Berechtigung) explizit unterscheiden; das vereinfacht Frontend-Routing und verhindert unscharfe Error-States.
 - Service-Layer-Helfer für Zugriffslogik (z. B. `creator/admin/moderator`) kapseln, um RBAC-Regeln zwischen Detail- und Download-Flow ohne Drift wiederzuverwenden.

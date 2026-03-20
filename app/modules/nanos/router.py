@@ -62,7 +62,13 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
         **Returns:**
         - Nano metadata including title, description, categories, status, etc.
 
+        **Visibility Rules:**
+        - Published Nanos are publicly visible
+        - Non-published Nanos are visible only to creator, admin, or moderator
+
         **Error Cases:**
+        - 401: Authentication required for non-published Nano
+        - 403: Authenticated user lacks permission for non-published Nano
         - 404: Nano not found
         """,
         responses={
@@ -95,15 +101,18 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
                     }
                 },
             },
+            401: {"description": "Authentication required for non-published Nano"},
+            403: {"description": "Not authorized to access non-published Nano"},
             404: {"description": "Nano not found"},
         },
     )
     async def get_nano(
         nano_id: UUID,
+        current_user: Annotated[TokenData | None, Depends(get_optional_current_user)],
         db: Annotated[AsyncSession, Depends(get_db)],
     ) -> NanoMetadataResponse:
         """Get Nano metadata by ID."""
-        return await get_nano_metadata(nano_id, db)
+        return await get_nano_metadata(nano_id=nano_id, db=db, current_user=current_user)
 
     @router.get(
         "/{nano_id}/detail",
