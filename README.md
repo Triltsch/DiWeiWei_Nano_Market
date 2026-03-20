@@ -206,6 +206,10 @@ npm run build
 - MinIO (Port 9000/9001)
 - Meilisearch v1.6.0 (Port 7700)
 - FastAPI App (Port 8000)
+- Prometheus (Port 9090)
+- Grafana (Port 3001)
+- PostgreSQL Exporter (Port 9187)
+- Redis Exporter (Port 9121)
 
 ```bash
 # Services starten
@@ -221,8 +225,12 @@ docker-compose down
 **Zugriff**:
 - API: http://localhost:8000
 - Swagger: http://localhost:8000/docs
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3001 (admin/admin)
 - MinIO Console: http://localhost:9001 (minioadmin/minioadmin)
 - Meilisearch: http://localhost:7700
+
+Monitoring-Runbook: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md)
 
 **Umgebungsvariablen**: Siehe `.env.example` für alle Konfigurationsoptionen.
 

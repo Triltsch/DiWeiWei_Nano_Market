@@ -162,6 +162,7 @@ def app(db_session, mock_redis, mock_minio_storage):
     from app.modules.nanos.router import get_nanos_router
     from app.modules.search.router import get_search_router
     from app.modules.upload.router import get_upload_router
+    from app.monitoring import configure_monitoring
 
     settings = get_settings()
 
@@ -192,6 +193,7 @@ def app(db_session, mock_redis, mock_minio_storage):
     app.include_router(get_upload_router())
     app.include_router(get_nanos_router())
     app.include_router(get_search_router())
+    configure_monitoring(app)
 
     # Add endpoints
     @app.get("/health")
