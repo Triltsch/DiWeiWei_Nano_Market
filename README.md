@@ -24,7 +24,7 @@ Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und 
 - ✅ Search UI/API Integration (Story 3.5) - Discovery-UI gegen `GET /api/v1/search`, Request-/Response-Contract-Mapping, API-Fehlerzustände, backend-konsistente Filter/Pagination, Contract-Tests
 
 **Qualität**:
-- 295/296 Tests bestanden, 1 skipped (backend pytest)
+- Backend-Tests: alle aktuellen Tests bestanden (pytest; exakte Anzahl siehe CI-Status)
 - Code Coverage erfolgreich (Ziel: >70%)
 - Frontend: Vitest Test-Setup aktiv (`npm test`)
 - Black/isort Code-Formatierung

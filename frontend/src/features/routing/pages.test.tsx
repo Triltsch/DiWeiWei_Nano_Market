@@ -470,16 +470,19 @@ describe("SearchPage", () => {
     );
     expect(errorMessage).toBeTruthy();
 
-    expect(mockedSearchNanos).toHaveBeenCalledWith({
-      query: "python",
-      filters: {
-        category: "",
-        level: "",
-        duration: "",
-        language: "",
-      },
-      limit: 20,
-      page: 1,
+    await waitFor(() => {
+      expect(mockedSearchNanos).toHaveBeenCalledTimes(1);
+      expect(mockedSearchNanos).toHaveBeenLastCalledWith({
+        query: "python",
+        filters: {
+          category: "",
+          level: "",
+          duration: "",
+          language: "",
+        },
+        limit: 20,
+        page: 1,
+      });
     });
   });
 

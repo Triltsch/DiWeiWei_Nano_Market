@@ -97,3 +97,5 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 
 - Für Search-UX nicht nur Contract-Mapping testen, sondern explizit den UI-Error-Path (API-Fehler → lokalisierte Fehlermeldung) im Page-Test absichern.
 - Für CI-nahe Frontend-Validierung `vitest run` statt Watch-Mode verwenden; `npm test` kann lokal grün sein, aber ohne `run` nicht deterministisch terminieren.
+- **PR-Review (Issue #64):** Mock-Call-Assertions in asynchronen Tests immer in `waitFor` wrappen und `toHaveBeenLastCalledWith` + `toHaveBeenCalledTimes` kombinieren — einzelne naïve `expect(mock).toHaveBeenCalledWith(...)` ohne `waitFor` können bei debounced Effekten flaky sein (Race Condition zwischen DOM-Event und Timer-Auflösung).
+- **PR-Review (Issue #64):** Exakte Test-Zählungen (z. B. „295/296 Tests") in Dokumenten/README nicht hart kodieren — Zahlen driften bei jedem neuen Test und führen zu irreführendem Veraltungs-Overhead. Stattdessen CI-Status als autoritative Quelle referenzieren.
