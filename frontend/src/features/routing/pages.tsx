@@ -8,6 +8,12 @@ import {
 } from "../auth";
 import { PrivacyPage as PrivacyLegalPage, TermsPage as TermsLegalPage } from "../legal/pages";
 import {
+  CreatorDashboardPage as CreatorDashboardPageComponent,
+  EditNanoPage as EditNanoPageComponent,
+  UploadWizardPage as UploadWizardPageComponent,
+} from "../creator";
+  import { ModeratorQueuePage as ModeratorQueuePageComponent } from "../creator";
+import {
   normalizeSearchLevel,
   searchNanos,
   type SearchFilters,
@@ -634,4 +640,20 @@ export function NotFoundPage(): JSX.Element {
       </section>
     </PageLayout>
   );
+}
+
+export function CreatorDashboardPage(): JSX.Element {
+  return <CreatorDashboardPageComponent />;
+}
+
+export function UploadPage(): JSX.Element {
+  return <UploadWizardPageComponent />;
+}
+
+export function EditNanoPage(): JSX.Element {
+  return <EditNanoPageComponent />;
+}
+
+export function ModeratorQueuePage(): JSX.Element {
+  return <ModeratorQueuePageComponent />;
 }

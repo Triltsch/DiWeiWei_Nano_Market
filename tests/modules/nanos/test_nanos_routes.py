@@ -245,6 +245,57 @@ class TestGetNanoMetadata:
         assert data["categories"][1]["name"] == "Python"
 
 
+class TestCreatorNanoListRoute:
+    """Test suite for GET /api/v1/nanos/my-nanos route behavior."""
+
+    @pytest.mark.asyncio
+    async def test_get_my_nanos_route_not_shadowed_by_nano_id(self, async_client, db_session):
+        """Static /my-nanos route resolves correctly and does not produce UUID 422 errors."""
+        from app.models import User, UserRole, UserStatus
+
+        creator = User(
+            id=uuid.uuid4(),
+            email="creator-list@example.com",
+            username="creator_list",
+            password_hash="dummy_hash",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            role=UserRole.CREATOR,
+            preferred_language="en",
+            login_attempts=0,
+        )
+        db_session.add(creator)
+        await db_session.flush()
+
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="My Draft Nano",
+            description="Editable content",
+            duration_minutes=20,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.MIXED,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.PROPRIETARY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        token, _ = create_access_token(creator.id, creator.email, role="creator")
+        response = await async_client.get(
+            "/api/v1/nanos/my-nanos",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "nanos" in data
+        assert isinstance(data["nanos"], list)
+        assert data["nanos"][0]["title"] == "My Draft Nano"
+
+
 class TestUpdateNanoMetadata:
     """
     Test suite for POST /api/v1/nanos/{nano_id}/metadata endpoint.

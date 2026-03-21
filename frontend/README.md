@@ -95,7 +95,7 @@ React Router v6 routes are wired in `src/app/router.tsx` with implemented auth f
 - `/register` registration form (React Hook Form + client validation)
 - `/login` login form with remember-email support
 - `/verify-email` verification pending + token auto-verification flow
-- `/dashboard`, `/profile`, `/admin` protected via `ProtectedRouteLayout`
+- `/dashboard`, `/upload`, `/profile`, `/admin` protected via `ProtectedRouteLayout`
 
 Unknown routes are handled via wildcard fallback (`*`).
 
