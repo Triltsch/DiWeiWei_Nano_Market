@@ -2,11 +2,11 @@ import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import {
-  publishNano,
   updateNanoMetadata,
   uploadNanoZip,
   type UpdateNanoMetadataRequest,
 } from "../../shared/api/upload";
+import { submitNanoForReview } from "../../shared/api/creator";
 import { useTranslation, type TranslationKey } from "../../shared/i18n";
 import { GlobalNav } from "../../shared/ui/GlobalNav";
 
@@ -75,7 +75,8 @@ export function UploadWizardPage(): JSX.Element {
       return "bg-primary-600 text-white";
     }
     if (step > current) {
-      return "bg-green-100 text-green-700";
+      // Use project token rather than default Tailwind green (which is overridden)
+      return "bg-success-100 text-success-700";
     }
     return "bg-neutral-100 text-neutral-700";
   };
@@ -145,7 +146,7 @@ export function UploadWizardPage(): JSX.Element {
     }
   };
 
-  const handlePublish = async (): Promise<void> => {
+  const handleSubmitForReview = async (): Promise<void> => {
     if (!nanoId) {
       setError(t("upload_error_missing_nano"));
       return;
@@ -155,7 +156,7 @@ export function UploadWizardPage(): JSX.Element {
     setError(null);
 
     try {
-      await publishNano(nanoId);
+      await submitNanoForReview(nanoId);
       navigate("/dashboard");
     } catch (publishError) {
       setError(getTranslatedApiError(publishError));
@@ -180,12 +181,12 @@ export function UploadWizardPage(): JSX.Element {
               {t("upload_step_metadata")}
             </span>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${stepClass(3)}`}>
-              {t("upload_step_publish")}
+              {t("upload_step_submit")}
             </span>
           </div>
 
-          {error && <p className="text-red-700 bg-red-50 rounded-md p-3">{error}</p>}
-          {uploadMessage && <p className="text-green-700 bg-green-50 rounded-md p-3">{uploadMessage}</p>}
+          {error && <p className="text-error-700 bg-error-50 rounded-md p-3">{error}</p>}
+          {uploadMessage && <p className="text-success-700 bg-success-50 rounded-md p-3">{uploadMessage}</p>}
         </section>
 
         {step === 1 && (
@@ -344,17 +345,17 @@ export function UploadWizardPage(): JSX.Element {
 
         {step === 3 && (
           <section className="card-elevated space-y-4">
-            <h2 className="text-lg font-semibold text-neutral-900">{t("upload_publish_title")}</h2>
-            <p className="text-neutral-600">{t("upload_publish_description")}</p>
+            <h2 className="text-lg font-semibold text-neutral-900">{t("upload_submit_title")}</h2>
+            <p className="text-neutral-600">{t("upload_submit_description")}</p>
 
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
                 className="btn-primary"
-                onClick={() => void handlePublish()}
+                onClick={() => void handleSubmitForReview()}
                 disabled={isBusy}
               >
-                {isBusy ? t("upload_publishing") : t("upload_publish_now")}
+                {isBusy ? t("upload_submitting") : t("upload_submit_now")}
               </button>
               <Link to="/dashboard" className="btn-outline">
                 {t("upload_back_dashboard")}

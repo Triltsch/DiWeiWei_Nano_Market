@@ -568,12 +568,8 @@ async def update_nano_status(
     old_status = nano.status.value
     new_status = status_update.status
 
-    # No-op: if status is already the target status, return immediately
-    if old_status == new_status:
-        return nano, old_status, new_status
-
-    # Authorization check: creator can change their own nano's status;
-    # moderators and admins may approve or reject from pending_review.
+    # Authorization check: must happen before all state changes (including no-op returns)
+    # so that RBAC is enforced even when no transition is requested.
     is_creator = nano.creator_id == current_user.user_id
     is_moderator_or_admin = current_user.role in {UserRole.ADMIN.value, UserRole.MODERATOR.value}
 
@@ -583,20 +579,36 @@ async def update_nano_status(
             detail="Only the creator, a moderator, or an admin can update Nano status",
         )
 
-    # Moderators/admins may only act on Nanos that are currently in pending_review
+    # Moderators/admins may only act on Nanos that are currently in pending_review;
+    # this prevents acting on draft/published/archived Nanos they do not own.
     if not is_creator and is_moderator_or_admin and old_status != "pending_review":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Moderators can only update Nanos that are in 'pending_review' status",
         )
 
-    # Creators may submit for review, withdraw, archive, or delete according to the
-    # state machine, but they may not publish directly. Publication requires moderation.
-    if is_creator and new_status == "published":
+    # Moderators/admins reviewing someone else's Nano may only approve (→published)
+    # or reject (→draft); other transitions (e.g. pending_review → archived) are
+    # outside the intended moderation workflow.
+    if not is_creator and is_moderator_or_admin and new_status not in {"published", "draft"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Moderators can only approve (status=published) or reject (status=draft) a review submission",
+        )
+
+    # Creators without moderator/admin role may not publish directly.
+    # Publication requires explicit approval by a moderator or admin.
+    # Moderators/admins who also own the Nano are exempt — they can self-approve
+    # when they act in a moderation capacity.
+    if is_creator and not is_moderator_or_admin and new_status == "published":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only moderators and admins can publish Nanos after review",
         )
+
+    # No-op: return early if the status is already the target (RBAC already enforced above).
+    if old_status == new_status:
+        return nano, old_status, new_status
 
     # Map string status to enum
     status_map = {
@@ -772,17 +784,31 @@ async def get_creator_nanos(
             detail=f"Creator with ID {creator_id} not found",
         )
 
+    # Normalize and validate status filter to NanoStatus enum.
+    # A raw string comparison against an Enum column can silently return no results
+    # instead of raising an error; validating early provides a clear 400 response.
+    status_enum_filter: NanoStatus | None = None
+    if status_filter:
+        try:
+            status_enum_filter = NanoStatus(status_filter)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status filter value: {status_filter!r}. "
+                "Valid values are: draft, pending_review, published, archived, deleted.",
+            ) from exc
+
     # Build query for creator's Nanos
     query = select(Nano).where(Nano.creator_id == creator_id)
 
-    # Apply status filter if provided
-    if status_filter:
-        query = query.where(Nano.status == status_filter)
+    # Apply status filter if provided and validated
+    if status_enum_filter is not None:
+        query = query.where(Nano.status == status_enum_filter)
 
     # Count total results
     count_query = select(func.count(Nano.id)).where(Nano.creator_id == creator_id)
-    if status_filter:
-        count_query = count_query.where(Nano.status == status_filter)
+    if status_enum_filter is not None:
+        count_query = count_query.where(Nano.status == status_enum_filter)
 
     count_result = await db.execute(count_query)
     total_results = count_result.scalar() or 0
@@ -867,29 +893,38 @@ async def delete_nano(
             detail="You are not allowed to delete this Nano",
         )
 
-    # Verify Nano is in deletable state
-    if nano.status == NanoStatus.PUBLISHED:
+    # Verify Nano is in a deletable state.
+    # Only DRAFT and ARCHIVED Nanos may be deleted; other states (published,
+    # pending_review, etc.) must be resolved before deletion is allowed.
+    if nano.status not in (NanoStatus.DRAFT, NanoStatus.ARCHIVED):
+        if nano.status == NanoStatus.PUBLISHED:
+            detail = "Cannot delete published Nano. Archive it first."
+        else:
+            detail = "Only draft or archived Nanos can be deleted."
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete published Nano. Archive it first.",
+            detail=detail,
         )
 
-    # Set status to deleted
+    # Soft-delete: set status to deleted and persist
     old_status = nano.status.value.lower()
     nano.status = NanoStatus.DELETED
+    await db.commit()
+    await db.refresh(nano)
 
-    # Invalidate search cache
-    await invalidate_search_cache(db)
+    # Invalidate search cache after the database has been updated
+    await invalidate_search_cache(reason="nano_deleted")
 
     # Log audit event
     await AuditLogger.log_action(
-        user_id=creator_id,
+        session=db,
         action=AuditAction.DATA_DELETED,
+        user_id=creator_id,
         resource_type="nano",
         resource_id=str(nano_id),
-        event_data={"old_status": old_status, "new_status": "deleted"},
-        db=db,
+        metadata={"old_status": old_status, "new_status": "deleted"},
     )
+    await db.commit()
 
     return NanoDeleteResponse(
         nano_id=nano.id,

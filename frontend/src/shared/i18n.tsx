@@ -224,6 +224,13 @@ const de = {
   upload_publishing: "Veröffentlicht...",
   upload_publish_now: "Jetzt veröffentlichen",
   upload_back_dashboard: "Zurück zur Übersicht",
+  // Submit-for-review step (replaces direct publish in upload wizard)
+  upload_step_submit: "3. Einreichen",
+  upload_submit_title: "Bereit zur Einreichung",
+  upload_submit_description:
+    "Ihre Nano wurde hochgeladen und die Metadaten sind gespeichert. Reichen Sie sie zur Überprüfung durch ein Moderationsteam ein.",
+  upload_submitting: "Wird eingereicht...",
+  upload_submit_now: "Zur Überprüfung einreichen",
 
   home_title: "DiWeiWei Nano Market",
   creator_submit_review: "Zur Überprüfung einreichen",
@@ -493,6 +500,13 @@ const en: Record<TranslationKey, string> = {
   upload_publishing: "Publishing...",
   upload_publish_now: "Publish now",
   upload_back_dashboard: "Back to dashboard",
+  // Submit-for-review step (replaces direct publish in upload wizard)
+  upload_step_submit: "3. Submit",
+  upload_submit_title: "Ready to Submit for Review",
+  upload_submit_description:
+    "Your nano has been uploaded and metadata is saved. Submit it for review by the moderation team.",
+  upload_submitting: "Submitting...",
+  upload_submit_now: "Submit for Review",
 
   home_title: "DiWeiWei Nano Market",
   creator_submit_review: "Submit for Review",

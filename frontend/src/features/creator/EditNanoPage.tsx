@@ -114,9 +114,9 @@ export function EditNanoPage(): JSX.Element {
         <section className="card-elevated space-y-3">
           <h1 className="text-primary-600">{t("creator_edit_title")}</h1>
           <p className="text-base text-neutral-600">{t("creator_edit_subtitle")}</p>
-          {error && <p className="text-red-700 bg-red-50 rounded-md p-3">{error}</p>}
+          {error && <p className="text-error-700 bg-error-50 rounded-md p-3">{error}</p>}
           {!isLoading && !isDraft && (
-            <p className="text-amber-800 bg-amber-50 rounded-md p-3">{t("creator_edit_draft_only")}</p>
+            <p className="text-warning-800 bg-warning-50 rounded-md p-3">{t("creator_edit_draft_only")}</p>
           )}
         </section>
 

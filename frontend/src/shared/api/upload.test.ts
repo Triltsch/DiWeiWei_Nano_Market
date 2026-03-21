@@ -1,7 +1,9 @@
 /**
  * Upload Wizard API Contract Tests
  *
- * Verifies request mapping for upload, metadata update, and publish actions.
+ * Verifies request mapping for upload, metadata update, and submit-for-review
+ * actions. Direct publishing by creators is disallowed by the backend RBAC
+ * guard; upload wizard final step must submit to pending_review.
  */
 
 import { AxiosHeaders } from "axios";
@@ -9,7 +11,8 @@ import type { AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { httpClient } from "./httpClient";
-import { publishNano, updateNanoMetadata, uploadNanoZip } from "./upload";
+import { updateNanoMetadata, uploadNanoZip } from "./upload";
+import { submitNanoForReview } from "./creator";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -71,22 +74,24 @@ describe("upload api", () => {
     });
   });
 
-  it("patches status endpoint for publish transition", async () => {
+  it("patches status endpoint with pending_review for submit-for-review transition", async () => {
+    // Creators may not publish directly (backend enforces RBAC: 403 for status=published).
+    // The upload wizard's final step must use pending_review to enter the moderation queue.
     const patchSpy = vi.spyOn(httpClient, "patch").mockResolvedValue(
       createAxiosResponse({
         nano_id: "nano-1",
         old_status: "draft",
-        new_status: "published",
+        new_status: "pending_review",
         message: "ok",
-        published_at: "2026-03-20T12:01:00Z",
+        published_at: null,
         archived_at: null,
       })
     );
 
-    await publishNano("nano-1");
+    await submitNanoForReview("nano-1");
 
     expect(patchSpy).toHaveBeenCalledWith("/api/v1/nanos/nano-1/status", {
-      status: "published",
+      status: "pending_review",
     });
   });
 });

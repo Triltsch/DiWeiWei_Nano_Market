@@ -137,12 +137,19 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
         page: Annotated[int, Query(ge=1, description="Page number")] = 1,
         limit: Annotated[int, Query(ge=1, le=100, description="Results per page")] = 20,
         status: Annotated[str | None, Query(description="Optional status filter")] = None,
-        current_user_id: Annotated[UUID, Depends(get_current_user_id)] = None,
+        current_user: Annotated[TokenData, Depends(get_current_user)] = None,
         db: Annotated[AsyncSession, Depends(get_db)] = None,
     ) -> CreatorNanoListResponse:
         """Get creator's Nano list with pagination."""
+        # Enforce role: only creators (and roles with broader permissions) may list
+        # their own Nanos. Consumer-only accounts have no content to manage.
+        if current_user.role not in {"creator", "moderator", "admin"}:
+            raise HTTPException(
+                status_code=403,
+                detail="User must have creator or higher role to access their Nanos",
+            )
         return await get_creator_nanos(
-            creator_id=current_user_id,
+            creator_id=current_user.user_id,
             db=db,
             page=page,
             limit=limit,

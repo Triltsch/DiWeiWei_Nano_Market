@@ -1,5 +1,6 @@
 import axios from "axios";
 
+import { submitNanoForReview, type NanoStatusUpdateResponse } from "./creator";
 import { httpClient } from "./httpClient";
 
 type UploadApiErrorKey =
@@ -103,13 +104,18 @@ export async function updateNanoMetadata(
   }
 }
 
-export async function publishNano(nanoId: string): Promise<UpdateNanoStatusResponse> {
+/**
+ * @deprecated Use `submitNanoForReview` instead for creator upload flows.
+ *
+ * With the moderation workflow, creators cannot publish directly.
+ * This function now internally submits for review (`pending_review`) for
+ * backward compatibility and to prevent 403 errors from the backend RBAC guard.
+ *
+ * Moderator-side publishing is performed via `approveNano` in `moderator.ts`.
+ */
+export async function publishNano(nanoId: string): Promise<NanoStatusUpdateResponse> {
   try {
-    const response = await httpClient.patch<UpdateNanoStatusResponse>(
-      `/api/v1/nanos/${nanoId}/status`,
-      { status: "published" }
-    );
-    return response.data;
+    return await submitNanoForReview(nanoId);
   } catch (error) {
     throw toApiError(error, "upload_error_publish_failed");
   }
