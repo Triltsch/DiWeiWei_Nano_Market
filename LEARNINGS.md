@@ -114,3 +114,11 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Einheitliches API-Envelope-Schema (`success/data/meta/timestamp`) für neue Read-Endpunkte früh in dedizierten Pydantic-Schemas modellieren, damit Router/Service/Tests denselben Contract erzwingen.
 - Für nicht veröffentlichte Inhalte 401 (kein Token) und 403 (Token ohne Berechtigung) explizit unterscheiden; das vereinfacht Frontend-Routing und verhindert unscharfe Error-States.
 - Service-Layer-Helfer für Zugriffslogik (z. B. `creator/admin/moderator`) kapseln, um RBAC-Regeln zwischen Detail- und Download-Flow ohne Drift wiederzuverwenden.
+
+## Ergänzung Issue #72 (Creator Dashboard + Moderation Workflow)
+
+- Bei Tailwind-Setups mit vollständigem `theme.colors`-Override funktionieren Default-Klassen wie `bg-blue-600`/`text-red-700` nicht; UI muss konsequent projektweite Tokens (`primary|error|warning|success|info|neutral`) verwenden, sonst entstehen unsichtbare Buttons/Badges.
+- Neue Workflow-Status (`pending_review`) sollten an drei Stellen synchron eingeführt werden: Backend-State-Machine, API-Contracts (Schemas/Clients) und Frontend-Filter/Badges, damit keine stillen Inkonsistenzen zwischen UI und API entstehen.
+- Rollenwechsel im Status-Endpoint (Creator vs. Moderator/Admin) am Service-Eingang klar trennen; so werden ungewollte Direkt-Publish-Pfade früh blockiert und Tests bleiben deterministisch.
+- Für neue statische Routen wie `/my-nanos` Routenreihenfolge explizit testen, damit sie nicht vom dynamischen `/{nano_id}`-Pfad überschattet werden.
+- Bestätigungsmodale für destructive/irreversible Aktionen (Submit/Withdraw/Delete) erhöhen Workflow-Sicherheit; Confirm-Button-Labels sollten den aktuellen Async-Zustand widerspiegeln (`Submitting...`, `Withdrawing...`, `Deleting...`).

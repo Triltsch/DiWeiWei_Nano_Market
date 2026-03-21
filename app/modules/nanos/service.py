@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -27,8 +27,13 @@ from app.models import (
 from app.modules.audit.service import AuditLogger
 from app.modules.auth.tokens import TokenData
 from app.modules.nanos.schemas import (
+    CreatorNanoListItem,
+    CreatorNanoListResponse,
     MetadataUpdateRequest,
+    ModeratorQueueItem,
+    ModeratorQueueListResponse,
     NanoCategoryResponse,
+    NanoDeleteResponse,
     NanoDetailCreator,
     NanoDetailData,
     NanoDetailMeta,
@@ -39,6 +44,7 @@ from app.modules.nanos.schemas import (
     NanoDownloadInfoResponse,
     NanoMetadataResponse,
     NanoRatingSummary,
+    PaginationMeta,
     StatusUpdateRequest,
 )
 from app.modules.search.service import invalidate_search_cache
@@ -530,7 +536,7 @@ async def update_nano_metadata(
 async def update_nano_status(
     nano_id: UUID,
     status_update: StatusUpdateRequest,
-    current_user_id: UUID,
+    current_user: TokenData,
     db: AsyncSession,
 ) -> tuple[Nano, str, str]:
     """
@@ -539,14 +545,14 @@ async def update_nano_status(
     Args:
         nano_id: UUID of the Nano to update
         status_update: Status update request with target status and optional reason
-        current_user_id: UUID of the authenticated user
+        current_user: Authenticated user token data (used for RBAC)
         db: Database session
 
     Returns:
         Tuple of (updated Nano, old_status, new_status)
 
     Raises:
-        HTTPException: 404 if Nano not found, 403 if not creator, 400 if invalid transition
+        HTTPException: 404 if Nano not found, 403 if not creator/moderator/admin, 400 if invalid transition
     """
     # Fetch the Nano
     stmt = select(Nano).where(Nano.id == nano_id)
@@ -559,19 +565,38 @@ async def update_nano_status(
             detail=f"Nano with ID {nano_id} not found",
         )
 
-    # Authorization check: only creator can update status
-    if nano.creator_id != current_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the creator can update Nano status",
-        )
-
     old_status = nano.status.value
     new_status = status_update.status
 
     # No-op: if status is already the target status, return immediately
     if old_status == new_status:
         return nano, old_status, new_status
+
+    # Authorization check: creator can change their own nano's status;
+    # moderators and admins may approve or reject from pending_review.
+    is_creator = nano.creator_id == current_user.user_id
+    is_moderator_or_admin = current_user.role in {UserRole.ADMIN.value, UserRole.MODERATOR.value}
+
+    if not is_creator and not is_moderator_or_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the creator, a moderator, or an admin can update Nano status",
+        )
+
+    # Moderators/admins may only act on Nanos that are currently in pending_review
+    if not is_creator and is_moderator_or_admin and old_status != "pending_review":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Moderators can only update Nanos that are in 'pending_review' status",
+        )
+
+    # Creators may submit for review, withdraw, archive, or delete according to the
+    # state machine, but they may not publish directly. Publication requires moderation.
+    if is_creator and new_status == "published":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only moderators and admins can publish Nanos after review",
+        )
 
     # Map string status to enum
     status_map = {
@@ -586,8 +611,8 @@ async def update_nano_status(
     # State machine validation
     _validate_status_transition(nano, old_status, new_status)
 
-    # Metadata completeness check for draft → published
-    if new_status == "published" and old_status == "draft":
+    # Metadata completeness check for any transition that publishes a Nano.
+    if new_status == "published":
         _validate_metadata_completeness(nano)
 
     # Update status and set timestamps
@@ -607,7 +632,7 @@ async def update_nano_status(
     await AuditLogger.log_action(
         session=db,
         action=AuditAction.DATA_MODIFIED,
-        user_id=current_user_id,
+        user_id=current_user.user_id,
         resource_type="nano",
         resource_id=str(nano_id),
         metadata={
@@ -711,3 +736,229 @@ def _validate_metadata_completeness(nano: Nano) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot publish: missing required metadata fields: {', '.join(missing_fields)}",
         )
+
+
+async def get_creator_nanos(
+    creator_id: UUID,
+    db: AsyncSession,
+    page: int = 1,
+    limit: int = 20,
+    status_filter: str | None = None,
+) -> CreatorNanoListResponse:
+    """
+    Get list of Nanos owned by a creator with pagination.
+
+    Args:
+        creator_id: UUID of the creator
+        db: Database session
+        page: Page number (1-indexed), defaults to 1
+        limit: Results per page, defaults to 20, max 100
+        status_filter: Optional status filter (draft, published, etc.)
+
+    Returns:
+        CreatorNanoListResponse with paginated list of creator's Nanos
+
+    Raises:
+        HTTPException: 404 if creator not found
+    """
+    # Validate creator exists
+    creator_stmt = select(User).where(User.id == creator_id)
+    creator_result = await db.execute(creator_stmt)
+    creator = creator_result.scalar_one_or_none()
+
+    if not creator:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Creator with ID {creator_id} not found",
+        )
+
+    # Build query for creator's Nanos
+    query = select(Nano).where(Nano.creator_id == creator_id)
+
+    # Apply status filter if provided
+    if status_filter:
+        query = query.where(Nano.status == status_filter)
+
+    # Count total results
+    count_query = select(func.count(Nano.id)).where(Nano.creator_id == creator_id)
+    if status_filter:
+        count_query = count_query.where(Nano.status == status_filter)
+
+    count_result = await db.execute(count_query)
+    total_results = count_result.scalar() or 0
+
+    # Calculate pagination
+    total_pages = (total_results + limit - 1) // limit if limit > 0 else 1
+    offset = (page - 1) * limit
+
+    # Fetch paginated results ordered by updated_at descending
+    query = query.order_by(desc(Nano.updated_at)).offset(offset).limit(limit)
+    result = await db.execute(query)
+    nanos = result.scalars().all()
+
+    # Convert to response items
+    nano_items = [
+        CreatorNanoListItem(
+            nano_id=nano.id,
+            title=nano.title,
+            description=nano.description,
+            status=nano.status.value.lower(),
+            thumbnail_url=nano.thumbnail_url,
+            duration_minutes=nano.duration_minutes,
+            competency_level=nano.competency_level.name.lower(),
+            created_at=nano.uploaded_at,
+            updated_at=nano.updated_at,
+        )
+        for nano in nanos
+    ]
+
+    # Build pagination metadata
+    pagination = PaginationMeta(
+        current_page=page,
+        page_size=limit,
+        total_results=total_results,
+        total_pages=total_pages,
+        has_next_page=page < total_pages,
+        has_prev_page=page > 1,
+    )
+
+    return CreatorNanoListResponse(nanos=nano_items, pagination=pagination)
+
+
+async def delete_nano(
+    nano_id: UUID,
+    creator_id: UUID,
+    db: AsyncSession,
+) -> NanoDeleteResponse:
+    """
+    Delete (soft-delete via archiving) a Nano.
+
+    Business rules:
+    - Only the creator can delete their own Nano
+    - Only draft/archived Nanos can be deleted (not published)
+    - Published Nanos must be archived first via status transition
+    - Deletion is soft-delete (status = deleted)
+
+    Args:
+        nano_id: UUID of the Nano to delete
+        creator_id: UUID of the requesting creator
+        db: Database session
+
+    Returns:
+        NanoDeleteResponse confirming deletion
+
+    Raises:
+        HTTPException: 403 if not creator, 404 if not found, 400 if invalid state
+    """
+    # Query Nano
+    stmt = select(Nano).where(Nano.id == nano_id)
+    result = await db.execute(stmt)
+    nano = result.scalar_one_or_none()
+
+    if not nano:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Nano with ID {nano_id} not found",
+        )
+
+    if nano.creator_id != creator_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allowed to delete this Nano",
+        )
+
+    # Verify Nano is in deletable state
+    if nano.status == NanoStatus.PUBLISHED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete published Nano. Archive it first.",
+        )
+
+    # Set status to deleted
+    old_status = nano.status.value.lower()
+    nano.status = NanoStatus.DELETED
+
+    # Invalidate search cache
+    await invalidate_search_cache(db)
+
+    # Log audit event
+    await AuditLogger.log_action(
+        user_id=creator_id,
+        action=AuditAction.DATA_DELETED,
+        resource_type="nano",
+        resource_id=str(nano_id),
+        event_data={"old_status": old_status, "new_status": "deleted"},
+        db=db,
+    )
+
+    return NanoDeleteResponse(
+        nano_id=nano.id,
+        status="deleted",
+        message="Nano deleted successfully",
+    )
+
+
+async def get_pending_review_nanos(
+    db: AsyncSession,
+    page: int = 1,
+    limit: int = 20,
+) -> ModeratorQueueListResponse:
+    """
+    Get list of all Nanos currently in `pending_review` status for the moderation queue.
+
+    Only accessible to users with moderator or admin roles (enforced at the router layer).
+
+    Args:
+        db: Database session
+        page: Page number (1-indexed), defaults to 1
+        limit: Results per page, defaults to 20, max 100
+
+    Returns:
+        ModeratorQueueListResponse with paginated list of pending-review Nanos including
+        creator usernames for context.
+    """
+    count_query = select(func.count(Nano.id)).where(Nano.status == NanoStatus.PENDING_REVIEW)
+    count_result = await db.execute(count_query)
+    total_results = count_result.scalar() or 0
+
+    total_pages = (total_results + limit - 1) // limit if limit > 0 else 1
+    offset = (page - 1) * limit
+
+    query = (
+        select(Nano, User.username)
+        .outerjoin(User, Nano.creator_id == User.id)
+        .where(Nano.status == NanoStatus.PENDING_REVIEW)
+        .order_by(Nano.updated_at)
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    rows = result.all()
+
+    queue_items = [
+        ModeratorQueueItem(
+            nano_id=nano.id,
+            creator_id=nano.creator_id,
+            creator_username=creator_username,
+            title=nano.title,
+            description=nano.description,
+            status=nano.status.value.lower(),
+            duration_minutes=nano.duration_minutes,
+            competency_level=nano.competency_level.name.lower(),
+            language=nano.language,
+            submitted_at=nano.updated_at,
+            created_at=nano.uploaded_at,
+        )
+        for nano, creator_username in rows
+    ]
+
+    pagination = PaginationMeta(
+        current_page=page,
+        page_size=limit,
+        total_results=total_results,
+        total_pages=total_pages,
+        has_next_page=page < total_pages,
+        has_prev_page=page > 1,
+    )
+
+    return ModeratorQueueListResponse(nanos=queue_items, pagination=pagination)

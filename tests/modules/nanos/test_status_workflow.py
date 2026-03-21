@@ -35,18 +35,18 @@ class TestUpdateNanoStatus:
     """
 
     @pytest.mark.asyncio
-    async def test_update_status_draft_to_published_success(
-        self, async_client, db_session, verified_user_id, access_token
+    async def test_update_status_pending_review_to_published_success(
+        self, async_client, db_session, verified_user_id, admin_user, admin_token
     ):
         """
-        Test successful status transition from draft to published.
+        Test successful moderator/admin approval from pending_review to published.
 
         Validates:
         - Transition is allowed
         - published_at timestamp is set
         - Audit log entry is created
         """
-        # Create a complete Nano in draft status
+        # Create a complete Nano in pending_review status
         nano = Nano(
             id=uuid.uuid4(),
             creator_id=verified_user_id,
@@ -56,7 +56,7 @@ class TestUpdateNanoStatus:
             competency_level=CompetencyLevel.INTERMEDIATE,
             language="en",
             format=NanoFormat.VIDEO,
-            status=NanoStatus.DRAFT,
+            status=NanoStatus.PENDING_REVIEW,
             version="1.0.0",
             license=LicenseType.CC_BY,
         )
@@ -64,17 +64,17 @@ class TestUpdateNanoStatus:
         await db_session.commit()
         await db_session.refresh(nano)
 
-        # Update status to published
+        # Moderator/admin approves and publishes the Nano
         response = await async_client.patch(
             f"/api/v1/nanos/{nano.id}/status",
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers={"Authorization": f"Bearer {admin_token}"},
             json={"status": "published", "reason": "Ready for public release"},
         )
 
         assert response.status_code == 200
         data = response.json()
         assert data["nano_id"] == str(nano.id)
-        assert data["old_status"] == "draft"
+        assert data["old_status"] == "pending_review"
         assert data["new_status"] == "published"
         assert data["published_at"] is not None
         assert data["archived_at"] is None
@@ -95,9 +95,9 @@ class TestUpdateNanoStatus:
         audit_entry = result.scalar_one_or_none()
 
         assert audit_entry is not None
-        assert audit_entry.user_id == verified_user_id
+        assert audit_entry.user_id == admin_user.id
         assert audit_entry.event_data["field"] == "status"
-        assert audit_entry.event_data["old_value"] == "draft"
+        assert audit_entry.event_data["old_value"] == "pending_review"
         assert audit_entry.event_data["new_value"] == "published"
         assert audit_entry.event_data["reason"] == "Ready for public release"
 
@@ -243,7 +243,7 @@ class TestUpdateNanoStatus:
         """
         Test that invalid status transitions are rejected.
 
-        Example: deleted → published is not allowed.
+        Example: deleted → draft is not allowed.
         """
         # Create a deleted Nano
         nano = Nano(
@@ -263,11 +263,11 @@ class TestUpdateNanoStatus:
         await db_session.commit()
         await db_session.refresh(nano)
 
-        # Try to publish a deleted Nano (should fail)
+        # Try to restore a deleted Nano to draft (should fail)
         response = await async_client.patch(
             f"/api/v1/nanos/{nano.id}/status",
             headers={"Authorization": f"Bearer {access_token}"},
-            json={"status": "published"},
+            json={"status": "draft"},
         )
 
         assert response.status_code == 400
@@ -279,18 +279,18 @@ class TestUpdateNanoStatus:
 
     @pytest.mark.asyncio
     async def test_update_status_requires_complete_metadata_for_publishing(
-        self, async_client, db_session, verified_user_id, access_token
+        self, async_client, db_session, verified_user_id, admin_token
     ):
         """
         Test that publishing requires complete metadata.
 
-        Draft → published transition validates:
+        pending_review → published transition validates:
         - title (non-empty)
         - description (non-empty)
         - duration_minutes (> 0)
         - language (present)
         """
-        # Create an incomplete Nano (missing description)
+        # Create an incomplete Nano already submitted for review (missing description)
         nano = Nano(
             id=uuid.uuid4(),
             creator_id=verified_user_id,
@@ -300,7 +300,7 @@ class TestUpdateNanoStatus:
             competency_level=CompetencyLevel.BASIC,
             language="de",
             format=NanoFormat.VIDEO,
-            status=NanoStatus.DRAFT,
+            status=NanoStatus.PENDING_REVIEW,
             version="1.0.0",
             license=LicenseType.CC_BY,
         )
@@ -311,7 +311,7 @@ class TestUpdateNanoStatus:
         # Try to publish without complete metadata (should fail)
         response = await async_client.patch(
             f"/api/v1/nanos/{nano.id}/status",
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers={"Authorization": f"Bearer {admin_token}"},
             json={"status": "published"},
         )
 
@@ -322,7 +322,7 @@ class TestUpdateNanoStatus:
 
         # Verify status was not changed
         await db_session.refresh(nano)
-        assert nano.status == NanoStatus.DRAFT
+        assert nano.status == NanoStatus.PENDING_REVIEW
 
     @pytest.mark.asyncio
     async def test_update_status_requires_authentication(self, async_client, db_session):
