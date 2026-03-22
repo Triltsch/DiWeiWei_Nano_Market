@@ -344,3 +344,113 @@ class StatusUpdateResponse(BaseModel):
     message: str = Field(default="Status updated successfully", description="Success message")
     published_at: Optional[datetime] = Field(None, description="Publication timestamp")
     archived_at: Optional[datetime] = Field(None, description="Archive timestamp")
+
+
+class CreatorNanoListItem(BaseModel):
+    """
+    Response schema for a Nano item in creator's dashboard list.
+
+    Attributes:
+        nano_id: Unique identifier for the Nano
+        title: Nano title
+        description: Brief description
+        status: Publishing status
+        thumbnail_url: Thumbnail image URL
+        duration_minutes: Estimated duration
+        competency_level: Learning level
+        created_at: Upload/creation timestamp
+        updated_at: Last update timestamp
+    """
+
+    nano_id: UUID = Field(..., description="Unique identifier for the Nano")
+    title: str = Field(..., description="Nano title")
+    description: Optional[str] = Field(None, description="Brief description")
+    status: str = Field(..., description="Publishing status")
+    thumbnail_url: Optional[str] = Field(None, description="Thumbnail image URL")
+    duration_minutes: Optional[int] = Field(None, description="Estimated duration in minutes")
+    competency_level: str = Field(..., description="Learning level")
+    created_at: datetime = Field(..., description="Upload/creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+
+
+class PaginationMeta(BaseModel):
+    """Pagination metadata for list responses."""
+
+    current_page: int = Field(..., ge=1, description="Current page number")
+    page_size: int = Field(..., ge=1, description="Results per page")
+    total_results: int = Field(..., ge=0, description="Total number of results")
+    total_pages: int = Field(..., ge=0, description="Total number of pages")
+    has_next_page: bool = Field(..., description="Whether there is a next page")
+    has_prev_page: bool = Field(..., description="Whether there is a previous page")
+
+
+class CreatorNanoListResponse(BaseModel):
+    """
+    Response schema for creator's Nano list endpoint.
+
+    Attributes:
+        nanos: List of Nano items
+        pagination: Pagination metadata
+    """
+
+    nanos: list[CreatorNanoListItem] = Field(..., description="List of Nano items")
+    pagination: PaginationMeta = Field(..., description="Pagination metadata")
+
+
+class NanoDeleteResponse(BaseModel):
+    """
+    Response schema for successful Nano deletion.
+
+    Attributes:
+        nano_id: Unique identifier for the deleted Nano
+        status: New status after deletion
+        message: Success message
+    """
+
+    nano_id: UUID = Field(..., description="Unique identifier for the deleted Nano")
+    status: str = Field(..., description="New status after deletion (archived or deleted)")
+    message: str = Field(..., description="Success message")
+
+
+class ModeratorQueueItem(BaseModel):
+    """
+    Response schema for a Nano item in the moderation queue.
+
+    Attributes:
+        nano_id: Unique identifier for the Nano
+        creator_id: UUID of the creator
+        creator_username: Username of the creator
+        title: Nano title
+        description: Brief description
+        status: Publishing status (always 'pending_review')
+        duration_minutes: Estimated duration
+        competency_level: Learning level
+        language: Content language
+        submitted_at: When the Nano was submitted for review (updated_at)
+        created_at: Original upload/creation timestamp
+    """
+
+    nano_id: UUID = Field(..., description="Unique identifier for the Nano")
+    creator_id: UUID = Field(..., description="UUID of the creator")
+    creator_username: Optional[str] = Field(None, description="Username of the creator")
+    title: str = Field(..., description="Nano title")
+    description: Optional[str] = Field(None, description="Brief description")
+    status: str = Field(..., description="Publishing status")
+    duration_minutes: Optional[int] = Field(None, description="Estimated duration in minutes")
+    competency_level: str = Field(..., description="Learning level")
+    language: str = Field(..., description="Content language code")
+    submitted_at: datetime = Field(..., description="When the Nano was submitted for review")
+    created_at: datetime = Field(..., description="Original upload/creation timestamp")
+
+
+class ModeratorQueueListResponse(BaseModel):
+    """
+    Response schema for the moderation queue list endpoint.
+
+    Attributes:
+        nanos: List of Nano items pending review
+        pagination: Pagination metadata
+    """
+
+    nanos: list[ModeratorQueueItem] = Field(..., description="List of Nano items pending review")
+    pagination: PaginationMeta = Field(..., description="Pagination metadata")

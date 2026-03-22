@@ -8,7 +8,7 @@ creating, reading, and updating metadata for learning content.
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -19,8 +19,11 @@ from app.modules.auth.middleware import (
 )
 from app.modules.auth.tokens import TokenData
 from app.modules.nanos.schemas import (
+    CreatorNanoListResponse,
     MetadataUpdateRequest,
     MetadataUpdateResponse,
+    ModeratorQueueListResponse,
+    NanoDeleteResponse,
     NanoDetailResponse,
     NanoDownloadInfoResponse,
     NanoMetadataResponse,
@@ -28,9 +31,12 @@ from app.modules.nanos.schemas import (
     StatusUpdateResponse,
 )
 from app.modules.nanos.service import (
+    delete_nano,
+    get_creator_nanos,
     get_nano_detail,
     get_nano_download_info,
     get_nano_metadata,
+    get_pending_review_nanos,
     update_nano_metadata,
     update_nano_status,
 )
@@ -51,6 +57,104 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
         tags = ["Nanos"]
 
     router = APIRouter(prefix=prefix, tags=tags)
+
+    @router.get(
+        "/pending-moderation",
+        response_model=ModeratorQueueListResponse,
+        status_code=status.HTTP_200_OK,
+        summary="Get moderation queue (moderator/admin only)",
+        description="""
+        Retrieve all Nanos currently in 'pending_review' status for content moderation.
+
+        **Requirements:**
+        - Authentication required (Bearer token)
+        - User must have 'moderator' or 'admin' role
+
+        **Query Parameters:**
+        - `page`: Page number (1-indexed, default 1)
+        - `limit`: Results per page (default 20, max 100)
+
+        **Response:**
+        - List of pending-review Nanos with creator info, ordered oldest-first (FIFO queue)
+
+        **Error Cases:**
+        - 401: Not authenticated
+        - 403: User does not have moderator or admin role
+        """,
+        responses={
+            200: {"description": "Moderation queue retrieved successfully"},
+            401: {"description": "Not authenticated"},
+            403: {"description": "User does not have moderator or admin role"},
+        },
+    )
+    async def get_moderation_queue(
+        page: Annotated[int, Query(ge=1, description="Page number")] = 1,
+        limit: Annotated[int, Query(ge=1, le=100, description="Results per page")] = 20,
+        current_user: Annotated[TokenData, Depends(get_current_user)] = None,
+        db: Annotated[AsyncSession, Depends(get_db)] = None,
+    ) -> ModeratorQueueListResponse:
+        """Get moderation queue — moderator/admin only."""
+        if current_user.role not in {"moderator", "admin"}:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only moderators and admins can access the moderation queue",
+            )
+        return await get_pending_review_nanos(db=db, page=page, limit=limit)
+
+    @router.get(
+        "/my-nanos",
+        response_model=CreatorNanoListResponse,
+        summary="Get creator's Nanos list",
+        description="""
+        Retrieve list of Nanos owned by the authenticated creator.
+
+        **Requirements:**
+        - Authentication required (Bearer token)
+        - User must have 'creator' role or higher
+
+        **Query Parameters:**
+        - `page`: Page number (1-indexed, default 1)
+        - `limit`: Results per page (default 20, max 100)
+        - `status`: Optional status filter (draft, published, archived, etc.)
+
+        **Response:**
+        - List of creator's Nanos with pagination metadata
+        - Results ordered by updated_at (newest first)
+
+        **Error Cases:**
+        - 401: Not authenticated
+        - 403: User is not a creator
+        - 404: Creator not found
+        """,
+        responses={
+            200: {"description": "Creator's Nanos list retrieved successfully"},
+            401: {"description": "Not authenticated"},
+            403: {"description": "User is not a creator"},
+            404: {"description": "Creator not found"},
+        },
+    )
+    async def get_my_nanos(
+        page: Annotated[int, Query(ge=1, description="Page number")] = 1,
+        limit: Annotated[int, Query(ge=1, le=100, description="Results per page")] = 20,
+        status: Annotated[str | None, Query(description="Optional status filter")] = None,
+        current_user: Annotated[TokenData, Depends(get_current_user)] = None,
+        db: Annotated[AsyncSession, Depends(get_db)] = None,
+    ) -> CreatorNanoListResponse:
+        """Get creator's Nano list with pagination."""
+        # Enforce role: only creators (and roles with broader permissions) may list
+        # their own Nanos. Consumer-only accounts have no content to manage.
+        if current_user.role not in {"creator", "moderator", "admin"}:
+            raise HTTPException(
+                status_code=403,
+                detail="User must have creator or higher role to access their Nanos",
+            )
+        return await get_creator_nanos(
+            creator_id=current_user.user_id,
+            db=db,
+            page=page,
+            limit=limit,
+            status_filter=status,
+        )
 
     @router.get(
         "/{nano_id}",
@@ -337,12 +441,12 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
     async def update_status(
         nano_id: UUID,
         status_update: StatusUpdateRequest,
-        current_user_id: Annotated[UUID, Depends(get_current_user_id)],
+        current_user: Annotated[TokenData, Depends(get_current_user)],
         db: Annotated[AsyncSession, Depends(get_db)],
     ) -> StatusUpdateResponse:
         """Update Nano status with state machine validation."""
         nano, old_status, new_status = await update_nano_status(
-            nano_id, status_update, current_user_id, db
+            nano_id, status_update, current_user, db
         )
 
         return StatusUpdateResponse(
@@ -352,6 +456,62 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
             message=f"Status updated from '{old_status}' to '{new_status}'",
             published_at=nano.published_at,
             archived_at=nano.archived_at,
+        )
+
+    @router.delete(
+        "/{nano_id}",
+        response_model=NanoDeleteResponse,
+        status_code=status.HTTP_200_OK,
+        summary="Delete a Nano",
+        description="""
+        Delete (soft-delete) a Nano owned by the authenticated creator.
+
+        **Requirements:**
+        - Authentication required (Bearer token)
+        - User must be the creator of the Nano
+        - Nano must be in draft or archived status (published Nanos must be archived first)
+
+        **Business Rules:**
+        - Only draft/archived Nanos can be deleted
+        - Published Nanos must be archived first via status transition
+        - Deletion is soft-delete (status set to 'deleted')
+        - Only the creator can delete their own Nanos
+
+        **Error Cases:**
+        - 400: Nano in invalid state for deletion (e.g., published)
+        - 401: Not authenticated
+        - 403: Not the creator of the Nano
+        - 404: Nano not found
+        """,
+        responses={
+            200: {
+                "description": "Nano deleted successfully",
+                "content": {
+                    "application/json": {
+                        "example": {
+                            "nano_id": "123e4567-e89b-12d3-a456-426614174000",
+                            "status": "deleted",
+                            "message": "Nano deleted successfully",
+                        }
+                    }
+                },
+            },
+            400: {"description": "Nano in invalid state for deletion"},
+            401: {"description": "Not authenticated"},
+            403: {"description": "Not authorized (not the creator)"},
+            404: {"description": "Nano not found"},
+        },
+    )
+    async def delete_nano_endpoint(
+        nano_id: UUID,
+        current_user_id: Annotated[UUID, Depends(get_current_user_id)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> NanoDeleteResponse:
+        """Delete a Nano."""
+        return await delete_nano(
+            nano_id=nano_id,
+            creator_id=current_user_id,
+            db=db,
         )
 
     return router

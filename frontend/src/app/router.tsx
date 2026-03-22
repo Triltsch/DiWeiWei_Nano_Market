@@ -2,7 +2,8 @@ import { Route, Routes } from "react-router-dom";
 
 import {
   AdminPage,
-  DashboardPage,
+  CreatorDashboardPage,
+  EditNanoPage,
   HomePage,
   LoginPage,
   NanoDetailsPage,
@@ -12,8 +13,10 @@ import {
   RegisterPage,
   SearchPage,
   TermsPage,
+  UploadPage,
   VerifyEmailPage,
 } from "../features/routing/pages";
+  import { ModeratorQueuePage } from "../features/routing/pages";
 import { ProtectedRouteLayout } from "../features/routing/ProtectedRouteLayout";
 
 /**
@@ -37,9 +40,13 @@ export function AppRouter(): JSX.Element {
       <Route path="/privacy" element={<PrivacyPage />} />
 
       <Route element={<ProtectedRouteLayout />}>
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/creator-dashboard" element={<CreatorDashboardPage />} />
+        <Route path="/dashboard" element={<CreatorDashboardPage />} />
+        <Route path="/nanos/:id/edit" element={<EditNanoPage />} />
+        <Route path="/upload" element={<UploadPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/moderator/queue" element={<ModeratorQueuePage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />
