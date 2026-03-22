@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as sharedApi from "../../shared/api";
 import { LanguageProvider } from "../../shared/i18n";
 import { AuthContext, type AuthContextValue } from "../auth/AuthContext";
-import { HomePage, NotFoundPage, SearchPage } from "./pages";
+import { HomePage, NanoDetailsPage, NotFoundPage, SearchPage } from "./pages";
 import { PrivacyPage, TermsPage } from "../legal/pages";
 
 vi.mock("../../shared/api", async () => {
@@ -19,10 +19,14 @@ vi.mock("../../shared/api", async () => {
   return {
     ...actual,
     searchNanos: vi.fn(),
+    getNanoDetail: vi.fn(),
+    getNanoDownloadInfo: vi.fn(),
   };
 });
 
 const mockedSearchNanos = vi.mocked(sharedApi.searchNanos);
+const mockedGetNanoDetail = vi.mocked(sharedApi.getNanoDetail);
+const mockedGetNanoDownloadInfo = vi.mocked(sharedApi.getNanoDownloadInfo);
 
 function LocationProbe(): JSX.Element {
   const location = useLocation();
@@ -44,6 +48,8 @@ function renderHomeWithAuth(authValue: AuthContextValue): void {
 describe("HomePage", () => {
   beforeEach(() => {
     mockedSearchNanos.mockReset();
+    mockedGetNanoDetail.mockReset();
+    mockedGetNanoDownloadInfo.mockReset();
     window.localStorage.removeItem("diwei_ui_language");
   });
 
@@ -356,6 +362,8 @@ describe("SearchPage", () => {
 
   beforeEach(() => {
     mockedSearchNanos.mockReset();
+    mockedGetNanoDetail.mockReset();
+    mockedGetNanoDownloadInfo.mockReset();
     window.localStorage.removeItem("diwei_ui_language");
   });
 
@@ -545,6 +553,263 @@ describe("SearchPage", () => {
     });
 
     expect(screen.getByText("Second Nano")).toBeTruthy();
+  });
+
+  it("supports Discovery -> Detail -> Auth-Gating flow", async () => {
+    mockedSearchNanos.mockResolvedValue({
+      items: [
+        {
+          id: "nano-1",
+          title: "React Basics",
+          creator: "Alice",
+          averageRating: 4.8,
+          durationMinutes: 12,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
+    });
+
+    mockedGetNanoDetail.mockResolvedValue({
+      nanoId: "nano-1",
+      title: "React Basics",
+      metadata: {
+        description: "Intro course",
+        durationMinutes: 12,
+        competencyLevel: "beginner",
+        language: "en",
+        format: "video",
+        status: "published",
+        version: "1.0.0",
+        categories: [{ category_id: "cat-1", category_name: "Frontend" }],
+        license: "CC-BY",
+        thumbnailUrl: null,
+        uploadedAt: "2026-03-20T10:00:00Z",
+        publishedAt: "2026-03-20T11:00:00Z",
+        updatedAt: "2026-03-20T12:00:00Z",
+      },
+      creator: {
+        id: "creator-1",
+        username: "alice",
+      },
+      ratingSummary: {
+        averageRating: 4.8,
+        ratingCount: 11,
+        downloadCount: 34,
+      },
+      downloadInfo: {
+        requiresAuthentication: true,
+        canDownload: false,
+        downloadPath: null,
+      },
+    });
+
+    render(
+      <LanguageProvider>
+        <AuthContext.Provider value={authValue}>
+          <MemoryRouter initialEntries={["/search"]}>
+            <Routes>
+              <Route
+                path="/search"
+                element={
+                  <>
+                    <SearchPage />
+                    <LocationProbe />
+                  </>
+                }
+              />
+              <Route
+                path="/nano/:id"
+                element={
+                  <>
+                    <NanoDetailsPage />
+                    <LocationProbe />
+                  </>
+                }
+              />
+              <Route
+                path="/login"
+                element={
+                  <>
+                    <div>Login page</div>
+                    <LocationProbe />
+                  </>
+                }
+              />
+            </Routes>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </LanguageProvider>
+    );
+
+    const keywordInput = screen.getByLabelText("Suchbegriff");
+    fireEvent.change(keywordInput, { target: { value: "react" } });
+
+    const detailLink = await screen.findByRole("link", { name: "React Basics" });
+    fireEvent.click(detailLink);
+
+    await screen.findByRole("heading", { name: "React Basics" });
+    expect(mockedGetNanoDetail).toHaveBeenCalledWith("nano-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Jetzt herunterladen" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-probe").textContent).toBe(
+        "/login?redirect=%2Fnano%2Fnano-1"
+      );
+    });
+  });
+});
+
+describe("NanoDetailsPage", () => {
+  const authValue: AuthContextValue = {
+    isLoading: false,
+    isAuthenticated: false,
+    user: null,
+    login: async () => Promise.resolve(),
+    logout: async () => Promise.resolve(),
+  };
+
+  beforeEach(() => {
+    mockedGetNanoDetail.mockReset();
+    mockedGetNanoDownloadInfo.mockReset();
+    window.localStorage.removeItem("diwei_ui_language");
+  });
+
+  it("renders detail metadata, ratings and chat sections", async () => {
+    mockedGetNanoDetail.mockResolvedValue({
+      nanoId: "nano-1",
+      title: "React Basics",
+      metadata: {
+        description: "Intro course",
+        durationMinutes: 12,
+        competencyLevel: "beginner",
+        language: "en",
+        format: "video",
+        status: "published",
+        version: "1.0.0",
+        categories: [{ category_id: "cat-1", category_name: "Frontend" }],
+        license: "CC-BY",
+        thumbnailUrl: null,
+        uploadedAt: "2026-03-20T10:00:00Z",
+        publishedAt: "2026-03-20T11:00:00Z",
+        updatedAt: "2026-03-20T12:00:00Z",
+      },
+      creator: {
+        id: "creator-1",
+        username: "alice",
+      },
+      ratingSummary: {
+        averageRating: 4.8,
+        ratingCount: 11,
+        downloadCount: 34,
+      },
+      downloadInfo: {
+        requiresAuthentication: true,
+        canDownload: false,
+        downloadPath: null,
+      },
+    });
+
+    render(
+      <LanguageProvider>
+        <AuthContext.Provider value={authValue}>
+          <MemoryRouter initialEntries={["/nano/nano-1"]}>
+            <Routes>
+              <Route path="/nano/:id" element={<NanoDetailsPage />} />
+            </Routes>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </LanguageProvider>
+    );
+
+    await screen.findByRole("heading", { name: "React Basics" });
+
+    expect(screen.getByText("Download")).toBeTruthy();
+    expect(screen.getByText("Bewertungen und Nutzung")).toBeTruthy();
+    expect(screen.getByText("Feedback und Austausch")).toBeTruthy();
+    expect(screen.getByText("Frontend")).toBeTruthy();
+    expect(screen.getByText("CC-BY")).toBeTruthy();
+  });
+
+  it("redirects unauthenticated users to login when download is clicked", async () => {
+    mockedGetNanoDetail.mockResolvedValue({
+      nanoId: "nano-1",
+      title: "React Basics",
+      metadata: {
+        description: "Intro course",
+        durationMinutes: 12,
+        competencyLevel: "beginner",
+        language: "en",
+        format: "video",
+        status: "published",
+        version: "1.0.0",
+        categories: [{ category_id: "cat-1", category_name: "Frontend" }],
+        license: "CC-BY",
+        thumbnailUrl: null,
+        uploadedAt: "2026-03-20T10:00:00Z",
+        publishedAt: "2026-03-20T11:00:00Z",
+        updatedAt: "2026-03-20T12:00:00Z",
+      },
+      creator: {
+        id: "creator-1",
+        username: "alice",
+      },
+      ratingSummary: {
+        averageRating: 4.8,
+        ratingCount: 11,
+        downloadCount: 34,
+      },
+      downloadInfo: {
+        requiresAuthentication: true,
+        canDownload: false,
+        downloadPath: null,
+      },
+    });
+
+    render(
+      <LanguageProvider>
+        <AuthContext.Provider value={authValue}>
+          <MemoryRouter initialEntries={["/nano/nano-1"]}>
+            <Routes>
+              <Route
+                path="/nano/:id"
+                element={
+                  <>
+                    <NanoDetailsPage />
+                    <LocationProbe />
+                  </>
+                }
+              />
+              <Route
+                path="/login"
+                element={
+                  <>
+                    <div>Login page</div>
+                    <LocationProbe />
+                  </>
+                }
+              />
+            </Routes>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </LanguageProvider>
+    );
+
+    await screen.findByRole("heading", { name: "React Basics" });
+    fireEvent.click(screen.getByRole("button", { name: "Jetzt herunterladen" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-probe").textContent).toBe(
+        "/login?redirect=%2Fnano%2Fnano-1"
+      );
+    });
+
+    expect(mockedGetNanoDownloadInfo).not.toHaveBeenCalled();
   });
 });
 

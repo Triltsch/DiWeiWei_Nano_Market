@@ -91,7 +91,7 @@ React Router v6 routes are wired in `src/app/router.tsx` with implemented auth f
 
 - `/` landing page
 - `/search` discovery/search UI (debounced keyword search, backend-aligned filters, load-more pagination backed by page-based API metadata, URL query sync)
-- `/nano/:id`
+- `/nano/:id` nano detail page (backend detail contract integration, loading/error/not-found states, auth-gated download CTA, ratings and chat CTA areas)
 - `/register` registration form (React Hook Form + client validation)
 - `/login` login form with remember-email support
 - `/verify-email` verification pending + token auto-verification flow
