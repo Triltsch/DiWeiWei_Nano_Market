@@ -15,8 +15,8 @@ import {
   TermsPage,
   UploadPage,
   VerifyEmailPage,
+  ModeratorQueuePage,
 } from "../features/routing/pages";
-  import { ModeratorQueuePage } from "../features/routing/pages";
 import { ProtectedRouteLayout } from "../features/routing/ProtectedRouteLayout";
 
 /**

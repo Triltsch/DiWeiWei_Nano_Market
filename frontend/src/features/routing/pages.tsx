@@ -1,25 +1,30 @@
 import { useEffect, useRef, useState, type PropsWithChildren } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import {
   LoginPage as LoginAuthPage,
   RegisterPage as RegisterAuthPage,
+  useAuth,
   VerifyEmailPage as VerifyEmailAuthPage,
 } from "../auth";
 import { PrivacyPage as PrivacyLegalPage, TermsPage as TermsLegalPage } from "../legal/pages";
 import {
   CreatorDashboardPage as CreatorDashboardPageComponent,
   EditNanoPage as EditNanoPageComponent,
+  ModeratorQueuePage as ModeratorQueuePageComponent,
   UploadWizardPage as UploadWizardPageComponent,
 } from "../creator";
-  import { ModeratorQueuePage as ModeratorQueuePageComponent } from "../creator";
 import {
+  getNanoDetail,
+  getNanoDownloadInfo,
+  NanoDetailApiError,
   normalizeSearchLevel,
   searchNanos,
+  type NanoDetail,
   type SearchFilters,
   type SearchNano,
 } from "../../shared/api";
-import { useTranslation } from "../../shared/i18n";
+import { useTranslation, type TranslationKey } from "../../shared/i18n";
 import { GlobalNav } from "../../shared/ui/GlobalNav";
 
 interface PlaceholderPageProps {
@@ -202,6 +207,38 @@ const PAGE_SIZE = 20;
 
 /** Debounce delay (ms) for the keyword search input. */
 const DEBOUNCE_MS = 300;
+
+const NANO_STATUS_TRANSLATION_KEYS: Partial<Record<string, TranslationKey>> = {
+  draft: "nano_status_draft",
+  pending_review: "nano_status_pending_review",
+  published: "nano_status_published",
+  archived: "nano_status_archived",
+};
+
+const COMPETENCY_TRANSLATION_KEYS: Partial<Record<string, TranslationKey>> = {
+  beginner: "competency_beginner",
+  intermediate: "competency_intermediate",
+  advanced: "competency_advanced",
+};
+
+function formatTimestamp(value: string, locale: string): string {
+  if (!value) {
+    return "";
+  }
+
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(timestamp);
+}
 
 export function SearchPage(): JSX.Element {
   const { t } = useTranslation();
@@ -509,7 +546,12 @@ export function SearchPage(): JSX.Element {
                   {results.map((item) => (
                     <li key={item.id} className="card-elevated space-y-2">
                       <h3 className="text-lg font-semibold text-neutral-900">
-                        {item.title ?? t("search_title_fallback")}
+                        <Link
+                          to={`/nano/${item.id}`}
+                          className="hover:text-primary-600 focus:text-primary-600 focus:outline-none"
+                        >
+                          {item.title ?? t("search_title_fallback")}
+                        </Link>
                       </h3>
                       <div className="grid gap-2 text-sm text-neutral-700 sm:grid-cols-2">
                         <p>
@@ -556,15 +598,274 @@ export function SearchPage(): JSX.Element {
   );
 }
 export function NanoDetailsPage(): JSX.Element {
-  const { t } = useTranslation();
+  const { language, t } = useTranslation();
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const params = useParams<{ id: string }>();
-  const nanoId = params.id ?? "unknown";
+  const nanoId = params.id ?? "";
+  const [detail, setDetail] = useState<NanoDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorCode, setErrorCode] = useState<"generic" | "not-found" | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const locale = language === "de" ? "de-DE" : "en-US";
+  const loginRedirectPath = `/login?redirect=${encodeURIComponent(`/nano/${nanoId}`)}`;
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadNanoDetail = async (): Promise<void> => {
+      if (!nanoId) {
+        setErrorCode("not-found");
+        setIsLoading(false);
+        setDetail(null);
+        return;
+      }
+
+      setIsLoading(true);
+      setErrorCode(null);
+      setDownloadError(null);
+
+      try {
+        const response = await getNanoDetail(nanoId);
+        if (!isActive) {
+          return;
+        }
+        setDetail(response);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+        setDetail(null);
+
+        if (error instanceof NanoDetailApiError && error.code === "not-found") {
+          setErrorCode("not-found");
+          return;
+        }
+        setErrorCode("generic");
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadNanoDetail();
+
+    return () => {
+      isActive = false;
+    };
+  }, [nanoId]);
+
+  const handleDownloadClick = async (): Promise<void> => {
+    if (!nanoId) {
+      return;
+    }
+
+    setDownloadError(null);
+
+    if (!isAuthenticated) {
+      navigate(loginRedirectPath);
+      return;
+    }
+
+    setIsDownloading(true);
+
+    try {
+      const downloadInfo = await getNanoDownloadInfo(nanoId);
+
+      if (!downloadInfo.canDownload || downloadInfo.downloadPath.length === 0) {
+        setDownloadError(t("nano_details_download_error"));
+        return;
+      }
+
+      window.location.assign(downloadInfo.downloadPath);
+    } catch {
+      setDownloadError(t("nano_details_download_error"));
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleChatClick = (): void => {
+    if (!isAuthenticated) {
+      navigate(loginRedirectPath);
+      return;
+    }
+
+    navigate("/profile");
+  };
+
+  if (isLoading) {
+    return (
+      <PageLayout>
+        <section className="card-elevated" aria-label={t("nano_details_loading")}> 
+          <p className="text-neutral-700">{t("nano_details_loading")}</p>
+        </section>
+      </PageLayout>
+    );
+  }
+
+  if (errorCode === "not-found") {
+    return (
+      <PageLayout>
+        <section className="card-elevated space-y-3">
+          <h1 className="text-primary-600">{t("nano_details_not_found_title")}</h1>
+          <p className="text-neutral-700">{t("nano_details_not_found_description")}</p>
+          <Link to="/search" className="btn-outline inline-flex">
+            {t("nano_details_back_to_search")}
+          </Link>
+        </section>
+      </PageLayout>
+    );
+  }
+
+  if (!detail || errorCode === "generic") {
+    return (
+      <PageLayout>
+        <section className="card-elevated space-y-3" role="alert">
+          <h1 className="text-primary-600">{t("nano_details_title")}</h1>
+          <p className="text-neutral-700">{t("nano_details_error")}</p>
+          <Link to="/search" className="btn-outline inline-flex">
+            {t("nano_details_back_to_search")}
+          </Link>
+        </section>
+      </PageLayout>
+    );
+  }
+
+  const statusKey = NANO_STATUS_TRANSLATION_KEYS[detail.metadata.status];
+  const competencyKey = COMPETENCY_TRANSLATION_KEYS[detail.metadata.competencyLevel];
+  const durationLabel =
+    detail.metadata.durationMinutes !== null
+      ? `${detail.metadata.durationMinutes} ${t("minutes_abbr")}`
+      : t("search_not_available");
+  const categoriesLabel =
+    detail.metadata.categories.length > 0
+      ? detail.metadata.categories.map((category) => category.category_name).join(", ")
+      : t("search_not_available");
+  const uploadedAtLabel = detail.metadata.uploadedAt
+    ? formatTimestamp(detail.metadata.uploadedAt, locale)
+    : t("search_not_available");
+  const publishedAtLabel = detail.metadata.publishedAt
+    ? formatTimestamp(detail.metadata.publishedAt, locale)
+    : t("search_not_available");
+  const updatedAtLabel = detail.metadata.updatedAt
+    ? formatTimestamp(detail.metadata.updatedAt, locale)
+    : t("search_not_available");
 
   return (
-    <PlaceholderPage
-      title={t("nano_details_title")}
-      description={t("nano_details_description").replace("{id}", nanoId)}
-    />
+    <PageLayout>
+      <section className="space-y-6">
+        <article className="card-elevated space-y-4">
+          <header className="space-y-2">
+            <h1 className="text-primary-600">{detail.title}</h1>
+            <p className="text-neutral-700">{detail.metadata.description ?? t("search_not_available")}</p>
+          </header>
+
+          <dl className="grid gap-3 text-sm text-neutral-700 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <dt className="font-medium">{t("nano_details_creator_label")}</dt>
+              <dd>{detail.creator.username ?? t("search_creator_fallback")}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">{t("search_duration_result_label")}</dt>
+              <dd>{durationLabel}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">{t("nano_details_level_label")}</dt>
+              <dd>{competencyKey ? t(competencyKey) : detail.metadata.competencyLevel}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">{t("nano_details_language_label")}</dt>
+              <dd>{detail.metadata.language || t("search_not_available")}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">{t("nano_details_format_label")}</dt>
+              <dd>{detail.metadata.format || t("search_not_available")}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">{t("nano_details_license_label")}</dt>
+              <dd>{detail.metadata.license || t("search_not_available")}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">{t("nano_details_status_label")}</dt>
+              <dd>{statusKey ? t(statusKey) : detail.metadata.status}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">{t("nano_details_categories_label")}</dt>
+              <dd>{categoriesLabel}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">{t("nano_details_uploaded_at_label")}</dt>
+              <dd>{uploadedAtLabel}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">{t("nano_details_published_at_label")}</dt>
+              <dd>{publishedAtLabel}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">{t("nano_details_updated_at_label")}</dt>
+              <dd>{updatedAtLabel}</dd>
+            </div>
+          </dl>
+        </article>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <article className="card-elevated space-y-3">
+            <h2 className="text-lg font-semibold text-neutral-900">{t("nano_details_download_title")}</h2>
+            <p className="text-sm text-neutral-700">{t("nano_details_download_description")}</p>
+            {!isAuthenticated && (
+              <p className="text-sm text-neutral-700">{t("nano_details_download_requires_login")}</p>
+            )}
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => {
+                void handleDownloadClick();
+              }}
+              disabled={isDownloading}
+            >
+              {isDownloading ? t("nano_details_downloading") : t("nano_details_download_button")}
+            </button>
+            {downloadError && <p className="text-sm text-error-600">{downloadError}</p>}
+          </article>
+
+          <article className="card-elevated space-y-3">
+            <h2 className="text-lg font-semibold text-neutral-900">{t("nano_details_ratings_title")}</h2>
+            <dl className="space-y-2 text-sm text-neutral-700">
+              <div className="flex items-center justify-between gap-3">
+                <dt>{t("nano_details_avg_rating_label")}</dt>
+                <dd className="font-medium">{detail.ratingSummary.averageRating.toFixed(1)}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt>{t("nano_details_rating_count_label")}</dt>
+                <dd className="font-medium">{detail.ratingSummary.ratingCount}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt>{t("nano_details_download_count_label")}</dt>
+                <dd className="font-medium">{detail.ratingSummary.downloadCount}</dd>
+              </div>
+            </dl>
+          </article>
+        </div>
+
+        <article className="card-elevated space-y-3">
+          <h2 className="text-lg font-semibold text-neutral-900">{t("nano_details_chat_title")}</h2>
+          <p className="text-sm text-neutral-700">{t("nano_details_chat_description")}</p>
+          <button type="button" className="btn-outline" onClick={handleChatClick}>
+            {isAuthenticated ? t("nano_details_chat_button_open") : t("nano_details_chat_button_login")}
+          </button>
+        </article>
+
+        <div>
+          <Link to="/search" className="btn-outline inline-flex">
+            {t("nano_details_back_to_search")}
+          </Link>
+        </div>
+      </section>
+    </PageLayout>
   );
 }
 

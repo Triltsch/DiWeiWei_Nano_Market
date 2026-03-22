@@ -22,6 +22,7 @@ export {
 export { submitNanoForReview, withdrawNanoFromReview } from "./creator";
 export { approveNano, getModerationQueue, rejectNano } from "./moderator";
 export { publishNano, updateNanoMetadata, uploadNanoZip } from "./upload";
+export { getNanoDetail, getNanoDownloadInfo, NanoDetailApiError } from "./nanoDetail";
 export {
   clearAuthSession,
   getAccessToken,
@@ -45,3 +46,4 @@ export type {
   ModeratorQueueListResponse,
 } from "./moderator";
 export type { UpdateNanoMetadataRequest, UploadNanoResponse } from "./upload";
+export type { NanoDetail, NanoDownloadInfo } from "./nanoDetail";
