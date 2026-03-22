@@ -6,6 +6,7 @@ with proper authentication and authorization checks.
 """
 
 import uuid
+from unittest.mock import Mock
 
 import pytest
 
@@ -21,6 +22,7 @@ from app.models import (
     NanoStatus,
 )
 from app.modules.auth.tokens import create_access_token
+from app.modules.upload.storage import StorageError
 
 
 class TestGetNanoMetadata:
@@ -1076,3 +1078,99 @@ class TestNanoDetailViewRoutes:
         assert payload["data"]["can_download"] is True
         assert payload["data"]["download_path"] == "nanos/moderator-download.zip"
         assert payload["meta"]["visibility"] == "restricted"
+
+    @pytest.mark.asyncio
+    async def test_download_redirect_requires_authentication(
+        self, async_client, db_session, verified_user_id
+    ):
+        """Direct download endpoint requires authentication."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Public Redirect Nano",
+            duration_minutes=20,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+            file_storage_path="nanos/public-redirect.zip",
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        response = await async_client.get(f"/api/v1/nanos/{nano.id}/download")
+
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_download_redirect_returns_307_with_presigned_url(
+        self, async_client, db_session, verified_user_id, access_token, monkeypatch
+    ):
+        """Direct download endpoint returns redirect to storage URL for authorized caller."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Published Redirect Nano",
+            duration_minutes=20,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+            file_storage_path="nanos/published-redirect.zip",
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        storage_adapter = Mock()
+        storage_adapter.get_file_url.return_value = "https://minio.local/signed-download-url"
+        monkeypatch.setattr("app.modules.nanos.router.get_storage_adapter", lambda: storage_adapter)
+
+        response = await async_client.get(
+            f"/api/v1/nanos/{nano.id}/download",
+            headers={"Authorization": f"Bearer {access_token}"},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 307
+        assert response.headers["location"] == "https://minio.local/signed-download-url"
+        storage_adapter.get_file_url.assert_called_once_with(
+            object_key="nanos/published-redirect.zip",
+        )
+
+    @pytest.mark.asyncio
+    async def test_download_redirect_returns_503_when_storage_unavailable(
+        self, async_client, db_session, verified_user_id, access_token, monkeypatch
+    ):
+        """Direct download endpoint returns 503 when presigned URL generation fails."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Published Redirect Failure Nano",
+            duration_minutes=20,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+            file_storage_path="nanos/published-redirect-failure.zip",
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        storage_adapter = Mock()
+        storage_adapter.get_file_url.side_effect = StorageError("presign failed")
+        monkeypatch.setattr("app.modules.nanos.router.get_storage_adapter", lambda: storage_adapter)
+
+        response = await async_client.get(
+            f"/api/v1/nanos/{nano.id}/download",
+            headers={"Authorization": f"Bearer {access_token}"},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 503
+        assert response.json()["detail"] == "Download URL is temporarily unavailable"

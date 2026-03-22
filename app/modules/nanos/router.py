@@ -9,6 +9,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -40,6 +41,7 @@ from app.modules.nanos.service import (
     update_nano_metadata,
     update_nano_status,
 )
+from app.modules.upload.storage import StorageError, get_storage_adapter
 
 
 def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = None) -> APIRouter:
@@ -294,6 +296,58 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
             db=db,
             current_user=current_user,
         )
+
+    @router.get(
+        "/{nano_id}/download",
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        summary="Download Nano file",
+        description="""
+        Resolve and redirect to a temporary download URL for a Nano file.
+
+        **Access Rules:**
+        - Authentication required
+        - Published Nanos: any authenticated user
+        - Non-published Nanos: creator, admin, moderator only
+
+        **Error Cases:**
+        - 401: Missing or invalid authentication
+        - 403: Authenticated user not allowed for this Nano
+        - 404: Nano or download path not found
+        - 503: Storage URL generation unavailable
+        """,
+        responses={
+            307: {"description": "Redirect to signed download URL"},
+            401: {"description": "Authentication required"},
+            403: {"description": "Not authorized to download this Nano"},
+            404: {"description": "Nano or download path not found"},
+            503: {"description": "Download URL generation failed"},
+        },
+    )
+    async def download_nano_file(
+        nano_id: UUID,
+        current_user: Annotated[TokenData, Depends(get_current_user)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> RedirectResponse:
+        """Redirect caller to a presigned object-storage download URL."""
+        download_info = await get_nano_download_info(
+            nano_id=nano_id,
+            db=db,
+            current_user=current_user,
+        )
+
+        storage_adapter = get_storage_adapter()
+
+        try:
+            download_url = storage_adapter.get_file_url(
+                object_key=download_info.data.download_path,
+            )
+        except StorageError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Download URL is temporarily unavailable",
+            ) from exc
+
+        return RedirectResponse(url=download_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
     @router.post(
         "/{nano_id}/metadata",

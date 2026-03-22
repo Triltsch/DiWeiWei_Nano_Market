@@ -3,8 +3,8 @@ import axios from "axios";
 import { httpClient } from "./httpClient";
 
 export interface NanoDetailCategory {
-  category_id: string;
-  category_name: string;
+  categoryId: string;
+  categoryName: string;
 }
 
 export interface NanoDetailMetadata {
@@ -151,8 +151,8 @@ function asBoolean(value: unknown): boolean {
 
 function mapNanoDetailCategory(raw: RawNanoDetailCategory, index: number): NanoDetailCategory {
   return {
-    category_id: asString(raw.category_id) ?? `category-${index}`,
-    category_name: asString(raw.category_name) ?? "",
+    categoryId: asString(raw.category_id) ?? `category-${index}`,
+    categoryName: asString(raw.category_name) ?? "",
   };
 }
 

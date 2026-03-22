@@ -137,7 +137,7 @@ async def register_user(db_session: AsyncSession, user_data: UserRegister) -> Us
         bio=user_data.bio,
         preferred_language=user_data.preferred_language,
         status=UserStatus.ACTIVE,
-        role=UserRole.CONSUMER,
+        role=UserRole.CREATOR,
         email_verified=False,
         accepted_terms=consent_timestamp,
         accepted_privacy=consent_timestamp,

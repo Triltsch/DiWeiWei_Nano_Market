@@ -1,4 +1,4 @@
-# LEARNINGS (kompakt, nur für Umsetzung)
+﻿# LEARNINGS (kompakt, nur für Umsetzung)
 
 Ziel: Nur Regeln, die Umwege/Fehler in späteren Implementierungen vermeiden.  
 Kein Projektbericht, keine Historie, kein Story-Log.
@@ -134,6 +134,7 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - **API-Enum-Parameter im Service validieren:** Query-Parameter wie `status_filter` als rohe Strings direkt in SQL-Filter zu übergeben, ohne vorher gegen das Enum zu prüfen, erlaubt ungültige Werte; stattdessen immer `NanoStatus(value)` in try/except und HTTP 400 bei ungültigem Wert.
 - **Duplikate in API-Exporten vermeiden:** Wenn eine Funktion bereits in einem Feature-Modul (`creator.ts`) definiert und re-exportiert wird, darf sie nicht nochmal in einem anderen Utility-Modul (`upload.ts`) definiert werden - TypeScript meldet `TS2300 Duplicate identifier` bei doppelter Re-Export aus `index.ts`. Kanonischen Ort wählen und dort konsolidieren.
 - **Upload-Wizard-Endschritt muss `pending_review` senden, nicht `published`:** Creators erhalten sonst einen 403-Fehler vom Backend-RBAC-Guard. Der Wizard-Step repräsentiert "Submit for Review", nicht "Publish", und muss entsprechend beschriftet und verdrahtet sein.
+
 ## Ergänzung Issue #73 (Nano Detail Page – Frontend)
 
 - **Auth-gated Actions: früh zurückspringen, nicht im Handler abfangen.** Wenn ein Button eine Authentifizierung voraussetzt, den `!isAuthenticated`-Kurzschluss-Redirect (z. B. `navigate('/login?redirect=...')`) direkt im Click-Handler auslösen, bevor irgendein API-Call stattfindet. Das vermeidet unnötige Backend-Trips und gibt dem Nutzer früh klares Feedback.
@@ -144,3 +145,8 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - **Lookup-Maps für API-Enum → i18n-Key.** Status-Werte und Kompetenzstufen als `Record<string, TranslationKey>` an einer Stelle modellieren (z. B. `NANO_STATUS_TRANSLATION_KEYS`, `COMPETENCY_TRANSLATION_KEYS`), nicht per switch-case im Render verteilen.
 - **API-Contract-Tests spiegeln das Mapping, nicht nur den Happy-Path.** Tests in `nanoDetail.test.ts` prüfen explizit: (1) Erfolgreiche Antwort → korrekte Feld-Benennung im Frontend-Typ, (2) HTTP 404 → typisierter `"not-found"`-Fehler mit `NanoDetailApiError`-Instanz, (3) Download-Info-Endpunkt. Das stellt sicher, dass das camelCase-Mapping der Snake-Case-Backend-Felder nicht leise kaputt geht.
 - **axios.isAxiosError() in Fehlerklassifizierung nutzen, kein rohes `instanceof`.** `axios.isAxiosError(err)` ist robust gegen verschiedene Axios-Bundle-Versionen; `instanceof AxiosError` kann in Monorepos/Test-Setups mit mehrfach gebundleten Axios-Versionen scheitern. Im Testmock `isAxiosError: true` explizit auf das Error-Objekt setzen.
+
+## Bugfix: Default-Rolle bei Registrierung (Consumer → Creator)
+
+- **Default-Rolle bei Neuregistrierung muss `creator` sein, nicht `consumer`.** In einem Nano-Marktplatz, wo alle Nutzer Inhalte hochladen und verwalten können sollen, führt `consumer` als Default-Rolle dazu, dass `/api/v1/nanos/my-nanos` (das `creator`-Rolle voraussetzt) mit 403 antwortet – obwohl der Dashboard-Nav-Link für alle eingeloggten User sichtbar ist. Fix: `UserRole.CREATOR` in `app/modules/auth/service.py` als Default setzen und `test_gdpr_compliance.py`-Assertion anpassen.
+- **Nav-Link-Sichtbarkeit und API-Berechtigung müssen konsistent sein.** Wenn ein Feature-Link im Nav global sichtbar ist, muss der zugehörige API-Endpunkt für alle eingeloggten Nutzer erreichbar sein – oder der Nav-Link muss rollenabhängig ausgeblendet werden.
