@@ -585,7 +585,7 @@ describe("SearchPage", () => {
         format: "video",
         status: "published",
         version: "1.0.0",
-        categories: [{ category_id: "cat-1", category_name: "Frontend" }],
+        categories: [{ categoryId: "cat-1", categoryName: "Frontend" }],
         license: "CC-BY",
         thumbnailUrl: null,
         uploadedAt: "2026-03-20T10:00:00Z",
@@ -680,6 +680,10 @@ describe("NanoDetailsPage", () => {
     window.localStorage.removeItem("diwei_ui_language");
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders detail metadata, ratings and chat sections", async () => {
     mockedGetNanoDetail.mockResolvedValue({
       nanoId: "nano-1",
@@ -692,7 +696,7 @@ describe("NanoDetailsPage", () => {
         format: "video",
         status: "published",
         version: "1.0.0",
-        categories: [{ category_id: "cat-1", category_name: "Frontend" }],
+        categories: [{ categoryId: "cat-1", categoryName: "Frontend" }],
         license: "CC-BY",
         thumbnailUrl: null,
         uploadedAt: "2026-03-20T10:00:00Z",
@@ -748,7 +752,7 @@ describe("NanoDetailsPage", () => {
         format: "video",
         status: "published",
         version: "1.0.0",
-        categories: [{ category_id: "cat-1", category_name: "Frontend" }],
+        categories: [{ categoryId: "cat-1", categoryName: "Frontend" }],
         license: "CC-BY",
         thumbnailUrl: null,
         uploadedAt: "2026-03-20T10:00:00Z",
@@ -810,6 +814,100 @@ describe("NanoDetailsPage", () => {
     });
 
     expect(mockedGetNanoDownloadInfo).not.toHaveBeenCalled();
+  });
+
+  it("navigates to the presigned download URL returned by the API", async () => {
+    const locationAssignSpy = vi.fn();
+    const originalLocation = window.location;
+
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: {
+        ...originalLocation,
+        assign: locationAssignSpy,
+      },
+    });
+
+    try {
+      mockedGetNanoDetail.mockResolvedValue({
+        nanoId: "nano-1",
+        title: "React Basics",
+        metadata: {
+          description: "Intro course",
+          durationMinutes: 12,
+          competencyLevel: "beginner",
+          language: "en",
+          format: "video",
+          status: "published",
+          version: "1.0.0",
+          categories: [{ categoryId: "cat-1", categoryName: "Frontend" }],
+          license: "CC-BY",
+          thumbnailUrl: null,
+          uploadedAt: "2026-03-20T10:00:00Z",
+          publishedAt: "2026-03-20T11:00:00Z",
+          updatedAt: "2026-03-20T12:00:00Z",
+        },
+        creator: {
+          id: "creator-1",
+          username: "alice",
+        },
+        ratingSummary: {
+          averageRating: 4.8,
+          ratingCount: 11,
+          downloadCount: 34,
+        },
+        downloadInfo: {
+          requiresAuthentication: true,
+          canDownload: true,
+          downloadPath: "nanos/react-basics.mp4",
+        },
+      });
+      mockedGetNanoDownloadInfo.mockResolvedValue({
+        nanoId: "nano-1",
+        canDownload: true,
+        downloadUrl: "https://storage.example.com/nanos/react-basics.mp4?signature=test",
+      });
+
+      render(
+        <LanguageProvider>
+          <AuthContext.Provider
+            value={{
+              ...authValue,
+              isAuthenticated: true,
+              user: {
+                id: "user-1",
+                email: "user@example.com",
+                username: "user",
+                role: "creator",
+                emailVerified: true,
+                preferredLanguage: "de",
+              },
+            }}
+          >
+            <MemoryRouter initialEntries={["/nano/nano-1"]}>
+              <Routes>
+                <Route path="/nano/:id" element={<NanoDetailsPage />} />
+              </Routes>
+            </MemoryRouter>
+          </AuthContext.Provider>
+        </LanguageProvider>
+      );
+
+      await screen.findByRole("heading", { name: "React Basics" });
+      fireEvent.click(screen.getByRole("button", { name: "Jetzt herunterladen" }));
+
+      await waitFor(() => {
+        expect(mockedGetNanoDownloadInfo).toHaveBeenCalledWith("nano-1");
+        expect(locationAssignSpy).toHaveBeenCalledWith(
+          "https://storage.example.com/nanos/react-basics.mp4?signature=test"
+        );
+      });
+    } finally {
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
   });
 });
 

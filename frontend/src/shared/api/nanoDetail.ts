@@ -3,8 +3,8 @@ import axios from "axios";
 import { httpClient } from "./httpClient";
 
 export interface NanoDetailCategory {
-  category_id: string;
-  category_name: string;
+  categoryId: string;
+  categoryName: string;
 }
 
 export interface NanoDetailMetadata {
@@ -52,7 +52,7 @@ export interface NanoDetail {
 export interface NanoDownloadInfo {
   nanoId: string;
   canDownload: boolean;
-  downloadPath: string;
+  downloadUrl: string;
 }
 
 type NanoDetailApiErrorCode =
@@ -67,8 +67,9 @@ interface ErrorResponseBody {
 }
 
 interface RawNanoDetailCategory {
-  category_id?: unknown;
-  category_name?: unknown;
+  id?: unknown;
+  name?: unknown;
+  rank?: unknown;
 }
 
 interface RawNanoDetailMetadata {
@@ -120,7 +121,7 @@ interface RawNanoDetailResponse {
 interface RawNanoDownloadInfoData {
   nano_id?: unknown;
   can_download?: unknown;
-  download_path?: unknown;
+  download_url?: unknown;
 }
 
 interface RawNanoDownloadInfoResponse {
@@ -151,8 +152,8 @@ function asBoolean(value: unknown): boolean {
 
 function mapNanoDetailCategory(raw: RawNanoDetailCategory, index: number): NanoDetailCategory {
   return {
-    category_id: asString(raw.category_id) ?? `category-${index}`,
-    category_name: asString(raw.category_name) ?? "",
+    categoryId: asString(raw.id) ?? `category-${index}`,
+    categoryName: asString(raw.name) ?? "",
   };
 }
 
@@ -262,12 +263,12 @@ export async function getNanoDownloadInfo(nanoId: string): Promise<NanoDownloadI
       `/api/v1/nanos/${nanoId}/download-info`
     );
     const rawData = (response.data.data as RawNanoDownloadInfoData | undefined) ?? {};
-    const downloadPath = asString(rawData.download_path) ?? "";
+    const downloadUrl = asString(rawData.download_url) ?? "";
 
     return {
       nanoId: asString(rawData.nano_id) ?? nanoId,
       canDownload: asBoolean(rawData.can_download),
-      downloadPath,
+      downloadUrl,
     };
   } catch (error) {
     throw new NanoDetailApiError(getErrorMessage(error), getErrorCode(error));

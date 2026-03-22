@@ -675,12 +675,12 @@ export function NanoDetailsPage(): JSX.Element {
     try {
       const downloadInfo = await getNanoDownloadInfo(nanoId);
 
-      if (!downloadInfo.canDownload || downloadInfo.downloadPath.length === 0) {
+      if (!downloadInfo.canDownload || downloadInfo.downloadUrl.length === 0) {
         setDownloadError(t("nano_details_download_error"));
         return;
       }
 
-      window.location.assign(downloadInfo.downloadPath);
+      window.location.assign(downloadInfo.downloadUrl);
     } catch {
       setDownloadError(t("nano_details_download_error"));
     } finally {
@@ -743,7 +743,7 @@ export function NanoDetailsPage(): JSX.Element {
       : t("search_not_available");
   const categoriesLabel =
     detail.metadata.categories.length > 0
-      ? detail.metadata.categories.map((category) => category.category_name).join(", ")
+      ? detail.metadata.categories.map((category) => category.categoryName).join(", ")
       : t("search_not_available");
   const uploadedAtLabel = detail.metadata.uploadedAt
     ? formatTimestamp(detail.metadata.uploadedAt, locale)

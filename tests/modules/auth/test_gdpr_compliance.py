@@ -166,7 +166,7 @@ class TestDataExport:
         assert export.last_name == "User"
         assert export.bio == "Test bio"
         assert export.status == "active"
-        assert export.role == "consumer"
+        assert export.role == "creator"
         assert export.accepted_terms is not None
         assert export.accepted_privacy is not None
         assert export.export_date is not None

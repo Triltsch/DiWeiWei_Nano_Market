@@ -44,7 +44,7 @@ describe("getNanoDetail", () => {
             format: "video",
             status: "published",
             version: "1.0.0",
-            categories: [{ category_id: "cat-1", category_name: "Frontend" }],
+            categories: [{ id: "cat-1", name: "Frontend", rank: 0 }],
             license: "CC-BY",
             thumbnail_url: "https://example.com/thumb.png",
             uploaded_at: "2026-03-20T10:00:00Z",
@@ -63,7 +63,7 @@ describe("getNanoDetail", () => {
           download_info: {
             requires_authentication: true,
             can_download: true,
-            download_path: "/api/v1/nanos/nano-1/download-info",
+            download_path: "nanos/nano-1/content.mp4",
           },
         },
         meta: {
@@ -85,8 +85,8 @@ describe("getNanoDetail", () => {
     expect(result.downloadInfo.canDownload).toBe(true);
     expect(result.metadata.categories).toEqual([
       {
-        category_id: "cat-1",
-        category_name: "Frontend",
+        categoryId: "cat-1",
+        categoryName: "Frontend",
       },
     ]);
   });
@@ -117,7 +117,7 @@ describe("getNanoDownloadInfo", () => {
         data: {
           nano_id: "nano-1",
           can_download: true,
-          download_path: "/api/v1/nanos/nano-1/download-info",
+          download_url: "https://storage.example.com/nanos/nano-1/content.mp4?signature=test",
         },
         meta: {
           visibility: "public",
@@ -133,7 +133,7 @@ describe("getNanoDownloadInfo", () => {
     expect(result).toEqual({
       nanoId: "nano-1",
       canDownload: true,
-      downloadPath: "/api/v1/nanos/nano-1/download-info",
+      downloadUrl: "https://storage.example.com/nanos/nano-1/content.mp4?signature=test",
     });
   });
 });
