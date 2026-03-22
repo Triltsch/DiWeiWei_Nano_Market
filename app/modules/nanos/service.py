@@ -48,6 +48,7 @@ from app.modules.nanos.schemas import (
     StatusUpdateRequest,
 )
 from app.modules.search.service import invalidate_search_cache
+from app.modules.upload.storage import StorageError, get_storage_adapter
 
 
 async def get_nano_metadata(
@@ -260,7 +261,7 @@ async def get_nano_download_info(
     current_user: TokenData,
 ) -> NanoDownloadInfoResponse:
     """
-    Resolve download path for a Nano with strict authentication and RBAC checks.
+    Resolve a presigned download URL for a Nano with strict authentication and RBAC checks.
 
     Rules:
     - authentication always required
@@ -276,7 +277,7 @@ async def get_nano_download_info(
         NanoDownloadInfoResponse with unified response envelope
 
     Raises:
-        HTTPException: 404 if Nano/path missing, 403 for RBAC violations
+        HTTPException: 404 if Nano/path missing, 403 for RBAC violations, 503 for storage failures
     """
     stmt = select(Nano).where(Nano.id == nano_id)
     result = await db.execute(stmt)
@@ -303,6 +304,16 @@ async def get_nano_download_info(
             detail="Download path is not available for this Nano",
         )
 
+    storage_adapter = get_storage_adapter()
+
+    try:
+        download_url = storage_adapter.get_file_url(object_key=nano.file_storage_path)
+    except StorageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Download URL is temporarily unavailable",
+        ) from exc
+
     visibility = "public" if nano.status == NanoStatus.PUBLISHED else "restricted"
 
     return NanoDownloadInfoResponse(
@@ -310,7 +321,7 @@ async def get_nano_download_info(
         data=NanoDownloadInfoData(
             nano_id=nano.id,
             can_download=True,
-            download_path=nano.file_storage_path,
+            download_url=download_url,
         ),
         meta=NanoDetailMeta(
             visibility=visibility,

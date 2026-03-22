@@ -41,7 +41,6 @@ from app.modules.nanos.service import (
     update_nano_metadata,
     update_nano_status,
 )
-from app.modules.upload.storage import StorageError, get_storage_adapter
 
 
 def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = None) -> APIRouter:
@@ -261,9 +260,9 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
     @router.get(
         "/{nano_id}/download-info",
         response_model=NanoDownloadInfoResponse,
-        summary="Get Nano download path",
+        summary="Get Nano download URL",
         description="""
-        Resolve download information for a Nano.
+        Resolve a presigned download URL for a Nano.
 
         **Access Rules:**
         - Authentication required
@@ -277,12 +276,14 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
         - 401: Missing or invalid authentication
         - 403: Authenticated user not allowed for this Nano
         - 404: Nano or download path not found
+        - 503: Storage URL generation unavailable
         """,
         responses={
-            200: {"description": "Download path resolved successfully"},
+            200: {"description": "Download URL resolved successfully"},
             401: {"description": "Authentication required"},
             403: {"description": "Not authorized to download this Nano"},
             404: {"description": "Nano or download path not found"},
+            503: {"description": "Download URL generation failed"},
         },
     )
     async def get_nano_download(
@@ -290,7 +291,7 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
         current_user: Annotated[TokenData, Depends(get_current_user)],
         db: Annotated[AsyncSession, Depends(get_db)],
     ) -> NanoDownloadInfoResponse:
-        """Get Nano download path with strict authentication and RBAC checks."""
+        """Get a presigned Nano download URL with strict authentication and RBAC checks."""
         return await get_nano_download_info(
             nano_id=nano_id,
             db=db,
@@ -335,19 +336,10 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
             current_user=current_user,
         )
 
-        storage_adapter = get_storage_adapter()
-
-        try:
-            download_url = storage_adapter.get_file_url(
-                object_key=download_info.data.download_path,
-            )
-        except StorageError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Download URL is temporarily unavailable",
-            ) from exc
-
-        return RedirectResponse(url=download_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+        return RedirectResponse(
+            url=download_info.data.download_url,
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        )
 
     @router.post(
         "/{nano_id}/metadata",

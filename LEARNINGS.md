@@ -1,4 +1,4 @@
-﻿# LEARNINGS (kompakt, nur für Umsetzung)
+# LEARNINGS (kompakt, nur für Umsetzung)
 
 Ziel: Nur Regeln, die Umwege/Fehler in späteren Implementierungen vermeiden.  
 Kein Projektbericht, keine Historie, kein Story-Log.
@@ -138,6 +138,7 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 ## Ergänzung Issue #73 (Nano Detail Page – Frontend)
 
 - **Auth-gated Actions: früh zurückspringen, nicht im Handler abfangen.** Wenn ein Button eine Authentifizierung voraussetzt, den `!isAuthenticated`-Kurzschluss-Redirect (z. B. `navigate('/login?redirect=...')`) direkt im Click-Handler auslösen, bevor irgendein API-Call stattfindet. Das vermeidet unnötige Backend-Trips und gibt dem Nutzer früh klares Feedback.
+- **Browser-Navigation sendet keine Axios-Bearer-Header mit.** Für authentifizierte Downloads nie per `window.location.assign('/api/...')` auf einen geschützten API-Endpunkt springen; stattdessen zuerst über den authentifizierten API-Client eine signierte Download-URL auflösen und erst dann auf diese URL navigieren. Das verhindert 401-Fehler und Cross-Origin-Fehlrouten bei gesetztem `VITE_API_BASE_URL`.
 - **`NanoDetailApiError` mit typisiertem `code`-Feld für distinct UI-States.** HTTP 401/403/404 auf benannte Fehlercodes (`"not-found"`, `"unauthorized"`, `"forbidden"`, `"request-failed"`, `"unknown"`) mappen; der Page-Code kann damit exakt unterscheiden, ob eine leere State-Message, ein Login-Redirect oder eine generische Fehleranzeige sinnvoller ist.
 - **Discovery → Detail-Verlinkung: Result-Titel in `<Link to={/nano/${id}}>` wrappen.** Ohne diesen Schritt existiert die `/nano/:id`-Route zwar, ist aber aus der Suchergebnisliste nicht erreichbar. Der Titel ist der natürlichste Klick-Hotspot – nicht ein separater Button.
 - **`formatTimestamp()` mit `Intl.DateTimeFormat` für lokalisierte Datumsanzeige.** Datumsfelder aus der API kommen als ISO-Strings; einen kleinen Helfer `formatTimestamp(value, locale)` schreiben, der Ungültiges sauber auf den Rohwert zurückfällt, anstatt per-Component ad-hoc `.toLocaleDateString()` zu streuen.

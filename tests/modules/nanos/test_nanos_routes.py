@@ -1010,9 +1010,9 @@ class TestNanoDetailViewRoutes:
 
     @pytest.mark.asyncio
     async def test_download_info_published_authenticated_success(
-        self, async_client, db_session, verified_user_id, access_token
+        self, async_client, db_session, verified_user_id, access_token, monkeypatch
     ):
-        """Authenticated users can resolve download path for published Nanos."""
+        """Authenticated users can resolve a presigned download URL for published Nanos."""
         nano = Nano(
             id=uuid.uuid4(),
             creator_id=verified_user_id,
@@ -1029,6 +1029,14 @@ class TestNanoDetailViewRoutes:
         db_session.add(nano)
         await db_session.commit()
 
+        storage_adapter = Mock()
+        storage_adapter.get_file_url.return_value = (
+            "https://minio.local/published-download.zip?signature=test"
+        )
+        monkeypatch.setattr(
+            "app.modules.nanos.service.get_storage_adapter", lambda: storage_adapter
+        )
+
         response = await async_client.get(
             f"/api/v1/nanos/{nano.id}/download-info",
             headers={"Authorization": f"Bearer {access_token}"},
@@ -1039,14 +1047,20 @@ class TestNanoDetailViewRoutes:
         assert payload["success"] is True
         assert payload["data"]["nano_id"] == str(nano.id)
         assert payload["data"]["can_download"] is True
-        assert payload["data"]["download_path"] == "nanos/published-download.zip"
+        assert (
+            payload["data"]["download_url"]
+            == "https://minio.local/published-download.zip?signature=test"
+        )
         assert payload["meta"]["visibility"] == "public"
+        storage_adapter.get_file_url.assert_called_once_with(
+            object_key="nanos/published-download.zip"
+        )
 
     @pytest.mark.asyncio
     async def test_download_info_non_published_moderator_allowed(
-        self, async_client, db_session, verified_user_id
+        self, async_client, db_session, verified_user_id, monkeypatch
     ):
-        """Moderator role can resolve download info for non-published Nano."""
+        """Moderator role can resolve a presigned download URL for non-published Nano."""
         nano = Nano(
             id=uuid.uuid4(),
             creator_id=verified_user_id,
@@ -1068,6 +1082,15 @@ class TestNanoDetailViewRoutes:
             "moderator@example.com",
             role="moderator",
         )
+
+        storage_adapter = Mock()
+        storage_adapter.get_file_url.return_value = (
+            "https://minio.local/moderator-download.zip?signature=test"
+        )
+        monkeypatch.setattr(
+            "app.modules.nanos.service.get_storage_adapter", lambda: storage_adapter
+        )
+
         response = await async_client.get(
             f"/api/v1/nanos/{nano.id}/download-info",
             headers={"Authorization": f"Bearer {moderator_token}"},
@@ -1076,8 +1099,49 @@ class TestNanoDetailViewRoutes:
         assert response.status_code == 200
         payload = response.json()
         assert payload["data"]["can_download"] is True
-        assert payload["data"]["download_path"] == "nanos/moderator-download.zip"
+        assert (
+            payload["data"]["download_url"]
+            == "https://minio.local/moderator-download.zip?signature=test"
+        )
         assert payload["meta"]["visibility"] == "restricted"
+        storage_adapter.get_file_url.assert_called_once_with(
+            object_key="nanos/moderator-download.zip"
+        )
+
+    @pytest.mark.asyncio
+    async def test_download_info_returns_503_when_storage_unavailable(
+        self, async_client, db_session, verified_user_id, access_token, monkeypatch
+    ):
+        """Download info endpoint returns 503 when presigned URL generation fails."""
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=verified_user_id,
+            title="Published Download Failure Nano",
+            duration_minutes=25,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+            file_storage_path="nanos/published-download-failure.zip",
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        storage_adapter = Mock()
+        storage_adapter.get_file_url.side_effect = StorageError("presign failed")
+        monkeypatch.setattr(
+            "app.modules.nanos.service.get_storage_adapter", lambda: storage_adapter
+        )
+
+        response = await async_client.get(
+            f"/api/v1/nanos/{nano.id}/download-info",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        assert response.status_code == 503
+        assert response.json()["detail"] == "Download URL is temporarily unavailable"
 
     @pytest.mark.asyncio
     async def test_download_redirect_requires_authentication(
@@ -1127,7 +1191,9 @@ class TestNanoDetailViewRoutes:
 
         storage_adapter = Mock()
         storage_adapter.get_file_url.return_value = "https://minio.local/signed-download-url"
-        monkeypatch.setattr("app.modules.nanos.router.get_storage_adapter", lambda: storage_adapter)
+        monkeypatch.setattr(
+            "app.modules.nanos.service.get_storage_adapter", lambda: storage_adapter
+        )
 
         response = await async_client.get(
             f"/api/v1/nanos/{nano.id}/download",
@@ -1164,7 +1230,9 @@ class TestNanoDetailViewRoutes:
 
         storage_adapter = Mock()
         storage_adapter.get_file_url.side_effect = StorageError("presign failed")
-        monkeypatch.setattr("app.modules.nanos.router.get_storage_adapter", lambda: storage_adapter)
+        monkeypatch.setattr(
+            "app.modules.nanos.service.get_storage_adapter", lambda: storage_adapter
+        )
 
         response = await async_client.get(
             f"/api/v1/nanos/{nano.id}/download",

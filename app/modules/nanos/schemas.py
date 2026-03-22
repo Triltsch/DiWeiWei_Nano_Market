@@ -267,7 +267,7 @@ class NanoDownloadInfoData(BaseModel):
 
     nano_id: UUID = Field(..., description="Unique identifier for the Nano")
     can_download: bool = Field(description="Whether the current caller is allowed to download")
-    download_path: str = Field(description="Resolved internal download path")
+    download_url: str = Field(description="Presigned download URL for the Nano file")
 
 
 class NanoDownloadInfoResponse(BaseModel):

@@ -675,13 +675,12 @@ export function NanoDetailsPage(): JSX.Element {
     try {
       const downloadInfo = await getNanoDownloadInfo(nanoId);
 
-      if (!downloadInfo.canDownload || downloadInfo.downloadPath.length === 0) {
+      if (!downloadInfo.canDownload || downloadInfo.downloadUrl.length === 0) {
         setDownloadError(t("nano_details_download_error"));
         return;
       }
 
-      const downloadUrl = `/api/v1/nanos/${encodeURIComponent(nanoId)}/download`;
-      window.location.assign(downloadUrl);
+      window.location.assign(downloadInfo.downloadUrl);
     } catch {
       setDownloadError(t("nano_details_download_error"));
     } finally {

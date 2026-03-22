@@ -44,7 +44,7 @@ describe("getNanoDetail", () => {
             format: "video",
             status: "published",
             version: "1.0.0",
-            categories: [{ category_id: "cat-1", category_name: "Frontend" }],
+            categories: [{ id: "cat-1", name: "Frontend", rank: 0 }],
             license: "CC-BY",
             thumbnail_url: "https://example.com/thumb.png",
             uploaded_at: "2026-03-20T10:00:00Z",
@@ -117,7 +117,7 @@ describe("getNanoDownloadInfo", () => {
         data: {
           nano_id: "nano-1",
           can_download: true,
-          download_path: "nanos/nano-1/content.mp4",
+          download_url: "https://storage.example.com/nanos/nano-1/content.mp4?signature=test",
         },
         meta: {
           visibility: "public",
@@ -133,7 +133,7 @@ describe("getNanoDownloadInfo", () => {
     expect(result).toEqual({
       nanoId: "nano-1",
       canDownload: true,
-      downloadPath: "nanos/nano-1/content.mp4",
+      downloadUrl: "https://storage.example.com/nanos/nano-1/content.mp4?signature=test",
     });
   });
 });
