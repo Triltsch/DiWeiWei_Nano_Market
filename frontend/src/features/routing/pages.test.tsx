@@ -131,6 +131,11 @@ describe("HomePage", () => {
     expect(logoutButton).toBeTruthy();
   });
 
+  /**
+   * Ensures that authenticated users with the consumer role only see consumer
+   * navigation (e.g. Profil) and that creator, moderator, and admin-specific
+   * navigation links are not visible.
+   */
   it("hides creator and moderator/admin links for authenticated consumer role", () => {
     renderHomeWithAuth({
       isLoading: false,
@@ -147,6 +152,11 @@ describe("HomePage", () => {
     expect(screen.getByRole("link", { name: "Profil" })).toBeTruthy();
   });
 
+  /**
+   * Ensures that authenticated moderator users see dashboard, upload, and
+   * moderation queue navigation links, but do not see the admin navigation
+   * entry.
+   */
   it("shows moderation link for moderator role and hides admin link", () => {
     renderHomeWithAuth({
       isLoading: false,

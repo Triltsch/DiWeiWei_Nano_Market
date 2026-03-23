@@ -160,3 +160,5 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Navigation strikt rollenbasiert rendern (Creator-, Moderation-, Admin-Links nur für berechtigte Rollen), um UI/API-Drift zu vermeiden.
 - Für geschützte UI-Operations 401/403 im Frontend explizit und lokalisiert behandeln: 401 = erneute Anmeldung nötig, 403 = keine Berechtigung.
 - Für Development/Testing: Rolle-Wechsel ist aktuell nicht in der UI exponiert; für schnelle Tests direkt in PostgreSQL mutieren oder zukünftige Admin-API hinzufügen. JWT wird bei nächstem Login/Refresh mit neuer Rolle neu generiert.
+- PR-Review-Fixes zeitnah in Shared-Utilities überführen (z. B. axios-basierte RBAC-Error-Auflösung), statt gleiche Fehler-Mapping-Logik in mehreren Feature-Komponenten zu duplizieren.
+- Testdateien mit dokumentiertem Stil (JSDoc pro Testfall) konsequent fortführen; fehlende Test-Doku wird im Review regelmäßig als Wartbarkeitsmangel gefunden.

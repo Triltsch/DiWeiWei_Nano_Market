@@ -39,10 +39,10 @@ export function AppRouter(): JSX.Element {
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
-      <Route path="/forbidden" element={<ForbiddenPage />} />
 
       <Route element={<ProtectedRouteLayout />}>
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/forbidden" element={<ForbiddenPage />} />
       </Route>
 
       <Route

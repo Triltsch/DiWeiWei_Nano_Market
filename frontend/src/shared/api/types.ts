@@ -28,8 +28,9 @@ export type AuthRole = "consumer" | "creator" | "moderator" | "admin";
 /**
  * Serialized representation of the authenticated user stored in localStorage.
  *
- * The exact shape is intentionally broad here because this module only
- * persists and retrieves the value without inspecting its properties.
+ * This interface defines the expected structure of the stored user object.
+ * Additional optional fields may be added over time, but existing fields
+ * (`email`, `role`, `username`, `id`) are part of the public contract.
  */
 export interface AuthUser {
   email: string;

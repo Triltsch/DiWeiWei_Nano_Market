@@ -103,7 +103,7 @@ React Router v6 routes are wired in `src/app/router.tsx` with implemented auth f
 
 Unknown routes are handled via wildcard fallback (`*`).
 
-`ProtectedRouteLayout` redirects unauthenticated users to `/login?redirect=<target>` and authenticated users with missing role to `/forbidden`.
+`ProtectedRouteLayout` redirects unauthenticated users to `/login?redirect=<target>` and authenticated users lacking a required role (insufficient permissions) to `/forbidden`.
 
 ## HTTP Client & Queries
 

@@ -10,8 +10,12 @@ interface ProtectedRouteLayoutProps {
 /**
  * Protected Route Layout
  *
- * Blocks unauthenticated access and redirects to login while preserving
- * intended destination in the redirect query parameter.
+ * Guards routes by enforcing authentication and optional role-based authorization.
+ *
+ * - If the user is not authenticated, redirects to the login page while preserving
+ *   the intended destination in the `redirect` query parameter.
+ * - If `requiredRoles` is provided and the authenticated user's role is not included,
+ *   redirects to the `/forbidden` page.
  */
 export function ProtectedRouteLayout({ requiredRoles }: ProtectedRouteLayoutProps): JSX.Element {
   const location = useLocation();

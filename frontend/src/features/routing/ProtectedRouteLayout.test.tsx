@@ -66,7 +66,11 @@ describe("ProtectedRouteLayout", () => {
     expect(screen.getByText("Login page")).toBeTruthy();
   });
 
-  it("redirects authenticated user to forbidden when role is missing", () => {
+  /**
+   * Verifies that an authenticated user is redirected to forbidden when their
+   * role is insufficient for a role-protected route.
+   */
+  it("redirects authenticated user to forbidden when role is not permitted", () => {
     renderWithAuth(
       {
         isLoading: false,
@@ -81,6 +85,11 @@ describe("ProtectedRouteLayout", () => {
     expect(screen.getByText("Forbidden page")).toBeTruthy();
   });
 
+  /**
+   * Verifies that an authenticated user with the required role can access a role-protected route.
+   * When isAuthenticated=true and the user's role satisfies requiredRoles (admin in this case),
+   * the protected admin route should render its content instead of redirecting to forbidden.
+   */
   it("allows authenticated user when role requirement is met", () => {
     renderWithAuth(
       {
