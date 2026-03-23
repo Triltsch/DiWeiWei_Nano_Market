@@ -162,3 +162,8 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Für Development/Testing: Rolle-Wechsel ist aktuell nicht in der UI exponiert; für schnelle Tests direkt in PostgreSQL mutieren oder zukünftige Admin-API hinzufügen. JWT wird bei nächstem Login/Refresh mit neuer Rolle neu generiert.
 - PR-Review-Fixes zeitnah in Shared-Utilities überführen (z. B. axios-basierte RBAC-Error-Auflösung), statt gleiche Fehler-Mapping-Logik in mehreren Feature-Komponenten zu duplizieren.
 - Testdateien mit dokumentiertem Stil (JSDoc pro Testfall) konsequent fortführen; fehlende Test-Doku wird im Review regelmäßig als Wartbarkeitsmangel gefunden.
+
+## Ergänzung Issue #74 (Sprint 5 QA/Operations Gate)
+
+- QA-Gates für integrierte Stories nicht nur dokumentarisch schließen: immer reale Environment-Validierung (`docker compose pull`, Healthchecks, Monitoring-Endpunkte) mit DoD-/Fehlerpfad-Evidenz in einer versionierten Gate-Doku zusammenführen.
+- Für gezielte Frontend-Testläufe mit Vitest in diesem Repo `npx vitest run <datei>` bevorzugen; `npm test -- --run ...` kann wegen Script-Argument-Forwarding trotzdem im Watch-/Dev-Modus landen und liefert dann kein CI-stabiles Ende.
