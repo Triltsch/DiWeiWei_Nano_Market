@@ -32,6 +32,14 @@ interface WithdrawConfirmState {
   withdrawing: boolean;
 }
 
+function extractHttpStatus(error: unknown): number | null {
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return null;
+  }
+  const response = (error as { response?: { status?: unknown } }).response;
+  return typeof response?.status === "number" ? response.status : null;
+}
+
 /**
  * Creator Dashboard Page
  *
@@ -66,6 +74,17 @@ export function CreatorDashboardPage(): JSX.Element {
   const currentPage = parseInt(searchParams.get("page") ?? "1", 10);
   const statusFilter = searchParams.get("status") ?? undefined;
 
+  const resolveErrorMessage = (error: unknown): string => {
+    const status = extractHttpStatus(error);
+    if (status === 401) {
+      return t("auth_error_unauthorized");
+    }
+    if (status === 403) {
+      return t("auth_error_forbidden");
+    }
+    return error instanceof Error ? error.message : t("error_unknown");
+  };
+
   // Fetch creator's nanos
   useEffect(() => {
     const fetchNanos = async (): Promise<void> => {
@@ -78,7 +97,7 @@ export function CreatorDashboardPage(): JSX.Element {
         });
         setState({ data: response, loading: false, error: null });
       } catch (err) {
-        const message = err instanceof Error ? err.message : t("error_unknown");
+        const message = resolveErrorMessage(err);
         setState((prev) => ({ ...prev, loading: false, error: message }));
       }
     };
@@ -110,7 +129,7 @@ export function CreatorDashboardPage(): JSX.Element {
       });
       setState({ data: response, loading: false, error: null });
     } catch (err) {
-      const message = err instanceof Error ? err.message : t("error_unknown");
+      const message = resolveErrorMessage(err);
       setSubmitConfirm({ nanoId: null, submitting: false });
       setState((prev) => ({ ...prev, error: message }));
     }
@@ -136,7 +155,7 @@ export function CreatorDashboardPage(): JSX.Element {
       });
       setState({ data: response, loading: false, error: null });
     } catch (err) {
-      const message = err instanceof Error ? err.message : t("error_unknown");
+      const message = resolveErrorMessage(err);
       setWithdrawConfirm({ nanoId: null, withdrawing: false });
       setState((prev) => ({ ...prev, error: message }));
     }
@@ -158,7 +177,7 @@ export function CreatorDashboardPage(): JSX.Element {
       });
       setState({ data: response, loading: false, error: null });
     } catch (err) {
-      const message = err instanceof Error ? err.message : t("error_unknown");
+      const message = resolveErrorMessage(err);
       setDeleteConfirm({ nanoId: null, deleting: false });
       setState((prev) => ({ ...prev, error: message }));
     }

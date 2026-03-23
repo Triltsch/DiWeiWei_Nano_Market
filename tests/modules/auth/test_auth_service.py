@@ -5,6 +5,7 @@ from uuid import UUID
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models import UserRole
 from app.modules.auth.password import verify_password
 from app.modules.auth.service import (
     AccountLockedError,
@@ -33,6 +34,7 @@ async def test_register_user_success(db_session: AsyncSession, test_user_data: d
     assert user.username == test_user_data["username"]
     assert user.first_name == test_user_data["first_name"]
     assert not user.email_verified
+    assert user.role == UserRole.CREATOR
     assert user.id is not None
     assert isinstance(user.id, UUID)
 

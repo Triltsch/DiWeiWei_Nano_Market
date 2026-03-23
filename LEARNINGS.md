@@ -151,3 +151,12 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 
 - **Default-Rolle bei Neuregistrierung muss `creator` sein, nicht `consumer`.** In einem Nano-Marktplatz, wo alle Nutzer Inhalte hochladen und verwalten können sollen, führt `consumer` als Default-Rolle dazu, dass `/api/v1/nanos/my-nanos` (das `creator`-Rolle voraussetzt) mit 403 antwortet – obwohl der Dashboard-Nav-Link für alle eingeloggten User sichtbar ist. Fix: `UserRole.CREATOR` in `app/modules/auth/service.py` als Default setzen und `test_gdpr_compliance.py`-Assertion anpassen.
 - **Nav-Link-Sichtbarkeit und API-Berechtigung müssen konsistent sein.** Wenn ein Feature-Link im Nav global sichtbar ist, muss der zugehörige API-Endpunkt für alle eingeloggten Nutzer erreichbar sein – oder der Nav-Link muss rollenabhängig ausgeblendet werden.
+
+## Ergänzung Issue #79 (Role & Access Model)
+
+- RBAC-Regeln zentral als Dependencies kapseln (z. B. `require_any_role`) und in Routern wiederverwenden; keine ad-hoc Rollen-`if`s pro Endpoint.
+- Frontend-Route-Guards müssen rollenfähig sein (`requiredRoles`), nicht nur auth-fähig; fehlende Berechtigung führt auf eine dedizierte Forbidden-Route statt in unklare Fehlerzustände.
+- Rolle aus JWT-Claim `role` in den Frontend-User-State übernehmen und bei Token-Refresh neu ableiten, damit Rollenänderungen nach Refresh/Re-Login konsistent wirksam werden.
+- Navigation strikt rollenbasiert rendern (Creator-, Moderation-, Admin-Links nur für berechtigte Rollen), um UI/API-Drift zu vermeiden.
+- Für geschützte UI-Operations 401/403 im Frontend explizit und lokalisiert behandeln: 401 = erneute Anmeldung nötig, 403 = keine Berechtigung.
+- Für Development/Testing: Rolle-Wechsel ist aktuell nicht in der UI exponiert; für schnelle Tests direkt in PostgreSQL mutieren oder zukünftige Admin-API hinzufügen. JWT wird bei nächstem Login/Refresh mit neuer Rolle neu generiert.

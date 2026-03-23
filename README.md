@@ -238,6 +238,21 @@ Monitoring-Runbook: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md)
 
 **Vollständige API-Dokumentation**: http://localhost:8000/docs
 
+### Rollen- und Zugriffspolitik (MVP)
+
+- **Rollen**: `creator`, `moderator`, `admin` (zusätzlich `consumer` als niedrigste Legacy-/Read-Rolle)
+- **Default bei Registrierung**: `creator`
+- **Token/User-State Konsistenz**: Rolle wird im JWT-Claim `role` geführt und im Frontend für Navigation + Route-Guards ausgewertet
+
+| Bereich / Aktion | consumer | creator | moderator | admin |
+|---|---:|---:|---:|---:|
+| Dashboard (`/dashboard`, `/creator-dashboard`) | ❌ | ✅ | ✅ | ✅ |
+| Upload / Edit eigener Nanos (`/upload`, `/nanos/:id/edit`) | ❌ | ✅ | ✅ | ✅ |
+| Moderation Queue (`/moderator/queue`) | ❌ | ❌ | ✅ | ✅ |
+| Admin Panel (`/admin`) | ❌ | ❌ | ❌ | ✅ |
+| Download nicht veröffentlichter Nanos | ❌ | ✅ (eigene) | ✅ | ✅ |
+| Öffentliche Suche/Published Nanos | ✅ | ✅ | ✅ | ✅ |
+
 ### Authentifizierung
 - `POST /api/v1/auth/register` - User Registration
 - `POST /api/v1/auth/login` - Login (JWT Access + Refresh Token)
@@ -263,8 +278,11 @@ Monitoring-Runbook: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md)
 - `PATCH /api/v1/nanos/{nano_id}/status` - Nano-Status gemäß State Machine ändern
 
 ### Creator Dashboard (Story 8.6)
-- `GET /api/v1/nanos/my-nanos` - Liste eigener Nanos mit Pagination und Status-Filter (authentifiziert, nur Creator)
+- `GET /api/v1/nanos/my-nanos` - Liste eigener Nanos mit Pagination und Status-Filter (authentifiziert, `creator`/`moderator`/`admin`)
 - `DELETE /api/v1/nanos/{nano_id}` - Eigene Nano löschen/archivieren (authentifiziert, nur Creator, nur Draft/Archived)
+
+### Moderation
+- `GET /api/v1/nanos/pending-moderation` - Moderations-Queue (authentifiziert, `moderator`/`admin`)
 
 ## 🛠️ Technologie-Stack
 

@@ -13,10 +13,53 @@ import {
   getRefreshToken,
   getStoredUser,
   setAuthSession,
-  updateAuthTokens,
 } from "../../shared/api/authSession";
+import type { AuthRole } from "../../shared/api/types";
 import { loginUser, logoutUser, refreshToken } from "./api";
 import type { AuthUser } from "./types";
+
+const DEFAULT_AUTH_ROLE: AuthRole = "consumer";
+
+const VALID_AUTH_ROLES: readonly AuthRole[] = ["consumer", "creator", "moderator", "admin"];
+
+function parseAccessTokenClaims(token: string): { email?: string; role?: AuthRole } {
+  try {
+    const tokenParts = token.split(".");
+    if (tokenParts.length < 2) {
+      return {};
+    }
+
+    const payloadPart = tokenParts[1];
+    const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    const paddedBase64 = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const decodedPayload = atob(paddedBase64);
+    const parsedPayload = JSON.parse(decodedPayload) as {
+      email?: unknown;
+      role?: unknown;
+    };
+
+    const email = typeof parsedPayload.email === "string" ? parsedPayload.email : undefined;
+    const role =
+      typeof parsedPayload.role === "string" &&
+      VALID_AUTH_ROLES.includes(parsedPayload.role as AuthRole)
+        ? (parsedPayload.role as AuthRole)
+        : undefined;
+
+    return { email, role };
+  } catch {
+    return {};
+  }
+}
+
+function buildAuthUserFromTokens(tokens: { accessToken: string }, fallback?: AuthUser | null): AuthUser {
+  const claims = parseAccessTokenClaims(tokens.accessToken);
+  return {
+    email: claims.email ?? fallback?.email ?? "",
+    role: claims.role ?? fallback?.role ?? DEFAULT_AUTH_ROLE,
+    username: fallback?.username,
+    id: fallback?.id,
+  };
+}
 
 export interface AuthContextValue {
   isLoading: boolean;
@@ -56,12 +99,10 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 
     try {
       const refreshedTokens = await refreshToken(currentRefreshToken);
+      const refreshedUser = buildAuthUserFromTokens(refreshedTokens, storedUser);
 
-      if (storedUser) {
-        setAuthSession(refreshedTokens, storedUser);
-      } else {
-        updateAuthTokens(refreshedTokens);
-      }
+      setAuthSession(refreshedTokens, refreshedUser);
+      setUser(refreshedUser);
 
       setIsAuthenticated(true);
     } catch {
@@ -88,7 +129,10 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 
   const login = useCallback(async (email: string, password: string) => {
     const tokens = await loginUser({ email, password });
-    const authUser: AuthUser = { email };
+    const authUser = buildAuthUserFromTokens(tokens, {
+      email,
+      role: DEFAULT_AUTH_ROLE,
+    });
     setAuthSession(tokens, authUser);
     setUser(authUser);
     setIsAuthenticated(true);

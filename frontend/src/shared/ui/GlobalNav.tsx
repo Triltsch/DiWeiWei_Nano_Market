@@ -48,6 +48,11 @@ export function GlobalNav(): JSX.Element {
         ? user.email
         : t("nav_fallback_account");
 
+  const currentRole = user?.role ?? "consumer";
+  const canAccessCreatorArea = ["creator", "moderator", "admin"].includes(currentRole);
+  const canAccessModeratorQueue = ["moderator", "admin"].includes(currentRole);
+  const canAccessAdmin = currentRole === "admin";
+
   const navLinkClass = (path: string): string => {
     const base = "px-3 py-2 rounded-md text-sm font-medium transition-colors";
     const active = isActive(path)
@@ -89,13 +94,42 @@ export function GlobalNav(): JSX.Element {
             </Link>
             {isAuthenticated && (
               <>
-                <Link
-                  to="/dashboard"
-                  className={navLinkClass("/dashboard")}
-                  aria-current={isActive("/dashboard") ? "page" : undefined}
-                >
-                  {t("nav_dashboard")}
-                </Link>
+                {canAccessCreatorArea && (
+                  <>
+                    <Link
+                      to="/dashboard"
+                      className={navLinkClass("/dashboard")}
+                      aria-current={isActive("/dashboard") ? "page" : undefined}
+                    >
+                      {t("nav_dashboard")}
+                    </Link>
+                    <Link
+                      to="/upload"
+                      className={navLinkClass("/upload")}
+                      aria-current={isActive("/upload") ? "page" : undefined}
+                    >
+                      {t("nav_upload")}
+                    </Link>
+                  </>
+                )}
+                {canAccessModeratorQueue && (
+                  <Link
+                    to="/moderator/queue"
+                    className={navLinkClass("/moderator/queue")}
+                    aria-current={isActive("/moderator/queue") ? "page" : undefined}
+                  >
+                    {t("nav_moderator_queue")}
+                  </Link>
+                )}
+                {canAccessAdmin && (
+                  <Link
+                    to="/admin"
+                    className={navLinkClass("/admin")}
+                    aria-current={isActive("/admin") ? "page" : undefined}
+                  >
+                    {t("nav_admin")}
+                  </Link>
+                )}
                 <Link
                   to="/profile"
                   className={navLinkClass("/profile")}
@@ -204,14 +238,46 @@ export function GlobalNav(): JSX.Element {
             </Link>
             {isAuthenticated && (
               <>
-                <Link
-                  to="/dashboard"
-                  className={navLinkClass("/dashboard")}
-                  onClick={() => setMobileMenuOpen(false)}
-                  aria-current={isActive("/dashboard") ? "page" : undefined}
-                >
-                  {t("nav_dashboard")}
-                </Link>
+                {canAccessCreatorArea && (
+                  <>
+                    <Link
+                      to="/dashboard"
+                      className={navLinkClass("/dashboard")}
+                      onClick={() => setMobileMenuOpen(false)}
+                      aria-current={isActive("/dashboard") ? "page" : undefined}
+                    >
+                      {t("nav_dashboard")}
+                    </Link>
+                    <Link
+                      to="/upload"
+                      className={navLinkClass("/upload")}
+                      onClick={() => setMobileMenuOpen(false)}
+                      aria-current={isActive("/upload") ? "page" : undefined}
+                    >
+                      {t("nav_upload")}
+                    </Link>
+                  </>
+                )}
+                {canAccessModeratorQueue && (
+                  <Link
+                    to="/moderator/queue"
+                    className={navLinkClass("/moderator/queue")}
+                    onClick={() => setMobileMenuOpen(false)}
+                    aria-current={isActive("/moderator/queue") ? "page" : undefined}
+                  >
+                    {t("nav_moderator_queue")}
+                  </Link>
+                )}
+                {canAccessAdmin && (
+                  <Link
+                    to="/admin"
+                    className={navLinkClass("/admin")}
+                    onClick={() => setMobileMenuOpen(false)}
+                    aria-current={isActive("/admin") ? "page" : undefined}
+                  >
+                    {t("nav_admin")}
+                  </Link>
+                )}
                 <Link
                   to="/profile"
                   className={navLinkClass("/profile")}

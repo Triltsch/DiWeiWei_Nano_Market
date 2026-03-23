@@ -95,11 +95,15 @@ React Router v6 routes are wired in `src/app/router.tsx` with implemented auth f
 - `/register` registration form (React Hook Form + client validation)
 - `/login` login form with remember-email support
 - `/verify-email` verification pending + token auto-verification flow
-- `/dashboard`, `/upload`, `/profile`, `/admin` protected via `ProtectedRouteLayout`
+- `/profile` protected for authenticated users
+- `/dashboard`, `/creator-dashboard`, `/upload`, `/nanos/:id/edit` protected for roles `creator|moderator|admin`
+- `/moderator/queue` protected for roles `moderator|admin`
+- `/admin` protected for role `admin`
+- `/forbidden` role-guard fallback page for authenticated but unauthorized users
 
 Unknown routes are handled via wildcard fallback (`*`).
 
-`ProtectedRouteLayout` redirects unauthenticated users to `/login?redirect=<target>`.
+`ProtectedRouteLayout` redirects unauthenticated users to `/login?redirect=<target>` and authenticated users with missing role to `/forbidden`.
 
 ## HTTP Client & Queries
 

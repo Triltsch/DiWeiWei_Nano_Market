@@ -22,6 +22,14 @@ interface QueuePageState {
   page: number;
 }
 
+function extractHttpStatus(error: unknown): number | null {
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return null;
+  }
+  const response = (error as { response?: { status?: unknown } }).response;
+  return typeof response?.status === "number" ? response.status : null;
+}
+
 /**
  * Moderation Queue Page
  *
@@ -31,6 +39,17 @@ interface QueuePageState {
  */
 export function ModeratorQueuePage(): JSX.Element {
   const { t } = useTranslation();
+
+  const resolveErrorMessage = (error: unknown): string => {
+    const status = extractHttpStatus(error);
+    if (status === 401) {
+      return t("auth_error_unauthorized");
+    }
+    if (status === 403) {
+      return t("auth_error_forbidden");
+    }
+    return error instanceof Error ? error.message : t("error_unknown");
+  };
 
   const [queueState, setQueueState] = useState<QueuePageState>({
     data: null,
@@ -52,7 +71,7 @@ export function ModeratorQueuePage(): JSX.Element {
       const response = await getModerationQueue({ page, limit: 20 });
       setQueueState({ data: response, loading: false, error: null, page });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = resolveErrorMessage(err);
       setQueueState((prev) => ({ ...prev, loading: false, error: message }));
     }
   };
@@ -76,7 +95,7 @@ export function ModeratorQueuePage(): JSX.Element {
       await approveNano(nanoId);
       await fetchQueue(queueState.page);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = resolveErrorMessage(err);
       setActionError(`${t("moderator_approve_error")}: ${message}`);
     } finally {
       setRowAction((prev) => ({ ...prev, [nanoId]: null }));
@@ -94,7 +113,7 @@ export function ModeratorQueuePage(): JSX.Element {
       await rejectNano(nanoId);
       await fetchQueue(queueState.page);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = resolveErrorMessage(err);
       setActionError(`${t("moderator_reject_error")}: ${message}`);
     } finally {
       setRowAction((prev) => ({ ...prev, [nanoId]: null }));

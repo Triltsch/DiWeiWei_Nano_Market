@@ -19,8 +19,12 @@ function renderWithAuth(value: AuthContextValue, initialPath = "/dashboard"): vo
       <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
           <Route path="/login" element={<div>Login page</div>} />
+          <Route path="/forbidden" element={<div>Forbidden page</div>} />
           <Route element={<ProtectedRouteLayout />}>
             <Route path="/dashboard" element={<div>Dashboard page</div>} />
+          </Route>
+          <Route element={<ProtectedRouteLayout requiredRoles={["admin"]} />}>
+            <Route path="/admin" element={<div>Admin page</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -60,5 +64,35 @@ describe("ProtectedRouteLayout", () => {
     });
 
     expect(screen.getByText("Login page")).toBeTruthy();
+  });
+
+  it("redirects authenticated user to forbidden when role is missing", () => {
+    renderWithAuth(
+      {
+        isLoading: false,
+        isAuthenticated: true,
+        user: { email: "creator@example.com", role: "creator" },
+        login: async () => Promise.resolve(),
+        logout: async () => Promise.resolve(),
+      },
+      "/admin"
+    );
+
+    expect(screen.getByText("Forbidden page")).toBeTruthy();
+  });
+
+  it("allows authenticated user when role requirement is met", () => {
+    renderWithAuth(
+      {
+        isLoading: false,
+        isAuthenticated: true,
+        user: { email: "admin@example.com", role: "admin" },
+        login: async () => Promise.resolve(),
+        logout: async () => Promise.resolve(),
+      },
+      "/admin"
+    );
+
+    expect(screen.getByText("Admin page")).toBeTruthy();
   });
 });

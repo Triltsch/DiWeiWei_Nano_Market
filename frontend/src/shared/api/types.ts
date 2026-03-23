@@ -23,10 +23,17 @@ export type AuthTokens = {
   expiresIn: number;
 };
 
+export type AuthRole = "consumer" | "creator" | "moderator" | "admin";
+
 /**
  * Serialized representation of the authenticated user stored in localStorage.
  *
  * The exact shape is intentionally broad here because this module only
  * persists and retrieves the value without inspecting its properties.
  */
-export type AuthUser = Record<string, unknown>;
+export interface AuthUser {
+  email: string;
+  role?: AuthRole;
+  username?: string;
+  id?: string;
+}
