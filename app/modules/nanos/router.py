@@ -14,9 +14,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.modules.auth.middleware import (
+    ROLE_ADMIN,
+    ROLE_CREATOR,
+    ROLE_MODERATOR,
     get_current_user,
     get_current_user_id,
     get_optional_current_user,
+    require_any_role,
 )
 from app.modules.auth.tokens import TokenData
 from app.modules.nanos.schemas import (
@@ -91,15 +95,20 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
     async def get_moderation_queue(
         page: Annotated[int, Query(ge=1, description="Page number")] = 1,
         limit: Annotated[int, Query(ge=1, le=100, description="Results per page")] = 20,
-        current_user: Annotated[TokenData, Depends(get_current_user)] = None,
+        current_user: Annotated[
+            TokenData,
+            Depends(
+                require_any_role(
+                    ROLE_MODERATOR,
+                    ROLE_ADMIN,
+                    detail="Only moderators and admins can access the moderation queue",
+                )
+            ),
+        ] = None,
         db: Annotated[AsyncSession, Depends(get_db)] = None,
     ) -> ModeratorQueueListResponse:
         """Get moderation queue — moderator/admin only."""
-        if current_user.role not in {"moderator", "admin"}:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only moderators and admins can access the moderation queue",
-            )
+        _ = current_user
         return await get_pending_review_nanos(db=db, page=page, limit=limit)
 
     @router.get(
@@ -138,17 +147,20 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
         page: Annotated[int, Query(ge=1, description="Page number")] = 1,
         limit: Annotated[int, Query(ge=1, le=100, description="Results per page")] = 20,
         status: Annotated[str | None, Query(description="Optional status filter")] = None,
-        current_user: Annotated[TokenData, Depends(get_current_user)] = None,
+        current_user: Annotated[
+            TokenData,
+            Depends(
+                require_any_role(
+                    ROLE_CREATOR,
+                    ROLE_MODERATOR,
+                    ROLE_ADMIN,
+                    detail="User must have creator or higher role to access their Nanos",
+                )
+            ),
+        ] = None,
         db: Annotated[AsyncSession, Depends(get_db)] = None,
     ) -> CreatorNanoListResponse:
         """Get creator's Nano list with pagination."""
-        # Enforce role: only creators (and roles with broader permissions) may list
-        # their own Nanos. Consumer-only accounts have no content to manage.
-        if current_user.role not in {"creator", "moderator", "admin"}:
-            raise HTTPException(
-                status_code=403,
-                detail="User must have creator or higher role to access their Nanos",
-            )
         return await get_creator_nanos(
             creator_id=current_user.user_id,
             db=db,

@@ -19,8 +19,12 @@ function renderWithAuth(value: AuthContextValue, initialPath = "/dashboard"): vo
       <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
           <Route path="/login" element={<div>Login page</div>} />
+          <Route path="/forbidden" element={<div>Forbidden page</div>} />
           <Route element={<ProtectedRouteLayout />}>
             <Route path="/dashboard" element={<div>Dashboard page</div>} />
+          </Route>
+          <Route element={<ProtectedRouteLayout requiredRoles={["admin"]} />}>
+            <Route path="/admin" element={<div>Admin page</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -60,5 +64,44 @@ describe("ProtectedRouteLayout", () => {
     });
 
     expect(screen.getByText("Login page")).toBeTruthy();
+  });
+
+  /**
+   * Verifies that an authenticated user is redirected to forbidden when their
+   * role is insufficient for a role-protected route.
+   */
+  it("redirects authenticated user to forbidden when role is not permitted", () => {
+    renderWithAuth(
+      {
+        isLoading: false,
+        isAuthenticated: true,
+        user: { email: "creator@example.com", role: "creator" },
+        login: async () => Promise.resolve(),
+        logout: async () => Promise.resolve(),
+      },
+      "/admin"
+    );
+
+    expect(screen.getByText("Forbidden page")).toBeTruthy();
+  });
+
+  /**
+   * Verifies that an authenticated user with the required role can access a role-protected route.
+   * When isAuthenticated=true and the user's role satisfies requiredRoles (admin in this case),
+   * the protected admin route should render its content instead of redirecting to forbidden.
+   */
+  it("allows authenticated user when role requirement is met", () => {
+    renderWithAuth(
+      {
+        isLoading: false,
+        isAuthenticated: true,
+        user: { email: "admin@example.com", role: "admin" },
+        login: async () => Promise.resolve(),
+        logout: async () => Promise.resolve(),
+      },
+      "/admin"
+    );
+
+    expect(screen.getByText("Admin page")).toBeTruthy();
   });
 });

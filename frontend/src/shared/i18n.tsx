@@ -12,6 +12,8 @@ const de = {
   nav_home_aria: "DiWeiWei Nano Market Home",
   nav_search: "Suche",
   nav_dashboard: "Übersicht",
+  nav_upload: "Hochladen",
+  nav_admin: "Admin",
   nav_profile: "Profil",
   nav_login: "Anmelden",
   nav_register: "Registrieren",
@@ -182,6 +184,11 @@ const de = {
   not_found_description:
     "Die angeforderte Route existiert nicht. Verwenden Sie die Navigation, um zu bekannten Seiten zurückzukehren.",
   not_found_back_home: "Zur Startseite",
+  forbidden_title: "Zugriff verweigert",
+  forbidden_description:
+    "Sie sind angemeldet, haben aber nicht die erforderliche Rolle für diese Seite.",
+  forbidden_back_home: "Zur Startseite",
+  forbidden_go_search: "Zur Suche",
 
   creator_dashboard_title: "Meine Nanos",
   creator_dashboard_subtitle: "Verwalten Sie Ihre Lerninhalte",
@@ -209,6 +216,8 @@ const de = {
   loading: "Wird geladen...",
   error_loading_nanos: "Fehler beim Laden Ihrer Nanos",
   error_unknown: "Unbekannter Fehler",
+  auth_error_unauthorized: "Authentifizierung erforderlich. Bitte erneut anmelden.",
+  auth_error_forbidden: "Sie haben keine Berechtigung für diese Aktion.",
   all: "Alle",
   edit: "Bearbeiten",
   delete: "Löschen",
@@ -322,6 +331,8 @@ const en: Record<TranslationKey, string> = {
   nav_home_aria: "DiWeiWei Nano Market Home",
   nav_search: "Search",
   nav_dashboard: "Dashboard",
+  nav_upload: "Upload",
+  nav_admin: "Admin",
   nav_profile: "Profile",
   nav_login: "Login",
   nav_register: "Register",
@@ -490,6 +501,11 @@ const en: Record<TranslationKey, string> = {
   not_found_description:
     "The requested route does not exist. Use navigation to return to known routes.",
   not_found_back_home: "Back to Home",
+  forbidden_title: "Access Denied",
+  forbidden_description:
+    "You are signed in, but your role does not have permission to access this page.",
+  forbidden_back_home: "Back to Home",
+  forbidden_go_search: "Go to Search",
 
   creator_dashboard_title: "My Nanos",
   creator_dashboard_subtitle: "Manage your learning content",
@@ -517,6 +533,8 @@ const en: Record<TranslationKey, string> = {
   loading: "Loading...",
   error_loading_nanos: "Error loading your Nanos",
   error_unknown: "Unknown error",
+  auth_error_unauthorized: "Authentication required. Please sign in again.",
+  auth_error_forbidden: "You do not have permission for this action.",
   all: "All",
   edit: "Edit",
   delete: "Delete",

@@ -9,6 +9,7 @@ import {
 } from "../../shared/api/moderator";
 import { useTranslation } from "../../shared/i18n";
 import { GlobalNav } from "../../shared/ui/GlobalNav";
+import { resolveRbacErrorMessage } from "./errorMessages";
 
 /** Per-row action loading state to avoid blocking the whole list */
 interface RowActionState {
@@ -52,7 +53,7 @@ export function ModeratorQueuePage(): JSX.Element {
       const response = await getModerationQueue({ page, limit: 20 });
       setQueueState({ data: response, loading: false, error: null, page });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = resolveRbacErrorMessage(err, t);
       setQueueState((prev) => ({ ...prev, loading: false, error: message }));
     }
   };
@@ -76,7 +77,7 @@ export function ModeratorQueuePage(): JSX.Element {
       await approveNano(nanoId);
       await fetchQueue(queueState.page);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = resolveRbacErrorMessage(err, t);
       setActionError(`${t("moderator_approve_error")}: ${message}`);
     } finally {
       setRowAction((prev) => ({ ...prev, [nanoId]: null }));
@@ -94,7 +95,7 @@ export function ModeratorQueuePage(): JSX.Element {
       await rejectNano(nanoId);
       await fetchQueue(queueState.page);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = resolveRbacErrorMessage(err, t);
       setActionError(`${t("moderator_reject_error")}: ${message}`);
     } finally {
       setRowAction((prev) => ({ ...prev, [nanoId]: null }));

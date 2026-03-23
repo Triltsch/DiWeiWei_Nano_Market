@@ -372,7 +372,7 @@ Story 8.6: Creator Dashboard
 - List of creator's own Nanos with status badges
 - Upload wizard (ZIP select → metadata form → submit)
 - Edit/delete draft Nanos
-- Acceptance: Only accessible to users with 'creator' role
+- Acceptance: Accessible to `creator`, `moderator`, `admin` (role-based route guards); `consumer` denied
 
 Story 8.7: User Profile & Account Settings
 - Display username, bio, language preference
@@ -386,6 +386,14 @@ Story 8.8: Admin Panel UI
 - Moderation queue for flagged Nanos
 - Acceptance: Only accessible to 'admin' role (401/403 otherwise)
 ```
+
+### Rollen-Policy (verbindlich, MVP)
+
+- Primäre aktive Rollen: `creator`, `moderator`, `admin`
+- `consumer` bleibt als niedrigste Legacy-/Read-Rolle erhalten, erhält aber keinen Zugriff auf Creator-, Moderation- oder Admin-Bereiche
+- Default-Rolle bei Registrierung: `creator`
+- Frontend-Navigation und Route-Guards müssen dieselbe Rollenmatrix wie Backend-RBAC verwenden
+- 401 = nicht authentifiziert, 403 = authentifiziert aber fehlende Berechtigung
 
 **Effort Estimate:** 16 Personentage (combined)
 

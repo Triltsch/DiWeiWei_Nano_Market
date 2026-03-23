@@ -943,6 +943,28 @@ export function NotFoundPage(): JSX.Element {
   );
 }
 
+export function ForbiddenPage(): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <PageLayout>
+      <section className="card-elevated space-y-4">
+        <div className="space-y-2">
+          <h1 className="text-primary-600">{t("forbidden_title")}</h1>
+          <p className="text-base text-neutral-600">{t("forbidden_description")}</p>
+        </div>
+        <div className="flex gap-3">
+          <Link to="/" className="btn-outline">
+            {t("forbidden_back_home")}
+          </Link>
+          <Link to="/search" className="btn-primary">
+            {t("forbidden_go_search")}
+          </Link>
+        </div>
+      </section>
+    </PageLayout>
+  );
+}
+
 export function CreatorDashboardPage(): JSX.Element {
   return <CreatorDashboardPageComponent />;
 }

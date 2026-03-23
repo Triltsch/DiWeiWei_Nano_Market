@@ -79,7 +79,7 @@ class User(Base):
         SQLEnum(UserStatus), default=UserStatus.ACTIVE, nullable=False, index=True
     )
     role: Mapped[UserRole] = mapped_column(
-        SQLEnum(UserRole), default=UserRole.CONSUMER, nullable=False
+        SQLEnum(UserRole), default=UserRole.CREATOR, nullable=False
     )
 
     # Preferences

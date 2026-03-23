@@ -12,6 +12,11 @@ from app.redis_client import is_token_blacklisted
 
 security = HTTPBearer(auto_error=False)
 
+ROLE_CONSUMER = "consumer"
+ROLE_CREATOR = "creator"
+ROLE_MODERATOR = "moderator"
+ROLE_ADMIN = "admin"
+
 
 async def get_current_user(
     credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(security)],
@@ -127,6 +132,36 @@ def require_role(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"This endpoint requires {required_role} role",
+            )
+        return token_data
+
+    return check_role
+
+
+def require_any_role(
+    *required_roles: str,
+    detail: str | None = None,
+) -> Callable[[Annotated[TokenData, Depends(get_current_user)]], Awaitable[TokenData]]:
+    """
+    Dependency factory to require one of multiple roles.
+
+    Args:
+        required_roles: Allowed roles for the endpoint
+        detail: Optional custom 403 error message
+
+    Returns:
+        Dependency function that checks whether the current role is allowed
+    """
+    allowed_roles = frozenset(required_roles)
+    default_detail = (
+        f"This endpoint requires one of the following roles: {', '.join(required_roles)}"
+    )
+
+    async def check_role(token_data: Annotated[TokenData, Depends(get_current_user)]) -> TokenData:
+        if token_data.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=detail or default_detail,
             )
         return token_data
 

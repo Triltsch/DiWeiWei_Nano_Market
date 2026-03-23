@@ -118,7 +118,7 @@ describe("HomePage", () => {
     renderHomeWithAuth({
       isLoading: false,
       isAuthenticated: true,
-      user: { id: "1", username: "testuser", email: "test@example.com" },
+      user: { id: "1", username: "testuser", email: "test@example.com", role: "creator" },
       login: async () => Promise.resolve(),
       logout: async () => Promise.resolve(),
     });
@@ -129,6 +129,52 @@ describe("HomePage", () => {
     expect(dashboardLink).toBeTruthy();
     expect(profileLink).toBeTruthy();
     expect(logoutButton).toBeTruthy();
+  });
+
+  /**
+   * Ensures that authenticated users with the consumer role only see consumer
+   * navigation (e.g. Profil) and that creator, moderator, and admin-specific
+   * navigation links are not visible.
+   */
+  it("hides creator and moderator/admin links for authenticated consumer role", () => {
+    renderHomeWithAuth({
+      isLoading: false,
+      isAuthenticated: true,
+      user: { id: "2", username: "consumer", email: "consumer@example.com", role: "consumer" },
+      login: async () => Promise.resolve(),
+      logout: async () => Promise.resolve(),
+    });
+
+    expect(screen.queryByRole("link", { name: "Übersicht" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Hochladen" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Moderations-Queue" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Profil" })).toBeTruthy();
+  });
+
+  /**
+   * Ensures that authenticated moderator users see dashboard, upload, and
+   * moderation queue navigation links, but do not see the admin navigation
+   * entry.
+   */
+  it("shows moderation link for moderator role and hides admin link", () => {
+    renderHomeWithAuth({
+      isLoading: false,
+      isAuthenticated: true,
+      user: {
+        id: "3",
+        username: "moderator",
+        email: "moderator@example.com",
+        role: "moderator",
+      },
+      login: async () => Promise.resolve(),
+      logout: async () => Promise.resolve(),
+    });
+
+    expect(screen.getByRole("link", { name: "Übersicht" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Hochladen" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Moderations-Queue" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
   });
 
   /**
@@ -879,8 +925,6 @@ describe("NanoDetailsPage", () => {
                 email: "user@example.com",
                 username: "user",
                 role: "creator",
-                emailVerified: true,
-                preferredLanguage: "de",
               },
             }}
           >

@@ -4,6 +4,7 @@ import {
   AdminPage,
   CreatorDashboardPage,
   EditNanoPage,
+  ForbiddenPage,
   HomePage,
   LoginPage,
   NanoDetailsPage,
@@ -40,13 +41,25 @@ export function AppRouter(): JSX.Element {
       <Route path="/privacy" element={<PrivacyPage />} />
 
       <Route element={<ProtectedRouteLayout />}>
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/forbidden" element={<ForbiddenPage />} />
+      </Route>
+
+      <Route
+        element={<ProtectedRouteLayout requiredRoles={["creator", "moderator", "admin"]} />}
+      >
         <Route path="/creator-dashboard" element={<CreatorDashboardPage />} />
         <Route path="/dashboard" element={<CreatorDashboardPage />} />
         <Route path="/nanos/:id/edit" element={<EditNanoPage />} />
         <Route path="/upload" element={<UploadPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/admin" element={<AdminPage />} />
+      </Route>
+
+      <Route element={<ProtectedRouteLayout requiredRoles={["moderator", "admin"]} />}>
         <Route path="/moderator/queue" element={<ModeratorQueuePage />} />
+      </Route>
+
+      <Route element={<ProtectedRouteLayout requiredRoles={["admin"]} />}>
+        <Route path="/admin" element={<AdminPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

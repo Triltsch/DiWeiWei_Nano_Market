@@ -10,6 +10,7 @@ import {
 } from "../../shared/api/creator";
 import { useTranslation } from "../../shared/i18n";
 import { GlobalNav } from "../../shared/ui/GlobalNav";
+import { resolveRbacErrorMessage } from "./errorMessages";
 
 interface CreatorDashboardState {
   data: CreatorNanoListResponse | null;
@@ -78,7 +79,7 @@ export function CreatorDashboardPage(): JSX.Element {
         });
         setState({ data: response, loading: false, error: null });
       } catch (err) {
-        const message = err instanceof Error ? err.message : t("error_unknown");
+        const message = resolveRbacErrorMessage(err, t);
         setState((prev) => ({ ...prev, loading: false, error: message }));
       }
     };
@@ -110,7 +111,7 @@ export function CreatorDashboardPage(): JSX.Element {
       });
       setState({ data: response, loading: false, error: null });
     } catch (err) {
-      const message = err instanceof Error ? err.message : t("error_unknown");
+      const message = resolveRbacErrorMessage(err, t);
       setSubmitConfirm({ nanoId: null, submitting: false });
       setState((prev) => ({ ...prev, error: message }));
     }
@@ -136,7 +137,7 @@ export function CreatorDashboardPage(): JSX.Element {
       });
       setState({ data: response, loading: false, error: null });
     } catch (err) {
-      const message = err instanceof Error ? err.message : t("error_unknown");
+      const message = resolveRbacErrorMessage(err, t);
       setWithdrawConfirm({ nanoId: null, withdrawing: false });
       setState((prev) => ({ ...prev, error: message }));
     }
@@ -158,7 +159,7 @@ export function CreatorDashboardPage(): JSX.Element {
       });
       setState({ data: response, loading: false, error: null });
     } catch (err) {
-      const message = err instanceof Error ? err.message : t("error_unknown");
+      const message = resolveRbacErrorMessage(err, t);
       setDeleteConfirm({ nanoId: null, deleting: false });
       setState((prev) => ({ ...prev, error: message }));
     }
