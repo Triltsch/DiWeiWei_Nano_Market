@@ -176,3 +176,4 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Denormalisierte Rating-Felder auf dem Hauptmodell (`average_rating`, `rating_count`) nach jeder Mutation zentral im Service neu berechnen statt inkrementell zu patchen; das hält Durchschnitt, Median und Verteilung konsistent.
 - Published-only-Regeln für Feedback-Features in einem gemeinsamen Service-Guard kapseln, damit Create/Update/Read identisches Fehlerverhalten liefern.
 - Aggregations-Tests nicht nur auf Durchschnitt prüfen, sondern auch Median, Verteilung und Cache-Felder am `Nano`-Modell mitasserten; sonst bleiben Inkonsistenzen zwischen API-Response und Persistenz unentdeckt.
+- Bei Aggregationsendpunkten keine vollständigen Datensätze in Python laden, wenn die Berechnung in SQL möglich ist; stattdessen Count/Avg/Verteilung datenbankseitig berechnen und für Median gezielt nur die mittlere(n) Zeile(n) per sortiertem Offset abrufen.

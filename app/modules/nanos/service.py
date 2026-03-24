@@ -374,50 +374,6 @@ def _quantize_rating(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def _build_rating_aggregation(scores: list[int]) -> NanoRatingAggregation:
-    """Build aggregate rating metrics from score values."""
-    if not scores:
-        return NanoRatingAggregation(
-            average_rating=Decimal("0.00"),
-            median_rating=Decimal("0.00"),
-            rating_count=0,
-            distribution=[
-                NanoRatingDistributionItem(score=score, count=0) for score in range(1, 6)
-            ],
-        )
-
-    sorted_scores = sorted(scores)
-    rating_count = len(sorted_scores)
-    score_sum = sum(sorted_scores)
-
-    average_rating = _quantize_rating(Decimal(score_sum) / Decimal(rating_count))
-
-    midpoint = rating_count // 2
-    if rating_count % 2 == 1:
-        median_rating = Decimal(sorted_scores[midpoint])
-    else:
-        median_rating = (
-            Decimal(sorted_scores[midpoint - 1]) + Decimal(sorted_scores[midpoint])
-        ) / Decimal("2")
-    median_rating = _quantize_rating(median_rating)
-
-    distribution_counts = {score: 0 for score in range(1, 6)}
-    for score in sorted_scores:
-        distribution_counts[score] += 1
-
-    distribution = [
-        NanoRatingDistributionItem(score=score, count=distribution_counts[score])
-        for score in range(1, 6)
-    ]
-
-    return NanoRatingAggregation(
-        average_rating=average_rating,
-        median_rating=median_rating,
-        rating_count=rating_count,
-        distribution=distribution,
-    )
-
-
 async def _get_nano_or_404(nano_id: UUID, db: AsyncSession) -> Nano:
     """Load a Nano by ID or raise 404."""
     stmt = select(Nano).where(Nano.id == nano_id)
@@ -445,11 +401,77 @@ def _validate_published_for_rating(nano: Nano) -> None:
 async def _calculate_nano_rating_aggregation(
     nano_id: UUID, db: AsyncSession
 ) -> NanoRatingAggregation:
-    """Calculate average, median, count, and distribution for one Nano."""
-    score_stmt = select(NanoRating.score).where(NanoRating.nano_id == nano_id)
-    score_result = await db.execute(score_stmt)
-    scores = list(score_result.scalars().all())
-    return _build_rating_aggregation(scores=scores)
+    """Calculate average, median, count, and distribution for one Nano via database queries."""
+    aggregate_stmt = select(
+        func.count(NanoRating.id),
+        func.avg(NanoRating.score),
+    ).where(NanoRating.nano_id == nano_id)
+    aggregate_result = await db.execute(aggregate_stmt)
+    rating_count_raw, average_raw = aggregate_result.one()
+
+    rating_count = int(rating_count_raw)
+    if rating_count == 0:
+        return NanoRatingAggregation(
+            average_rating=Decimal("0.00"),
+            median_rating=Decimal("0.00"),
+            rating_count=0,
+            distribution=[
+                NanoRatingDistributionItem(score=score, count=0) for score in range(1, 6)
+            ],
+        )
+
+    average_rating = _quantize_rating(Decimal(str(average_raw)))
+
+    if rating_count % 2 == 1:
+        median_offset = rating_count // 2
+        median_stmt = (
+            select(NanoRating.score)
+            .where(NanoRating.nano_id == nano_id)
+            .order_by(NanoRating.score)
+            .offset(median_offset)
+            .limit(1)
+        )
+        median_result = await db.execute(median_stmt)
+        median_score = median_result.scalar_one()
+        median_rating = _quantize_rating(Decimal(median_score))
+    else:
+        median_offset = (rating_count // 2) - 1
+        median_stmt = (
+            select(NanoRating.score)
+            .where(NanoRating.nano_id == nano_id)
+            .order_by(NanoRating.score)
+            .offset(median_offset)
+            .limit(2)
+        )
+        median_result = await db.execute(median_stmt)
+        median_scores = list(median_result.scalars().all())
+        median_rating = _quantize_rating(
+            (Decimal(median_scores[0]) + Decimal(median_scores[1])) / Decimal("2")
+        )
+
+    distribution_stmt = (
+        select(NanoRating.score, func.count(NanoRating.id))
+        .where(NanoRating.nano_id == nano_id)
+        .group_by(NanoRating.score)
+    )
+    distribution_result = await db.execute(distribution_stmt)
+    distribution_rows = distribution_result.all()
+
+    distribution_counts = {score: 0 for score in range(1, 6)}
+    for score, score_count in distribution_rows:
+        distribution_counts[int(score)] = int(score_count)
+
+    distribution = [
+        NanoRatingDistributionItem(score=score, count=distribution_counts[score])
+        for score in range(1, 6)
+    ]
+
+    return NanoRatingAggregation(
+        average_rating=average_rating,
+        median_rating=median_rating,
+        rating_count=rating_count,
+        distribution=distribution,
+    )
 
 
 async def _sync_nano_rating_cache(nano: Nano, db: AsyncSession) -> NanoRatingAggregation:
