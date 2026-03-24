@@ -1739,6 +1739,42 @@ class TestNanoCommentsRoutes:
         assert second_response.status_code == 409
 
     @pytest.mark.asyncio
+    async def test_create_comment_rejects_post_sanitization_overflow(
+        self, async_client, db_session
+    ):
+        """Content that exceeds max length after HTML escaping is rejected with 422."""
+        creator = await self._create_user(
+            db_session, "comment-creator-overflow@example.com", "comment_creator_overflow"
+        )
+        commenter = await self._create_user(
+            db_session, "comment-user-overflow@example.com", "comment_user_overflow"
+        )
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Sanitization Overflow Nano",
+            duration_minutes=10,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        token, _ = create_access_token(commenter.id, commenter.email, role="creator")
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/comments",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"content": "<" * 1000},
+        )
+
+        assert response.status_code == 422
+        assert "exceeds maximum length" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
     async def test_comments_only_allowed_for_published_nanos(self, async_client, db_session):
         """Listing and creating comments for non-published Nanos returns 400."""
         creator = await self._create_user(

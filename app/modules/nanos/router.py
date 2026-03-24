@@ -425,9 +425,9 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
     )
     async def list_nano_comments_endpoint(
         nano_id: UUID,
+        db: Annotated[AsyncSession, Depends(get_db)],
         page: Annotated[int, Query(ge=1, description="Page number")] = 1,
         limit: Annotated[int, Query(ge=1, le=100, description="Results per page")] = 20,
-        db: Annotated[AsyncSession, Depends(get_db)] = None,
     ) -> NanoCommentListResponse:
         """List comments for a published Nano with deterministic pagination."""
         return await get_nano_comments(nano_id=nano_id, db=db, page=page, limit=limit)

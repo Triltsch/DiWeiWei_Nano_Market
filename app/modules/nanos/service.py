@@ -65,6 +65,8 @@ from app.modules.nanos.schemas import (
 from app.modules.search.service import invalidate_search_cache
 from app.modules.upload.storage import StorageError, get_storage_adapter
 
+MAX_COMMENT_LENGTH = 1000
+
 
 async def get_nano_metadata(
     nano_id: UUID,
@@ -622,6 +624,18 @@ def _sanitize_comment_content(content: str) -> str:
     return escape(normalized, quote=False)
 
 
+def _validate_sanitized_comment_content(content: str) -> None:
+    """Ensure sanitized comment content still fits storage/API limits."""
+    if len(content) > MAX_COMMENT_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Sanitized comment content exceeds maximum length of "
+                f"{MAX_COMMENT_LENGTH} characters"
+            ),
+        )
+
+
 def _can_manage_comment(comment: NanoComment, current_user: TokenData) -> bool:
     """Return whether caller may edit a comment (owner, moderator, or admin)."""
     if comment.user_id == current_user.user_id:
@@ -725,14 +739,26 @@ async def create_nano_comment(
             detail="A comment for this Nano by the current user already exists",
         )
 
+    sanitized_content = _sanitize_comment_content(payload.content)
+    _validate_sanitized_comment_content(sanitized_content)
+
     comment = NanoComment(
         nano_id=nano_id,
         user_id=current_user.user_id,
-        content=_sanitize_comment_content(payload.content),
+        content=sanitized_content,
     )
     db.add(comment)
-    await db.commit()
-    await db.refresh(comment)
+
+    try:
+        await db.flush()
+        await db.commit()
+        await db.refresh(comment)
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A comment for this Nano by the current user already exists",
+        ) from exc
 
     return NanoCommentMutationResponse(comment=await _build_comment_item(comment=comment, db=db))
 
@@ -767,7 +793,10 @@ async def update_nano_comment(
             detail="You are not allowed to edit this comment",
         )
 
-    comment.content = _sanitize_comment_content(payload.content)
+    sanitized_content = _sanitize_comment_content(payload.content)
+    _validate_sanitized_comment_content(sanitized_content)
+
+    comment.content = sanitized_content
     await db.commit()
     await db.refresh(comment)
 
