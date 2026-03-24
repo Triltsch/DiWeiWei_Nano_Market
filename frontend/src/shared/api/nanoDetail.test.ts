@@ -107,6 +107,72 @@ describe("getNanoDetail", () => {
       code: "not-found",
     });
   });
+
+  /**
+   * Verifies unauthorized backend responses are normalized to a typed API error.
+   * Ensures HTTP 401 maps to `NanoDetailApiError` with code `unauthorized`.
+   */
+  it("maps HTTP 401 to typed unauthorized error", async () => {
+    vi.spyOn(httpClient, "get").mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 401,
+        data: {
+          detail: "Authentication required",
+        },
+      },
+    });
+
+    await expect(getNanoDetail("nano-protected")).rejects.toMatchObject<NanoDetailApiError>({
+      name: "NanoDetailApiError",
+      code: "unauthorized",
+      message: "Authentication required",
+    });
+  });
+
+  /**
+   * Verifies forbidden backend responses are normalized to a typed API error.
+   * Ensures HTTP 403 maps to `NanoDetailApiError` with code `forbidden`.
+   */
+  it("maps HTTP 403 to typed forbidden error", async () => {
+    vi.spyOn(httpClient, "get").mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 403,
+        data: {
+          detail: "Access denied",
+        },
+      },
+    });
+
+    await expect(getNanoDetail("nano-private")).rejects.toMatchObject<NanoDetailApiError>({
+      name: "NanoDetailApiError",
+      code: "forbidden",
+      message: "Access denied",
+    });
+  });
+
+  /**
+   * Verifies server error responses are normalized to a typed request failure.
+   * Ensures HTTP 500 maps to `NanoDetailApiError` with code `request-failed`.
+   */
+  it("maps HTTP 500 to typed request-failed error", async () => {
+    vi.spyOn(httpClient, "get").mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 500,
+        data: {
+          detail: "Internal server error",
+        },
+      },
+    });
+
+    await expect(getNanoDetail("nano-1")).rejects.toMatchObject<NanoDetailApiError>({
+      name: "NanoDetailApiError",
+      code: "request-failed",
+      message: "Internal server error",
+    });
+  });
 });
 
 describe("getNanoDownloadInfo", () => {
@@ -134,6 +200,72 @@ describe("getNanoDownloadInfo", () => {
       nanoId: "nano-1",
       canDownload: true,
       downloadUrl: "https://storage.example.com/nanos/nano-1/content.mp4?signature=test",
+    });
+  });
+
+  /**
+   * Verifies unauthorized download-info responses map to a typed API error.
+   * Ensures HTTP 401 maps to `NanoDetailApiError` with code `unauthorized`.
+   */
+  it("maps HTTP 401 to typed unauthorized error", async () => {
+    vi.spyOn(httpClient, "get").mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 401,
+        data: {
+          detail: "Token missing",
+        },
+      },
+    });
+
+    await expect(getNanoDownloadInfo("nano-1")).rejects.toMatchObject<NanoDetailApiError>({
+      name: "NanoDetailApiError",
+      code: "unauthorized",
+      message: "Token missing",
+    });
+  });
+
+  /**
+   * Verifies forbidden download-info responses map to a typed API error.
+   * Ensures HTTP 403 maps to `NanoDetailApiError` with code `forbidden`.
+   */
+  it("maps HTTP 403 to typed forbidden error", async () => {
+    vi.spyOn(httpClient, "get").mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 403,
+        data: {
+          detail: "Not allowed",
+        },
+      },
+    });
+
+    await expect(getNanoDownloadInfo("nano-1")).rejects.toMatchObject<NanoDetailApiError>({
+      name: "NanoDetailApiError",
+      code: "forbidden",
+      message: "Not allowed",
+    });
+  });
+
+  /**
+   * Verifies temporary backend failures map to a typed request failure error.
+   * Ensures HTTP 503 maps to `NanoDetailApiError` with code `request-failed`.
+   */
+  it("maps HTTP 503 to typed request-failed error", async () => {
+    vi.spyOn(httpClient, "get").mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 503,
+        data: {
+          detail: "Download URL is temporarily unavailable",
+        },
+      },
+    });
+
+    await expect(getNanoDownloadInfo("nano-1")).rejects.toMatchObject<NanoDetailApiError>({
+      name: "NanoDetailApiError",
+      code: "request-failed",
+      message: "Download URL is temporarily unavailable",
     });
   });
 });

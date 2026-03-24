@@ -231,6 +231,7 @@ docker-compose down
 - Meilisearch: http://localhost:7700
 
 Monitoring-Runbook: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md)
+Sprint-5 QA/Operations Gate: [doc/SPRINT5_QA_GATE.md](doc/SPRINT5_QA_GATE.md)
 
 **Umgebungsvariablen**: Siehe `.env.example` für alle Konfigurationsoptionen.
 

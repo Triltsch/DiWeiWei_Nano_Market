@@ -438,7 +438,8 @@ Sprint 5 (Week 5): Monitoring, Nano Detail & Creator Dashboard
 ├─ Story 7.5: Prometheus/Grafana Monitoring
 ├─ Story 2.5: Nano Detail View (Backend)
 ├─ Story 8.5: Nano Detail Page (Frontend)
-└─ Story 8.6: Creator Dashboard (upload, manage Nanos) (Frontend)
+├─ Story 8.6: Creator Dashboard (upload, manage Nanos) (Frontend)
+└─ QA/Operations Gate: Detail + Dashboard + Monitoring Abnahme (Issue #74)
 Goal: Creators can publish Nanos; monitoring live
 
 Sprint 6 (Week 6): Feedback System
