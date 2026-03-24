@@ -108,6 +108,10 @@ describe("getNanoDetail", () => {
     });
   });
 
+  /**
+   * Verifies unauthorized backend responses are normalized to a typed API error.
+   * Ensures HTTP 401 maps to `NanoDetailApiError` with code `unauthorized`.
+   */
   it("maps HTTP 401 to typed unauthorized error", async () => {
     vi.spyOn(httpClient, "get").mockRejectedValue({
       isAxiosError: true,
@@ -126,6 +130,10 @@ describe("getNanoDetail", () => {
     });
   });
 
+  /**
+   * Verifies forbidden backend responses are normalized to a typed API error.
+   * Ensures HTTP 403 maps to `NanoDetailApiError` with code `forbidden`.
+   */
   it("maps HTTP 403 to typed forbidden error", async () => {
     vi.spyOn(httpClient, "get").mockRejectedValue({
       isAxiosError: true,
@@ -144,6 +152,10 @@ describe("getNanoDetail", () => {
     });
   });
 
+  /**
+   * Verifies server error responses are normalized to a typed request failure.
+   * Ensures HTTP 500 maps to `NanoDetailApiError` with code `request-failed`.
+   */
   it("maps HTTP 500 to typed request-failed error", async () => {
     vi.spyOn(httpClient, "get").mockRejectedValue({
       isAxiosError: true,
@@ -191,6 +203,10 @@ describe("getNanoDownloadInfo", () => {
     });
   });
 
+  /**
+   * Verifies unauthorized download-info responses map to a typed API error.
+   * Ensures HTTP 401 maps to `NanoDetailApiError` with code `unauthorized`.
+   */
   it("maps HTTP 401 to typed unauthorized error", async () => {
     vi.spyOn(httpClient, "get").mockRejectedValue({
       isAxiosError: true,
@@ -209,6 +225,10 @@ describe("getNanoDownloadInfo", () => {
     });
   });
 
+  /**
+   * Verifies forbidden download-info responses map to a typed API error.
+   * Ensures HTTP 403 maps to `NanoDetailApiError` with code `forbidden`.
+   */
   it("maps HTTP 403 to typed forbidden error", async () => {
     vi.spyOn(httpClient, "get").mockRejectedValue({
       isAxiosError: true,
@@ -227,6 +247,10 @@ describe("getNanoDownloadInfo", () => {
     });
   });
 
+  /**
+   * Verifies temporary backend failures map to a typed request failure error.
+   * Ensures HTTP 503 maps to `NanoDetailApiError` with code `request-failed`.
+   */
   it("maps HTTP 503 to typed request-failed error", async () => {
     vi.spyOn(httpClient, "get").mockRejectedValue({
       isAxiosError: true,

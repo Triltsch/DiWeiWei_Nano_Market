@@ -87,7 +87,7 @@ Validated and documented by automated tests:
 - [x] Critical scenarios `401/403/404/5xx` tested and documented
 - [x] Sprint-5 DoD checklist completed
 - [x] Open risks/follow-ups for Sprint 6 captured
-- [x] Exactly one `Test: Verified` task exists in `.vscode/tasks.json`
+- [x] Exactly one `Test: Verified` automation task is defined and tracked in version-controlled project tooling
 
 ## Open Risks / Follow-ups (Sprint 6)
 
