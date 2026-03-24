@@ -169,3 +169,11 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Für gezielte Frontend-Testläufe mit Vitest in diesem Repo `npx vitest run <datei>` bevorzugen; `npm test -- --run ...` kann wegen Script-Argument-Forwarding trotzdem im Watch-/Dev-Modus landen und liefert dann kein CI-stabiles Ende.
 - DoD-Checklisten in Doku nicht an potentiell nicht versionierte Workspace-Dateien koppeln (z. B. konkrete `.vscode/tasks.json`-Pfadangabe), sondern auf versionierte Projekt-Tooling-Definitionen abstrahieren, um PR-Drift zwischen lokalem Setup und Repo-Zustand zu vermeiden.
 - Neue Vitest-Fälle in bestehenden Testdateien immer mit kurzen per-Test-JSDoc-Blöcken ergänzen, wenn die Datei diesen Stil bereits nutzt; fehlende Header werden regelmäßig als Wartbarkeitsmangel im PR-Review markiert.
+
+## Ergänzung Issue #83 (Backend Star Rating)
+
+- Für per-User-Ratings DB-Constraint und Service-Guard kombinieren: `UNIQUE (nano_id, user_id)` schützt gegen Race Conditions, der vorgelagerte 409-Check liefert zugleich saubere API-Fehler.
+- Denormalisierte Rating-Felder auf dem Hauptmodell (`average_rating`, `rating_count`) nach jeder Mutation zentral im Service neu berechnen statt inkrementell zu patchen; das hält Durchschnitt, Median und Verteilung konsistent.
+- Published-only-Regeln für Feedback-Features in einem gemeinsamen Service-Guard kapseln, damit Create/Update/Read identisches Fehlerverhalten liefern.
+- Aggregations-Tests nicht nur auf Durchschnitt prüfen, sondern auch Median, Verteilung und Cache-Felder am `Nano`-Modell mitasserten; sonst bleiben Inkonsistenzen zwischen API-Response und Persistenz unentdeckt.
+- Bei Aggregationsendpunkten keine vollständigen Datensätze in Python laden, wenn die Berechnung in SQL möglich ist; stattdessen Count/Avg/Verteilung datenbankseitig berechnen und für Median gezielt nur die mittlere(n) Zeile(n) per sortiertem Offset abrufen.

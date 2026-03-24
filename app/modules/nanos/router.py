@@ -32,17 +32,23 @@ from app.modules.nanos.schemas import (
     NanoDetailResponse,
     NanoDownloadInfoResponse,
     NanoMetadataResponse,
+    NanoRatingMutationResponse,
+    NanoRatingReadResponse,
+    NanoRatingUpsertRequest,
     StatusUpdateRequest,
     StatusUpdateResponse,
 )
 from app.modules.nanos.service import (
+    create_nano_rating,
     delete_nano,
     get_creator_nanos,
     get_nano_detail,
     get_nano_download_info,
     get_nano_metadata,
+    get_nano_ratings,
     get_pending_review_nanos,
     update_nano_metadata,
+    update_nano_rating,
     update_nano_status,
 )
 
@@ -268,6 +274,121 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
     ) -> NanoDetailResponse:
         """Get Nano detail payload with visibility and download-access hints."""
         return await get_nano_detail(nano_id=nano_id, db=db, current_user=current_user)
+
+    @router.get(
+        "/{nano_id}/ratings",
+        response_model=NanoRatingReadResponse,
+        status_code=status.HTTP_200_OK,
+        summary="Get Nano rating aggregation",
+        description="""
+        Retrieve aggregated rating metrics (average, median, distribution, votes) for one Nano.
+
+        **Rules:**
+        - Aggregation is available only for published Nanos
+        - Endpoint is public for published Nanos
+        - If authenticated, response includes caller's own rating (if present)
+
+        **Error Cases:**
+        - 400: Nano is not published (ratings not allowed)
+        - 404: Nano not found
+        """,
+        responses={
+            200: {"description": "Rating aggregation retrieved successfully"},
+            400: {"description": "Nano is not published"},
+            404: {"description": "Nano not found"},
+        },
+    )
+    async def get_nano_rating_summary(
+        nano_id: UUID,
+        current_user: Annotated[TokenData | None, Depends(get_optional_current_user)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> NanoRatingReadResponse:
+        """Get aggregate rating metrics and optional caller rating for a Nano."""
+        return await get_nano_ratings(nano_id=nano_id, db=db, current_user=current_user)
+
+    @router.post(
+        "/{nano_id}/ratings",
+        response_model=NanoRatingMutationResponse,
+        status_code=status.HTTP_201_CREATED,
+        summary="Create a Nano star rating",
+        description="""
+        Create a 1-5 star rating for the authenticated user.
+
+        **Rules:**
+        - Authentication required
+        - Exactly one rating per user per Nano
+        - Rating is allowed only for published Nanos
+
+        **Error Cases:**
+        - 400: Nano is not published
+        - 401: Not authenticated
+        - 404: Nano not found
+        - 409: Rating by current user already exists
+        - 422: Invalid score (must be 1-5)
+        """,
+        responses={
+            201: {"description": "Rating created successfully"},
+            400: {"description": "Nano is not published"},
+            401: {"description": "Not authenticated"},
+            404: {"description": "Nano not found"},
+            409: {"description": "Rating already exists for this user and Nano"},
+            422: {"description": "Invalid score value"},
+        },
+    )
+    async def create_nano_rating_endpoint(
+        nano_id: UUID,
+        payload: NanoRatingUpsertRequest,
+        current_user: Annotated[TokenData, Depends(get_current_user)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> NanoRatingMutationResponse:
+        """Create a star rating for the authenticated user."""
+        return await create_nano_rating(
+            nano_id=nano_id,
+            payload=payload,
+            current_user=current_user,
+            db=db,
+        )
+
+    @router.patch(
+        "/{nano_id}/ratings/me",
+        response_model=NanoRatingMutationResponse,
+        status_code=status.HTTP_200_OK,
+        summary="Update own Nano star rating",
+        description="""
+        Update the authenticated user's existing 1-5 star rating for a Nano.
+
+        **Rules:**
+        - Authentication required
+        - User must already have a rating for this Nano
+        - Rating is allowed only for published Nanos
+
+        **Error Cases:**
+        - 400: Nano is not published
+        - 401: Not authenticated
+        - 404: Nano not found or user has no rating yet
+        - 422: Invalid score (must be 1-5)
+        """,
+        responses={
+            200: {"description": "Rating updated successfully"},
+            400: {"description": "Nano is not published"},
+            401: {"description": "Not authenticated"},
+            404: {"description": "Nano or rating not found"},
+            422: {"description": "Invalid score value"},
+        },
+    )
+    async def update_my_nano_rating_endpoint(
+        nano_id: UUID,
+        payload: NanoRatingUpsertRequest,
+        current_user: Annotated[TokenData, Depends(get_current_user)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> NanoRatingMutationResponse:
+        """Update the authenticated user's star rating."""
+        return await update_nano_rating(
+            nano_id=nano_id,
+            payload=payload,
+            current_user=current_user,
+            db=db,
+        )
 
     @router.get(
         "/{nano_id}/download-info",

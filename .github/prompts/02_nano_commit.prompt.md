@@ -1,5 +1,5 @@
 ---
-name: nano_commit
+name: 02_nano_commit
 description: Commit the current changes
 agent: agent
 ---

@@ -6,6 +6,7 @@ with proper authentication and authorization checks.
 """
 
 import uuid
+from decimal import Decimal
 from unittest.mock import Mock
 
 import pytest
@@ -19,6 +20,7 @@ from app.models import (
     Nano,
     NanoCategoryAssignment,
     NanoFormat,
+    NanoRating,
     NanoStatus,
 )
 from app.modules.auth.tokens import create_access_token
@@ -1242,3 +1244,387 @@ class TestNanoDetailViewRoutes:
 
         assert response.status_code == 503
         assert response.json()["detail"] == "Download URL is temporarily unavailable"
+
+
+class TestNanoRatingsRoutes:
+    """Test suite for Nano star-rating routes."""
+
+    @staticmethod
+    async def _create_user(db_session, email: str, username: str):
+        """Create and persist a user for rating tests."""
+        from app.models import User, UserRole, UserStatus
+
+        user = User(
+            id=uuid.uuid4(),
+            email=email,
+            username=username,
+            password_hash="dummy_hash",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            role=UserRole.CREATOR,
+            preferred_language="en",
+            login_attempts=0,
+        )
+        db_session.add(user)
+        await db_session.flush()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_create_rating_success_and_cache_update(self, async_client, db_session):
+        """Creating a rating succeeds for published Nano and updates denormalized cache fields."""
+        creator = await self._create_user(
+            db_session, "creator-rating@example.com", "creator_rating"
+        )
+        rater = await self._create_user(db_session, "rater1@example.com", "rater1")
+
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Published Rated Nano",
+            duration_minutes=15,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        token, _ = create_access_token(rater.id, rater.email, role="creator")
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/ratings",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"score": 5},
+        )
+
+        assert response.status_code == 201
+        payload = response.json()
+        assert payload["nano_id"] == str(nano.id)
+        assert payload["user_rating"]["score"] == 5
+        assert Decimal(str(payload["aggregation"]["average_rating"])) == Decimal("5.00")
+        assert Decimal(str(payload["aggregation"]["median_rating"])) == Decimal("5.00")
+        assert payload["aggregation"]["rating_count"] == 1
+        assert payload["aggregation"]["distribution"] == [
+            {"score": 1, "count": 0},
+            {"score": 2, "count": 0},
+            {"score": 3, "count": 0},
+            {"score": 4, "count": 0},
+            {"score": 5, "count": 1},
+        ]
+
+        await db_session.refresh(nano)
+        assert nano.average_rating == Decimal("5.00")
+        assert nano.rating_count == 1
+
+    @pytest.mark.asyncio
+    async def test_create_rating_requires_authentication(self, async_client, db_session):
+        """Creating a rating requires authentication."""
+        creator = await self._create_user(db_session, "creator-auth@example.com", "creator_auth")
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Published Nano",
+            duration_minutes=20,
+            competency_level=CompetencyLevel.INTERMEDIATE,
+            language="de",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/ratings",
+            json={"score": 4},
+        )
+
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_create_rating_only_for_published_nanos(self, async_client, db_session):
+        """Creating a rating for non-published Nano returns 400."""
+        creator = await self._create_user(db_session, "creator-draft@example.com", "creator_draft")
+        rater = await self._create_user(db_session, "rater-draft@example.com", "rater_draft")
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Draft Nano",
+            duration_minutes=20,
+            competency_level=CompetencyLevel.INTERMEDIATE,
+            language="de",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        token, _ = create_access_token(rater.id, rater.email, role="creator")
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/ratings",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"score": 3},
+        )
+
+        assert response.status_code == 400
+        assert "published" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_create_rating_duplicate_returns_409(self, async_client, db_session):
+        """Creating a second rating for same user/nano returns 409 conflict."""
+        creator = await self._create_user(db_session, "creator-dup@example.com", "creator_dup")
+        rater = await self._create_user(db_session, "rater-dup@example.com", "rater_dup")
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Conflict Nano",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.MIXED,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        token, _ = create_access_token(rater.id, rater.email, role="creator")
+        first_response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/ratings",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"score": 2},
+        )
+        second_response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/ratings",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"score": 4},
+        )
+
+        assert first_response.status_code == 201
+        assert second_response.status_code == 409
+        assert "already exists" in second_response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_update_rating_success_and_aggregation_consistent(self, async_client, db_session):
+        """Updating own rating recalculates aggregation and keeps values consistent."""
+        creator = await self._create_user(
+            db_session, "creator-update@example.com", "creator_update"
+        )
+        rater_1 = await self._create_user(db_session, "rater-update1@example.com", "rater_update1")
+        rater_2 = await self._create_user(db_session, "rater-update2@example.com", "rater_update2")
+
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Aggregation Nano",
+            duration_minutes=25,
+            competency_level=CompetencyLevel.INTERMEDIATE,
+            language="en",
+            format=NanoFormat.INTERACTIVE,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.flush()
+
+        db_session.add(
+            NanoRating(
+                id=uuid.uuid4(),
+                nano_id=nano.id,
+                user_id=rater_1.id,
+                score=4,
+            )
+        )
+        db_session.add(
+            NanoRating(
+                id=uuid.uuid4(),
+                nano_id=nano.id,
+                user_id=rater_2.id,
+                score=2,
+            )
+        )
+        await db_session.commit()
+
+        token, _ = create_access_token(rater_2.id, rater_2.email, role="creator")
+        response = await async_client.patch(
+            f"/api/v1/nanos/{nano.id}/ratings/me",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"score": 5},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["user_rating"]["score"] == 5
+        assert Decimal(str(payload["aggregation"]["average_rating"])) == Decimal("4.50")
+        assert Decimal(str(payload["aggregation"]["median_rating"])) == Decimal("4.50")
+        assert payload["aggregation"]["rating_count"] == 2
+        assert payload["aggregation"]["distribution"] == [
+            {"score": 1, "count": 0},
+            {"score": 2, "count": 0},
+            {"score": 3, "count": 0},
+            {"score": 4, "count": 1},
+            {"score": 5, "count": 1},
+        ]
+
+        await db_session.refresh(nano)
+        assert nano.average_rating == Decimal("4.50")
+        assert nano.rating_count == 2
+
+    @pytest.mark.asyncio
+    async def test_update_rating_without_existing_rating_returns_404(
+        self, async_client, db_session
+    ):
+        """Updating a non-existing own rating returns 404."""
+        creator = await self._create_user(
+            db_session, "creator-missing@example.com", "creator_missing"
+        )
+        rater = await self._create_user(db_session, "rater-missing@example.com", "rater_missing")
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="No Existing Rating Nano",
+            duration_minutes=12,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        token, _ = create_access_token(rater.id, rater.email, role="creator")
+        response = await async_client.patch(
+            f"/api/v1/nanos/{nano.id}/ratings/me",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"score": 3},
+        )
+
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_get_rating_summary_public_and_authenticated_user_rating(
+        self, async_client, db_session
+    ):
+        """Read endpoint is public for published Nano and returns caller rating if authenticated."""
+        creator = await self._create_user(db_session, "creator-read@example.com", "creator_read")
+        rater_1 = await self._create_user(db_session, "rater-read1@example.com", "rater_read1")
+        rater_2 = await self._create_user(db_session, "rater-read2@example.com", "rater_read2")
+
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Read Rating Nano",
+            duration_minutes=18,
+            competency_level=CompetencyLevel.ADVANCED,
+            language="de",
+            format=NanoFormat.QUIZ,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.flush()
+
+        db_session.add(
+            NanoRating(
+                id=uuid.uuid4(),
+                nano_id=nano.id,
+                user_id=rater_1.id,
+                score=1,
+            )
+        )
+        db_session.add(
+            NanoRating(
+                id=uuid.uuid4(),
+                nano_id=nano.id,
+                user_id=rater_2.id,
+                score=5,
+            )
+        )
+        await db_session.commit()
+
+        public_response = await async_client.get(f"/api/v1/nanos/{nano.id}/ratings")
+        assert public_response.status_code == 200
+        public_payload = public_response.json()
+        assert public_payload["current_user_rating"] is None
+        assert Decimal(str(public_payload["aggregation"]["average_rating"])) == Decimal("3.00")
+        assert Decimal(str(public_payload["aggregation"]["median_rating"])) == Decimal("3.00")
+        assert public_payload["aggregation"]["rating_count"] == 2
+
+        token, _ = create_access_token(rater_2.id, rater_2.email, role="creator")
+        auth_response = await async_client.get(
+            f"/api/v1/nanos/{nano.id}/ratings",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert auth_response.status_code == 200
+        auth_payload = auth_response.json()
+        assert auth_payload["current_user_rating"] is not None
+        assert auth_payload["current_user_rating"]["score"] == 5
+
+    @pytest.mark.asyncio
+    async def test_get_rating_summary_non_published_returns_400(self, async_client, db_session):
+        """Read endpoint returns 400 when Nano is not published."""
+        creator = await self._create_user(
+            db_session, "creator-read-draft@example.com", "creator_read_draft"
+        )
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Draft Rating Nano",
+            duration_minutes=22,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        response = await async_client.get(f"/api/v1/nanos/{nano.id}/ratings")
+
+        assert response.status_code == 400
+        assert "published" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_rating_score_validation_returns_422(self, async_client, db_session):
+        """Score outside 1-5 range is rejected by request schema validation."""
+        creator = await self._create_user(
+            db_session, "creator-validation@example.com", "creator_validation"
+        )
+        rater = await self._create_user(
+            db_session, "rater-validation@example.com", "rater_validation"
+        )
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Validation Nano",
+            duration_minutes=14,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        token, _ = create_access_token(rater.id, rater.email, role="creator")
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/ratings",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"score": 6},
+        )
+
+        assert response.status_code == 422
