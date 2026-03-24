@@ -628,7 +628,7 @@ def _validate_sanitized_comment_content(content: str) -> None:
     """Ensure sanitized comment content still fits storage/API limits."""
     if len(content) > MAX_COMMENT_LENGTH:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 "Sanitized comment content exceeds maximum length of "
                 f"{MAX_COMMENT_LENGTH} characters"
