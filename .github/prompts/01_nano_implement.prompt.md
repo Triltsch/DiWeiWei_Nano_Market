@@ -1,5 +1,5 @@
 ---
-name: nano_implement
+name: 01_nano_implement
 description: Perform an implementation task
 agent: agent
 ---

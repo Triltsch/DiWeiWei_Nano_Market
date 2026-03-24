@@ -1,5 +1,5 @@
 ---
-name: nano_merge
+name: 04_nano_merge
 description: Perform a merge task
 agent: agent
 ---

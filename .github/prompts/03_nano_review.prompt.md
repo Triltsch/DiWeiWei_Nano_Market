@@ -1,5 +1,5 @@
 ---
-name: nano_review
+name: 03_nano_review
 description: Fetch and implement the reviewer suggestions from a pull request
 agent: agent
 ---
