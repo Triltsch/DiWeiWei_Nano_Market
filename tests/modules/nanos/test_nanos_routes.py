@@ -6,6 +6,7 @@ with proper authentication and authorization checks.
 """
 
 import uuid
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import Mock
 
@@ -19,6 +20,7 @@ from app.models import (
     LicenseType,
     Nano,
     NanoCategoryAssignment,
+    NanoComment,
     NanoFormat,
     NanoRating,
     NanoStatus,
@@ -1628,3 +1630,277 @@ class TestNanoRatingsRoutes:
         )
 
         assert response.status_code == 422
+
+
+class TestNanoCommentsRoutes:
+    """Test suite for Nano comments/reviews routes."""
+
+    @staticmethod
+    async def _create_user(db_session, email: str, username: str):
+        """Create and persist a user for comment tests."""
+        from app.models import User, UserRole, UserStatus
+
+        user = User(
+            id=uuid.uuid4(),
+            email=email,
+            username=username,
+            password_hash="dummy_hash",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            role=UserRole.CREATOR,
+            preferred_language="en",
+            login_attempts=0,
+        )
+        db_session.add(user)
+        await db_session.flush()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_create_comment_success_with_sanitization(self, async_client, db_session):
+        """Valid comment is created for published Nano and sanitized before persistence."""
+        creator = await self._create_user(
+            db_session, "comment-creator@example.com", "comment_creator"
+        )
+        commenter = await self._create_user(db_session, "comment-user@example.com", "comment_user")
+
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Commentable Nano",
+            duration_minutes=20,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        token, _ = create_access_token(commenter.id, commenter.email, role="creator")
+        response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/comments",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"content": "  <script>alert('x')</script> Great nano!  "},
+        )
+
+        assert response.status_code == 201
+        payload = response.json()["comment"]
+        assert payload["nano_id"] == str(nano.id)
+        assert payload["user_id"] == str(commenter.id)
+        assert payload["content"] == "&lt;script&gt;alert('x')&lt;/script&gt; Great nano!"
+        assert payload["is_edited"] is False
+
+    @pytest.mark.asyncio
+    async def test_create_comment_rejects_blank_and_duplicate(self, async_client, db_session):
+        """Blank comments are rejected and duplicate comment per user/nano returns 409."""
+        creator = await self._create_user(
+            db_session, "comment-creator2@example.com", "comment_creator2"
+        )
+        commenter = await self._create_user(
+            db_session, "comment-user2@example.com", "comment_user2"
+        )
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Duplicate Guard Nano",
+            duration_minutes=15,
+            competency_level=CompetencyLevel.INTERMEDIATE,
+            language="de",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        token, _ = create_access_token(commenter.id, commenter.email, role="creator")
+        blank_response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/comments",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"content": "   "},
+        )
+        assert blank_response.status_code == 422
+
+        first_response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/comments",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"content": "First review"},
+        )
+        second_response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/comments",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"content": "Second review"},
+        )
+
+        assert first_response.status_code == 201
+        assert second_response.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_comments_only_allowed_for_published_nanos(self, async_client, db_session):
+        """Listing and creating comments for non-published Nanos returns 400."""
+        creator = await self._create_user(
+            db_session, "comment-creator3@example.com", "comment_creator3"
+        )
+        commenter = await self._create_user(
+            db_session, "comment-user3@example.com", "comment_user3"
+        )
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Draft Comment Nano",
+            duration_minutes=15,
+            competency_level=CompetencyLevel.INTERMEDIATE,
+            language="de",
+            format=NanoFormat.VIDEO,
+            status=NanoStatus.DRAFT,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        token, _ = create_access_token(commenter.id, commenter.email, role="creator")
+        list_response = await async_client.get(f"/api/v1/nanos/{nano.id}/comments")
+        create_response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/comments",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"content": "Should fail"},
+        )
+
+        assert list_response.status_code == 400
+        assert create_response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_list_comments_pagination_and_stable_sort(self, async_client, db_session):
+        """Comments list is paginated and sorted by updated_at desc, then id desc."""
+        creator = await self._create_user(
+            db_session, "comment-creator4@example.com", "comment_creator4"
+        )
+        user_a = await self._create_user(db_session, "comment-a@example.com", "comment_a")
+        user_b = await self._create_user(db_session, "comment-b@example.com", "comment_b")
+        user_c = await self._create_user(db_session, "comment-c@example.com", "comment_c")
+
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Pagination Nano",
+            duration_minutes=25,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.MIXED,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.flush()
+
+        base = datetime.now(timezone.utc)
+        c1 = NanoComment(
+            id=uuid.uuid4(),
+            nano_id=nano.id,
+            user_id=user_a.id,
+            content="oldest",
+            created_at=base - timedelta(minutes=3),
+            updated_at=base - timedelta(minutes=3),
+        )
+        c2 = NanoComment(
+            id=uuid.uuid4(),
+            nano_id=nano.id,
+            user_id=user_b.id,
+            content="middle",
+            created_at=base - timedelta(minutes=2),
+            updated_at=base - timedelta(minutes=2),
+        )
+        c3 = NanoComment(
+            id=uuid.uuid4(),
+            nano_id=nano.id,
+            user_id=user_c.id,
+            content="newest",
+            created_at=base - timedelta(minutes=1),
+            updated_at=base - timedelta(minutes=1),
+        )
+        db_session.add_all([c1, c2, c3])
+        await db_session.commit()
+
+        page_1 = await async_client.get(f"/api/v1/nanos/{nano.id}/comments?page=1&limit=2")
+        page_2 = await async_client.get(f"/api/v1/nanos/{nano.id}/comments?page=2&limit=2")
+
+        assert page_1.status_code == 200
+        assert page_2.status_code == 200
+
+        page_1_payload = page_1.json()
+        assert [item["content"] for item in page_1_payload["comments"]] == ["newest", "middle"]
+        assert page_1_payload["pagination"]["total_results"] == 3
+        assert page_1_payload["pagination"]["has_next_page"] is True
+
+        page_2_payload = page_2.json()
+        assert [item["content"] for item in page_2_payload["comments"]] == ["oldest"]
+        assert page_2_payload["pagination"]["has_prev_page"] is True
+
+    @pytest.mark.asyncio
+    async def test_update_comment_owner_and_admin_permissions(self, async_client, db_session):
+        """Owner can edit own comment, non-owner gets 403, admin can edit same comment."""
+        from app.models import UserRole
+
+        creator = await self._create_user(
+            db_session, "comment-creator5@example.com", "comment_creator5"
+        )
+        owner = await self._create_user(db_session, "comment-owner@example.com", "comment_owner")
+        outsider = await self._create_user(
+            db_session, "comment-outsider@example.com", "comment_outsider"
+        )
+        admin = await self._create_user(db_session, "comment-admin@example.com", "comment_admin")
+        admin.role = UserRole.ADMIN
+
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="RBAC Nano",
+            duration_minutes=30,
+            competency_level=CompetencyLevel.ADVANCED,
+            language="en",
+            format=NanoFormat.QUIZ,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.flush()
+
+        comment = NanoComment(
+            id=uuid.uuid4(),
+            nano_id=nano.id,
+            user_id=owner.id,
+            content="Original comment",
+        )
+        db_session.add(comment)
+        await db_session.commit()
+
+        owner_token, _ = create_access_token(owner.id, owner.email, role="creator")
+        outsider_token, _ = create_access_token(outsider.id, outsider.email, role="creator")
+        admin_token, _ = create_access_token(admin.id, admin.email, role="admin")
+
+        owner_response = await async_client.patch(
+            f"/api/v1/nanos/{nano.id}/comments/{comment.id}",
+            headers={"Authorization": f"Bearer {owner_token}"},
+            json={"content": "Owner update"},
+        )
+        forbidden_response = await async_client.patch(
+            f"/api/v1/nanos/{nano.id}/comments/{comment.id}",
+            headers={"Authorization": f"Bearer {outsider_token}"},
+            json={"content": "Outsider update"},
+        )
+        admin_response = await async_client.patch(
+            f"/api/v1/nanos/{nano.id}/comments/{comment.id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"content": "<b>Admin moderated</b>"},
+        )
+
+        assert owner_response.status_code == 200
+        assert forbidden_response.status_code == 403
+        assert admin_response.status_code == 200
+        assert admin_response.json()["comment"]["content"] == "&lt;b&gt;Admin moderated&lt;/b&gt;"

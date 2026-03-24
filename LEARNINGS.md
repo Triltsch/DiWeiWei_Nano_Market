@@ -177,3 +177,10 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Published-only-Regeln für Feedback-Features in einem gemeinsamen Service-Guard kapseln, damit Create/Update/Read identisches Fehlerverhalten liefern.
 - Aggregations-Tests nicht nur auf Durchschnitt prüfen, sondern auch Median, Verteilung und Cache-Felder am `Nano`-Modell mitasserten; sonst bleiben Inkonsistenzen zwischen API-Response und Persistenz unentdeckt.
 - Bei Aggregationsendpunkten keine vollständigen Datensätze in Python laden, wenn die Berechnung in SQL möglich ist; stattdessen Count/Avg/Verteilung datenbankseitig berechnen und für Median gezielt nur die mittlere(n) Zeile(n) per sortiertem Offset abrufen.
+
+## Ergänzung Issue #84 (Backend Comments/Reviews)
+
+- Für Feature-Guards mit gleicher Business-Regel (`published`-only) pro Domäne eigene Validator-Helfer mit domänenspezifischer Fehlermeldung nutzen (z. B. Ratings vs. Comments), damit API-Fehlertexte konsistent und selbsterklärend bleiben.
+- Kommentare mit User-Content serverseitig immer normalisieren und sanitizen (`strip`, Zeilenenden normalisieren, HTML escapen), auch wenn Frontend-Validierung existiert.
+- Für stabile Pagination in zeitbasierten Listen immer sekundären Tie-Breaker hinzufügen (`ORDER BY updated_at DESC, id DESC`), um nicht-deterministische Reihenfolgen bei gleichen Timestamps zu vermeiden.
+- Cross-DB-kompatible SQL-Constraints bevorzugen: In shared Models/Migrations für SQLite+PostgreSQL `length(...)` statt `char_length(...)` verwenden, sonst scheitern SQLite-Testsetups bei `create_all`.

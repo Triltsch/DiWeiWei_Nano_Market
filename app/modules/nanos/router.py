@@ -28,6 +28,9 @@ from app.modules.nanos.schemas import (
     MetadataUpdateRequest,
     MetadataUpdateResponse,
     ModeratorQueueListResponse,
+    NanoCommentListResponse,
+    NanoCommentMutationResponse,
+    NanoCommentUpsertRequest,
     NanoDeleteResponse,
     NanoDetailResponse,
     NanoDownloadInfoResponse,
@@ -39,14 +42,17 @@ from app.modules.nanos.schemas import (
     StatusUpdateResponse,
 )
 from app.modules.nanos.service import (
+    create_nano_comment,
     create_nano_rating,
     delete_nano,
     get_creator_nanos,
+    get_nano_comments,
     get_nano_detail,
     get_nano_download_info,
     get_nano_metadata,
     get_nano_ratings,
     get_pending_review_nanos,
+    update_nano_comment,
     update_nano_metadata,
     update_nano_rating,
     update_nano_status,
@@ -385,6 +391,133 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
         """Update the authenticated user's star rating."""
         return await update_nano_rating(
             nano_id=nano_id,
+            payload=payload,
+            current_user=current_user,
+            db=db,
+        )
+
+    @router.get(
+        "/{nano_id}/comments",
+        response_model=NanoCommentListResponse,
+        status_code=status.HTTP_200_OK,
+        summary="List Nano comments",
+        description="""
+        Retrieve paginated comments for one published Nano.
+
+        **Rules:**
+        - Listing is available only for published Nanos
+        - Endpoint is public for published Nanos
+        - Results are stably sorted by `updated_at DESC, id DESC`
+
+        **Query Parameters:**
+        - `page`: Page number (1-indexed, default 1)
+        - `limit`: Results per page (default 20, max 100)
+
+        **Error Cases:**
+        - 400: Nano is not published (comments not allowed)
+        - 404: Nano not found
+        """,
+        responses={
+            200: {"description": "Comments retrieved successfully"},
+            400: {"description": "Nano is not published"},
+            404: {"description": "Nano not found"},
+        },
+    )
+    async def list_nano_comments_endpoint(
+        nano_id: UUID,
+        page: Annotated[int, Query(ge=1, description="Page number")] = 1,
+        limit: Annotated[int, Query(ge=1, le=100, description="Results per page")] = 20,
+        db: Annotated[AsyncSession, Depends(get_db)] = None,
+    ) -> NanoCommentListResponse:
+        """List comments for a published Nano with deterministic pagination."""
+        return await get_nano_comments(nano_id=nano_id, db=db, page=page, limit=limit)
+
+    @router.post(
+        "/{nano_id}/comments",
+        response_model=NanoCommentMutationResponse,
+        status_code=status.HTTP_201_CREATED,
+        summary="Create a Nano comment",
+        description="""
+        Create a comment/review for the authenticated user on a published Nano.
+
+        **Rules:**
+        - Authentication required
+        - One comment per user per Nano
+        - Comment content is validated (non-empty, length-limited) and sanitized
+        - Allowed only for published Nanos
+
+        **Error Cases:**
+        - 400: Nano is not published
+        - 401: Not authenticated
+        - 404: Nano not found
+        - 409: Comment by current user already exists
+        - 422: Invalid request payload
+        """,
+        responses={
+            201: {"description": "Comment created successfully"},
+            400: {"description": "Nano is not published"},
+            401: {"description": "Not authenticated"},
+            404: {"description": "Nano not found"},
+            409: {"description": "Comment already exists for this user and Nano"},
+            422: {"description": "Invalid content value"},
+        },
+    )
+    async def create_nano_comment_endpoint(
+        nano_id: UUID,
+        payload: NanoCommentUpsertRequest,
+        current_user: Annotated[TokenData, Depends(get_current_user)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> NanoCommentMutationResponse:
+        """Create a comment for the authenticated user."""
+        return await create_nano_comment(
+            nano_id=nano_id,
+            payload=payload,
+            current_user=current_user,
+            db=db,
+        )
+
+    @router.patch(
+        "/{nano_id}/comments/{comment_id}",
+        response_model=NanoCommentMutationResponse,
+        status_code=status.HTTP_200_OK,
+        summary="Update a Nano comment",
+        description="""
+        Update an existing comment on a published Nano.
+
+        **Rules:**
+        - Authentication required
+        - Comment owner can update own comment
+        - Moderators and admins can update any comment
+        - Comment content is validated and sanitized
+        - Allowed only for published Nanos
+
+        **Error Cases:**
+        - 400: Nano is not published
+        - 401: Not authenticated
+        - 403: Caller is not allowed to edit this comment
+        - 404: Nano or comment not found
+        - 422: Invalid request payload
+        """,
+        responses={
+            200: {"description": "Comment updated successfully"},
+            400: {"description": "Nano is not published"},
+            401: {"description": "Not authenticated"},
+            403: {"description": "Not allowed to edit comment"},
+            404: {"description": "Nano or comment not found"},
+            422: {"description": "Invalid content value"},
+        },
+    )
+    async def update_nano_comment_endpoint(
+        nano_id: UUID,
+        comment_id: UUID,
+        payload: NanoCommentUpsertRequest,
+        current_user: Annotated[TokenData, Depends(get_current_user)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> NanoCommentMutationResponse:
+        """Update one comment by owner or moderator/admin."""
+        return await update_nano_comment(
+            nano_id=nano_id,
+            comment_id=comment_id,
             payload=payload,
             current_user=current_user,
             db=db,
