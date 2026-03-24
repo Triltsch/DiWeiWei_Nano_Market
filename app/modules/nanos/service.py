@@ -6,10 +6,12 @@ Nano metadata with proper validation and authorization checks.
 """
 
 from datetime import datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import desc, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -20,6 +22,7 @@ from app.models import (
     Nano,
     NanoCategoryAssignment,
     NanoFormat,
+    NanoRating,
     NanoStatus,
     User,
     UserRole,
@@ -43,7 +46,13 @@ from app.modules.nanos.schemas import (
     NanoDownloadInfoData,
     NanoDownloadInfoResponse,
     NanoMetadataResponse,
+    NanoRatingAggregation,
+    NanoRatingDistributionItem,
+    NanoRatingMutationResponse,
+    NanoRatingReadResponse,
     NanoRatingSummary,
+    NanoRatingUpsertRequest,
+    NanoUserRating,
     PaginationMeta,
     StatusUpdateRequest,
 )
@@ -358,6 +367,216 @@ def _can_access_restricted_nano(nano: Nano, current_user: TokenData) -> bool:
     if nano.creator_id == current_user.user_id:
         return True
     return current_user.role in {UserRole.ADMIN.value, UserRole.MODERATOR.value}
+
+
+def _quantize_rating(value: Decimal) -> Decimal:
+    """Normalize a rating value to two decimal places."""
+    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _build_rating_aggregation(scores: list[int]) -> NanoRatingAggregation:
+    """Build aggregate rating metrics from score values."""
+    if not scores:
+        return NanoRatingAggregation(
+            average_rating=Decimal("0.00"),
+            median_rating=Decimal("0.00"),
+            rating_count=0,
+            distribution=[
+                NanoRatingDistributionItem(score=score, count=0) for score in range(1, 6)
+            ],
+        )
+
+    sorted_scores = sorted(scores)
+    rating_count = len(sorted_scores)
+    score_sum = sum(sorted_scores)
+
+    average_rating = _quantize_rating(Decimal(score_sum) / Decimal(rating_count))
+
+    midpoint = rating_count // 2
+    if rating_count % 2 == 1:
+        median_rating = Decimal(sorted_scores[midpoint])
+    else:
+        median_rating = (
+            Decimal(sorted_scores[midpoint - 1]) + Decimal(sorted_scores[midpoint])
+        ) / Decimal("2")
+    median_rating = _quantize_rating(median_rating)
+
+    distribution_counts = {score: 0 for score in range(1, 6)}
+    for score in sorted_scores:
+        distribution_counts[score] += 1
+
+    distribution = [
+        NanoRatingDistributionItem(score=score, count=distribution_counts[score])
+        for score in range(1, 6)
+    ]
+
+    return NanoRatingAggregation(
+        average_rating=average_rating,
+        median_rating=median_rating,
+        rating_count=rating_count,
+        distribution=distribution,
+    )
+
+
+async def _get_nano_or_404(nano_id: UUID, db: AsyncSession) -> Nano:
+    """Load a Nano by ID or raise 404."""
+    stmt = select(Nano).where(Nano.id == nano_id)
+    result = await db.execute(stmt)
+    nano = result.scalar_one_or_none()
+
+    if not nano:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Nano with ID {nano_id} not found",
+        )
+
+    return nano
+
+
+def _validate_published_for_rating(nano: Nano) -> None:
+    """Ensure rating actions are only performed on published Nanos."""
+    if nano.status != NanoStatus.PUBLISHED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ratings are only allowed for published Nanos",
+        )
+
+
+async def _calculate_nano_rating_aggregation(
+    nano_id: UUID, db: AsyncSession
+) -> NanoRatingAggregation:
+    """Calculate average, median, count, and distribution for one Nano."""
+    score_stmt = select(NanoRating.score).where(NanoRating.nano_id == nano_id)
+    score_result = await db.execute(score_stmt)
+    scores = list(score_result.scalars().all())
+    return _build_rating_aggregation(scores=scores)
+
+
+async def _sync_nano_rating_cache(nano: Nano, db: AsyncSession) -> NanoRatingAggregation:
+    """Recompute and persist denormalized Nano rating cache fields."""
+    aggregation = await _calculate_nano_rating_aggregation(nano_id=nano.id, db=db)
+    nano.average_rating = aggregation.average_rating
+    nano.rating_count = aggregation.rating_count
+    return aggregation
+
+
+async def create_nano_rating(
+    nano_id: UUID,
+    payload: NanoRatingUpsertRequest,
+    current_user: TokenData,
+    db: AsyncSession,
+) -> NanoRatingMutationResponse:
+    """Create a star rating for the authenticated user and Nano."""
+    nano = await _get_nano_or_404(nano_id=nano_id, db=db)
+    _validate_published_for_rating(nano=nano)
+
+    existing_stmt = select(NanoRating).where(
+        NanoRating.nano_id == nano_id,
+        NanoRating.user_id == current_user.user_id,
+    )
+    existing_result = await db.execute(existing_stmt)
+    existing_rating = existing_result.scalar_one_or_none()
+
+    if existing_rating is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A rating for this Nano by the current user already exists",
+        )
+
+    rating = NanoRating(
+        nano_id=nano_id,
+        user_id=current_user.user_id,
+        score=payload.score,
+    )
+    db.add(rating)
+
+    try:
+        await db.flush()
+        aggregation = await _sync_nano_rating_cache(nano=nano, db=db)
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A rating for this Nano by the current user already exists",
+        ) from exc
+
+    await db.refresh(rating)
+    await invalidate_search_cache(reason="nano_rating_created")
+
+    return NanoRatingMutationResponse(
+        nano_id=nano_id,
+        user_rating=NanoUserRating(score=rating.score, updated_at=rating.updated_at),
+        aggregation=aggregation,
+    )
+
+
+async def update_nano_rating(
+    nano_id: UUID,
+    payload: NanoRatingUpsertRequest,
+    current_user: TokenData,
+    db: AsyncSession,
+) -> NanoRatingMutationResponse:
+    """Update the authenticated user's existing star rating for a Nano."""
+    nano = await _get_nano_or_404(nano_id=nano_id, db=db)
+    _validate_published_for_rating(nano=nano)
+
+    rating_stmt = select(NanoRating).where(
+        NanoRating.nano_id == nano_id,
+        NanoRating.user_id == current_user.user_id,
+    )
+    rating_result = await db.execute(rating_stmt)
+    rating = rating_result.scalar_one_or_none()
+
+    if rating is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No existing rating found for this user and Nano",
+        )
+
+    rating.score = payload.score
+    await db.flush()
+
+    aggregation = await _sync_nano_rating_cache(nano=nano, db=db)
+    await db.commit()
+    await db.refresh(rating)
+
+    await invalidate_search_cache(reason="nano_rating_updated")
+
+    return NanoRatingMutationResponse(
+        nano_id=nano_id,
+        user_rating=NanoUserRating(score=rating.score, updated_at=rating.updated_at),
+        aggregation=aggregation,
+    )
+
+
+async def get_nano_ratings(
+    nano_id: UUID,
+    db: AsyncSession,
+    current_user: TokenData | None,
+) -> NanoRatingReadResponse:
+    """Read aggregate rating metrics and caller-specific rating information."""
+    nano = await _get_nano_or_404(nano_id=nano_id, db=db)
+    _validate_published_for_rating(nano=nano)
+
+    aggregation = await _calculate_nano_rating_aggregation(nano_id=nano_id, db=db)
+
+    current_user_rating: NanoUserRating | None = None
+    if current_user is not None:
+        rating_stmt = select(NanoRating).where(
+            NanoRating.nano_id == nano_id,
+            NanoRating.user_id == current_user.user_id,
+        )
+        rating_result = await db.execute(rating_stmt)
+        rating = rating_result.scalar_one_or_none()
+        if rating is not None:
+            current_user_rating = NanoUserRating(score=rating.score, updated_at=rating.updated_at)
+
+    return NanoRatingReadResponse(
+        nano_id=nano_id,
+        aggregation=aggregation,
+        current_user_rating=current_user_rating,
+    )
 
 
 async def update_nano_metadata(

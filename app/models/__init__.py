@@ -6,9 +6,22 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Optional
 
-from sqlalchemy import JSON, Boolean, DateTime
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+)
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import (
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -420,6 +433,52 @@ class Nano(Base):
     def __repr__(self) -> str:
         """String representation of Nano"""
         return f"<Nano(id={self.id}, title={self.title}, status={self.status})>"
+
+
+class NanoRating(Base):
+    """User star rating for a published Nano."""
+
+    __tablename__ = "nano_ratings"
+    __table_args__ = (
+        UniqueConstraint("nano_id", "user_id", name="uq_nano_ratings_nano_user"),
+        CheckConstraint("score >= 1 AND score <= 5", name="ck_nano_ratings_score_range"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    nano_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("nanos.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Rated Nano",
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="User who submitted the rating",
+    )
+    score: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Star score between 1 and 5",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    def __repr__(self) -> str:
+        """String representation of NanoRating."""
+        return f"<NanoRating(id={self.id}, nano_id={self.nano_id}, user_id={self.user_id}, score={self.score})>"
 
 
 class NanoVersion(Base):

@@ -258,6 +258,12 @@ Sprint-5 QA/Operations Gate: [doc/SPRINT5_QA_GATE.md](doc/SPRINT5_QA_GATE.md)
 - `POST /api/v1/auth/register` - User Registration
 - `POST /api/v1/auth/login` - Login (JWT Access + Refresh Token)
 - `POST /api/v1/auth/verify-email` - Email verifizieren
+
+### Nano Ratings (Sprint 6)
+- `GET /api/v1/nanos/{nano_id}/ratings` - Öffentliche Aggregation (Durchschnitt, Median, Verteilung, Stimmenzahl); mit Auth inkl. `current_user_rating`
+- `POST /api/v1/nanos/{nano_id}/ratings` - Eigenes 1-5 Sterne-Rating erstellen (auth erforderlich, genau 1 Rating pro User/Nano)
+- `PATCH /api/v1/nanos/{nano_id}/ratings/me` - Eigenes Rating aktualisieren (auth erforderlich)
+- Bewertbar sind nur `published` Nanos; sonst 400-Fehler
 - `POST /api/v1/auth/refresh-token` - Token erneuern
 - `POST /api/v1/auth/logout` - Logout
 

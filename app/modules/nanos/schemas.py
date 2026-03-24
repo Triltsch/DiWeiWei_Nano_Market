@@ -221,6 +221,57 @@ class NanoRatingSummary(BaseModel):
     download_count: int = Field(ge=0, description="Total number of downloads")
 
 
+class NanoRatingUpsertRequest(BaseModel):
+    """Request payload for creating or updating a 1-5 star rating."""
+
+    score: int = Field(ge=1, le=5, description="Star score between 1 and 5")
+
+
+class NanoRatingDistributionItem(BaseModel):
+    """One bucket in the star-rating distribution."""
+
+    score: int = Field(ge=1, le=5, description="Star score bucket")
+    count: int = Field(ge=0, description="Number of votes in this bucket")
+
+
+class NanoRatingAggregation(BaseModel):
+    """Aggregated rating metrics for a Nano."""
+
+    average_rating: Decimal = Field(description="Average rating (0.00-5.00)")
+    median_rating: Decimal = Field(description="Median rating (0.00-5.00)")
+    rating_count: int = Field(ge=0, description="Total number of ratings")
+    distribution: list[NanoRatingDistributionItem] = Field(
+        default_factory=list,
+        description="Distribution across rating buckets 1-5",
+    )
+
+
+class NanoUserRating(BaseModel):
+    """Current authenticated user's rating for a Nano."""
+
+    score: int = Field(ge=1, le=5, description="User's submitted star score")
+    updated_at: datetime = Field(description="Timestamp of the latest rating update")
+
+
+class NanoRatingReadResponse(BaseModel):
+    """Read response for Nano rating metrics."""
+
+    nano_id: UUID = Field(..., description="Unique identifier for the Nano")
+    aggregation: NanoRatingAggregation = Field(description="Aggregated rating metrics")
+    current_user_rating: Optional[NanoUserRating] = Field(
+        None,
+        description="Current user's rating, if authenticated and present",
+    )
+
+
+class NanoRatingMutationResponse(BaseModel):
+    """Response payload for create/update rating operations."""
+
+    nano_id: UUID = Field(..., description="Unique identifier for the Nano")
+    user_rating: NanoUserRating = Field(description="Current user's rating after mutation")
+    aggregation: NanoRatingAggregation = Field(description="Updated aggregated rating metrics")
+
+
 class NanoDownloadInfo(BaseModel):
     """Download access information for Nano detail view response."""
 
