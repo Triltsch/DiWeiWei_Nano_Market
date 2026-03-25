@@ -187,3 +187,15 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Bei Create-Flows mit zusätzlichem DB-Unique-Constraint immer Pre-Check **und** `IntegrityError`-Handling kombinieren (`flush/commit` + `rollback` + 409), damit Race-Conditions nicht als 500 enden.
 - Validierungen für User-Content müssen auf dem **persistierten** Wert basieren (z. B. nach Sanitization/Escaping), nicht nur auf dem Roh-Input; sonst entstehen Laufzeitfehler durch DB-Constraints statt saubere 4xx-Responses.
 - FastAPI-Dependencies typkonsistent deklarieren (`Annotated[AsyncSession, Depends(...)]` ohne `= None`), damit Runtime- und Static-Typing-Signatur übereinstimmen.
+
+## Ergänzung Issue #85 (Feedback Moderation)
+
+- Neues Feedback (Ratings + Kommentare) immer in `pending`-Zustand anlegen; öffentliche APIs nur `approved`-Content exponieren. Diese Filterregel als zentralen Service-Helper (`_approved_feedback_filter`) kapseln und in allen Aggregations- und Listen-Abfragen konsequent anwenden.
+- Nach einem Inhalt-Update (Rating-Wert oder Kommentar-Text ändern) Moderations-Status zurück auf `pending` setzen und zugehörige Moderationsfelder (`moderated_at`, `moderated_by_user_id`, `moderation_reason`) löschen; Moderation beginnt damit neu, ohne dass bereits geprüfte Inhalte automatisch sichtbar bleiben.
+- Moderations-Transitions auf zulässige Zielzustände beschränken: `FeedbackModerationRequest` sollte `"pending"` als Ziel ablehnen (Moderatoren können nur `"approved"` oder `"hidden"` setzen); der pending-Zustand wird ausschließlich durch Content-Updates ausgelöst.
+- Alembic-Migrationen für Enums in PostgreSQL mit `CREATE TYPE ... AS ENUM` vor den spaltenweisen `ADD COLUMN`-Statements ausführen; bei `downgrade` erst alle abhängigen Spalten entfernen, dann den Typ droppen.
+- SQLAlchemy JSON-Spalten-Filterung für Audit-Log-Queries erfordert `.as_string()` (oder `.as_integer()`) Type-Cast für Vergleichsoperatoren, z. B. `AuditLog.event_data["new_value"].as_string() == "hidden"`. Direktvergleiche ohne Type-Cast führen zu SQL-Fehlern oder falschen Ergebnissen.
+- Paginierungs-Tests für moderierten Content explizit mit verschiedenen Moderationsstatus-Kombinationen schreiben (ein Teil `approved`, ein Teil `hidden`/`pending`); sonst werden Fehlkonfigurationen der Filter erst in Produktion sichtbar.
+- VS-Code-Task-Output kann veraltete Ergebnisse aus früheren Läufen zeigen; für authoritative CI-Statuschecks direkte Terminal-Befehle statt gecachten Task-Outputs verwenden.
+- Öffentliche Response-Schemas dürfen keine moderationsinternen Notizen enthalten (`moderation_reason`); dafür gezielte API-Response-Assertions in Integrationstests ergänzen, um Contract-Leaks früh zu erkennen.
+- Bei Audit-pflichtigen Statusänderungen Commit-Grenze so setzen, dass Fachänderung und Audit-Log in **einer** Transaktion persistieren; kein Vorab-Commit vor `AuditLogger.log_action`.

@@ -14,11 +14,13 @@ from fastapi import HTTPException, status
 from sqlalchemy import desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models import (
     AuditAction,
     Category,
     CompetencyLevel,
+    FeedbackModerationStatus,
     LicenseType,
     Nano,
     NanoCategoryAssignment,
@@ -34,12 +36,14 @@ from app.modules.auth.tokens import TokenData
 from app.modules.nanos.schemas import (
     CreatorNanoListItem,
     CreatorNanoListResponse,
+    FeedbackModerationRequest,
     MetadataUpdateRequest,
     ModeratorQueueItem,
     ModeratorQueueListResponse,
     NanoCategoryResponse,
     NanoCommentItem,
     NanoCommentListResponse,
+    NanoCommentModerationResponse,
     NanoCommentMutationResponse,
     NanoCommentUpsertRequest,
     NanoDeleteResponse,
@@ -54,6 +58,8 @@ from app.modules.nanos.schemas import (
     NanoMetadataResponse,
     NanoRatingAggregation,
     NanoRatingDistributionItem,
+    NanoRatingModerationItem,
+    NanoRatingModerationResponse,
     NanoRatingMutationResponse,
     NanoRatingReadResponse,
     NanoRatingSummary,
@@ -382,6 +388,13 @@ def _quantize_rating(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def _approved_feedback_filter(
+    model: type[NanoRating] | type[NanoComment],
+) -> ColumnElement[bool]:
+    """Build a reusable filter for publicly visible feedback."""
+    return model.moderation_status == FeedbackModerationStatus.APPROVED
+
+
 async def _get_nano_or_404(nano_id: UUID, db: AsyncSession) -> Nano:
     """Load a Nano by ID or raise 404."""
     stmt = select(Nano).where(Nano.id == nano_id)
@@ -422,7 +435,7 @@ async def _calculate_nano_rating_aggregation(
     aggregate_stmt = select(
         func.count(NanoRating.id),
         func.avg(NanoRating.score),
-    ).where(NanoRating.nano_id == nano_id)
+    ).where(NanoRating.nano_id == nano_id, _approved_feedback_filter(NanoRating))
     aggregate_result = await db.execute(aggregate_stmt)
     rating_count_raw, average_raw = aggregate_result.one()
 
@@ -443,7 +456,7 @@ async def _calculate_nano_rating_aggregation(
         median_offset = rating_count // 2
         median_stmt = (
             select(NanoRating.score)
-            .where(NanoRating.nano_id == nano_id)
+            .where(NanoRating.nano_id == nano_id, _approved_feedback_filter(NanoRating))
             .order_by(NanoRating.score)
             .offset(median_offset)
             .limit(1)
@@ -455,7 +468,7 @@ async def _calculate_nano_rating_aggregation(
         median_offset = (rating_count // 2) - 1
         median_stmt = (
             select(NanoRating.score)
-            .where(NanoRating.nano_id == nano_id)
+            .where(NanoRating.nano_id == nano_id, _approved_feedback_filter(NanoRating))
             .order_by(NanoRating.score)
             .offset(median_offset)
             .limit(2)
@@ -468,7 +481,7 @@ async def _calculate_nano_rating_aggregation(
 
     distribution_stmt = (
         select(NanoRating.score, func.count(NanoRating.id))
-        .where(NanoRating.nano_id == nano_id)
+        .where(NanoRating.nano_id == nano_id, _approved_feedback_filter(NanoRating))
         .group_by(NanoRating.score)
     )
     distribution_result = await db.execute(distribution_stmt)
@@ -526,6 +539,7 @@ async def create_nano_rating(
         nano_id=nano_id,
         user_id=current_user.user_id,
         score=payload.score,
+        moderation_status=FeedbackModerationStatus.PENDING,
     )
     db.add(rating)
 
@@ -545,7 +559,12 @@ async def create_nano_rating(
 
     return NanoRatingMutationResponse(
         nano_id=nano_id,
-        user_rating=NanoUserRating(score=rating.score, updated_at=rating.updated_at),
+        user_rating=NanoUserRating(
+            rating_id=rating.id,
+            score=rating.score,
+            moderation_status=rating.moderation_status.value,
+            updated_at=rating.updated_at,
+        ),
         aggregation=aggregation,
     )
 
@@ -574,6 +593,10 @@ async def update_nano_rating(
         )
 
     rating.score = payload.score
+    rating.moderation_status = FeedbackModerationStatus.PENDING
+    rating.moderated_at = None
+    rating.moderated_by_user_id = None
+    rating.moderation_reason = None
     await db.flush()
 
     aggregation = await _sync_nano_rating_cache(nano=nano, db=db)
@@ -584,7 +607,12 @@ async def update_nano_rating(
 
     return NanoRatingMutationResponse(
         nano_id=nano_id,
-        user_rating=NanoUserRating(score=rating.score, updated_at=rating.updated_at),
+        user_rating=NanoUserRating(
+            rating_id=rating.id,
+            score=rating.score,
+            moderation_status=rating.moderation_status.value,
+            updated_at=rating.updated_at,
+        ),
         aggregation=aggregation,
     )
 
@@ -609,7 +637,12 @@ async def get_nano_ratings(
         rating_result = await db.execute(rating_stmt)
         rating = rating_result.scalar_one_or_none()
         if rating is not None:
-            current_user_rating = NanoUserRating(score=rating.score, updated_at=rating.updated_at)
+            current_user_rating = NanoUserRating(
+                rating_id=rating.id,
+                score=rating.score,
+                moderation_status=rating.moderation_status.value,
+                updated_at=rating.updated_at,
+            )
 
     return NanoRatingReadResponse(
         nano_id=nano_id,
@@ -655,10 +688,43 @@ async def _build_comment_item(comment: NanoComment, db: AsyncSession) -> NanoCom
         user_id=comment.user_id,
         username=username,
         content=comment.content,
+        moderation_status=comment.moderation_status.value,
         created_at=comment.created_at,
         updated_at=comment.updated_at,
         is_edited=comment.updated_at > comment.created_at,
     )
+
+
+async def _build_rating_item(rating: NanoRating, db: AsyncSession) -> NanoRatingModerationItem:
+    """Build API rating item with author context."""
+    user_stmt = select(User.username).where(User.id == rating.user_id)
+    user_result = await db.execute(user_stmt)
+    username = user_result.scalar_one_or_none()
+
+    return NanoRatingModerationItem(
+        rating_id=rating.id,
+        nano_id=rating.nano_id,
+        user_id=rating.user_id,
+        username=username,
+        score=rating.score,
+        moderation_status=rating.moderation_status.value,
+        moderation_reason=rating.moderation_reason,
+        created_at=rating.created_at,
+        updated_at=rating.updated_at,
+    )
+
+
+def _apply_feedback_moderation(
+    *,
+    target: NanoRating | NanoComment,
+    moderation: FeedbackModerationRequest,
+    moderator: TokenData,
+) -> None:
+    """Apply a moderation decision to a feedback entity."""
+    target.moderation_status = FeedbackModerationStatus(moderation.status)
+    target.moderated_at = datetime.now(timezone.utc)
+    target.moderated_by_user_id = moderator.user_id
+    target.moderation_reason = moderation.reason
 
 
 async def get_nano_comments(
@@ -672,6 +738,7 @@ async def get_nano_comments(
     _validate_published_for_comments(nano=nano)
 
     count_stmt = select(func.count(NanoComment.id)).where(NanoComment.nano_id == nano_id)
+    count_stmt = count_stmt.where(_approved_feedback_filter(NanoComment))
     count_result = await db.execute(count_stmt)
     total_results = int(count_result.scalar() or 0)
 
@@ -681,7 +748,7 @@ async def get_nano_comments(
     list_stmt = (
         select(NanoComment, User.username)
         .outerjoin(User, NanoComment.user_id == User.id)
-        .where(NanoComment.nano_id == nano_id)
+        .where(NanoComment.nano_id == nano_id, _approved_feedback_filter(NanoComment))
         .order_by(desc(NanoComment.updated_at), desc(NanoComment.id))
         .offset(offset)
         .limit(limit)
@@ -696,6 +763,7 @@ async def get_nano_comments(
             user_id=comment.user_id,
             username=username,
             content=comment.content,
+            moderation_status=comment.moderation_status.value,
             created_at=comment.created_at,
             updated_at=comment.updated_at,
             is_edited=comment.updated_at > comment.created_at,
@@ -746,6 +814,7 @@ async def create_nano_comment(
         nano_id=nano_id,
         user_id=current_user.user_id,
         content=sanitized_content,
+        moderation_status=FeedbackModerationStatus.PENDING,
     )
     db.add(comment)
 
@@ -797,10 +866,112 @@ async def update_nano_comment(
     _validate_sanitized_comment_content(sanitized_content)
 
     comment.content = sanitized_content
+    comment.moderation_status = FeedbackModerationStatus.PENDING
+    comment.moderated_at = None
+    comment.moderated_by_user_id = None
+    comment.moderation_reason = None
     await db.commit()
     await db.refresh(comment)
 
     return NanoCommentMutationResponse(comment=await _build_comment_item(comment=comment, db=db))
+
+
+async def moderate_nano_rating(
+    nano_id: UUID,
+    rating_id: UUID,
+    moderation: FeedbackModerationRequest,
+    current_user: TokenData,
+    db: AsyncSession,
+) -> NanoRatingModerationResponse:
+    """Approve or hide a Nano rating as moderator/admin."""
+    nano = await _get_nano_or_404(nano_id=nano_id, db=db)
+    _validate_published_for_rating(nano=nano)
+
+    rating_stmt = select(NanoRating).where(
+        NanoRating.id == rating_id,
+        NanoRating.nano_id == nano_id,
+    )
+    rating_result = await db.execute(rating_stmt)
+    rating = rating_result.scalar_one_or_none()
+
+    if rating is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Rating not found for this Nano",
+        )
+
+    previous_status = rating.moderation_status.value
+    _apply_feedback_moderation(target=rating, moderation=moderation, moderator=current_user)
+    await db.flush()
+    aggregation = await _sync_nano_rating_cache(nano=nano, db=db)
+
+    await AuditLogger.log_action(
+        session=db,
+        action=AuditAction.DATA_MODIFIED,
+        user_id=current_user.user_id,
+        resource_type="nano_rating",
+        resource_id=str(rating.id),
+        metadata={
+            "field": "moderation_status",
+            "old_value": previous_status,
+            "new_value": rating.moderation_status.value,
+            "reason": moderation.reason,
+            "nano_id": str(nano_id),
+            "aggregation_rating_count": aggregation.rating_count,
+        },
+    )
+    await db.commit()
+    await db.refresh(rating)
+
+    return NanoRatingModerationResponse(rating=await _build_rating_item(rating=rating, db=db))
+
+
+async def moderate_nano_comment(
+    nano_id: UUID,
+    comment_id: UUID,
+    moderation: FeedbackModerationRequest,
+    current_user: TokenData,
+    db: AsyncSession,
+) -> NanoCommentModerationResponse:
+    """Approve or hide a Nano comment as moderator/admin."""
+    nano = await _get_nano_or_404(nano_id=nano_id, db=db)
+    _validate_published_for_comments(nano=nano)
+
+    comment_stmt = select(NanoComment).where(
+        NanoComment.id == comment_id,
+        NanoComment.nano_id == nano_id,
+    )
+    comment_result = await db.execute(comment_stmt)
+    comment = comment_result.scalar_one_or_none()
+
+    if comment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comment not found for this Nano",
+        )
+
+    previous_status = comment.moderation_status.value
+    _apply_feedback_moderation(target=comment, moderation=moderation, moderator=current_user)
+    await db.flush()
+
+    await AuditLogger.log_action(
+        session=db,
+        action=AuditAction.DATA_MODIFIED,
+        user_id=current_user.user_id,
+        resource_type="nano_comment",
+        resource_id=str(comment.id),
+        metadata={
+            "field": "moderation_status",
+            "old_value": previous_status,
+            "new_value": comment.moderation_status.value,
+            "reason": moderation.reason,
+            "nano_id": str(nano_id),
+        },
+    )
+    await db.commit()
+    await db.refresh(comment)
+
+    return NanoCommentModerationResponse(comment=await _build_comment_item(comment=comment, db=db))
 
 
 async def update_nano_metadata(
