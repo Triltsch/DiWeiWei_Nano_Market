@@ -219,3 +219,11 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Für async Services keine blockierenden Netzwerk-Calls direkt im Event-Loop verwenden (`urlopen` etc.); wenn kein Async-Client genutzt wird, den Call per `asyncio.to_thread(...)` kapseln.
 - Response-Payloads externer Services vor `.get(...)` immer typvalidieren (`dict`-Guard), damit unerwartete/empty Antworten als kontrollierter 503 enden statt als `AttributeError`.
 - Bei Doku-Änderungen in bestehenden Markdown-Listen/Runbooks Codefence-Balance explizit prüfen; ein offener Fence kann ganze Abschnitte als Code rendern und Nummerierungsfehler verschleiern.
+
+## Ergänzung Issue #87 (Sprint 6 QA Gate + Stabilisierung)
+
+- QA-Gate-Artefakte sollten nicht nur die Testmatrix, sondern auch reproduzierbare Ausführungsbefehle und konkrete Ergebnisnachweise (`Checks`, Full-`pytest`, Infrastruktur-Health) enthalten; das reduziert Review-Rückfragen und macht CI-Abweichungen schneller nachstellbar.
+- Frontend-API-Clients mit typisiertem Error-Mapping müssen negative Pfade explizit testen (`401`, `403`, `422`), damit UI-Fehlertexte und Redirect-Verhalten bei Auth/RBAC-/Validation-Fehlern stabil bleiben.
+- Für auth-kritische Komponenten darf Redis-Ausfall nicht automatisch zu Hard-Fails in Token-Flows führen; ein begrenzter In-Memory-Fallback mit TTL-Semantik hält Login/Refresh/Blacklist-Logik in degraded mode funktional und verbessert Test-/Dev-Robustheit.
+- Validierungsaussagen immer gegen frische, vollständige Läufe absichern (nicht gegen gemischte Task-Historie); bei Zweifel gezielt Full-Suite erneut ausführen und erst danach den Gate-Status dokumentieren.
+- Post-Login-Redirects müssen rollenbewusst designt sein: ein globaler Default auf eine rollenbeschränkte Route (z. B. `/dashboard`) erzeugt bei `consumer` sofortige Forbidden-Loops und sollte durch role-aware Fallbacks (z. B. `/search`) ersetzt werden.
