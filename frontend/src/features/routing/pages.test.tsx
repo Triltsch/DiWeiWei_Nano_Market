@@ -1306,6 +1306,111 @@ describe("NanoDetailsPage", () => {
     expect(screen.getByText("Ihr Kommentar wartet auf Moderation")).toBeTruthy();
     expect(screen.getByText("Bitte noch Beispiele fuer Hooks ergaenzen.")).toBeTruthy();
   });
+
+  it("shows neutral preview title when submitted comment is already approved", async () => {
+    mockedGetNanoDetail.mockResolvedValue({
+      nanoId: "nano-1",
+      title: "React Basics",
+      metadata: {
+        description: "Intro course",
+        durationMinutes: 12,
+        competencyLevel: "beginner",
+        language: "en",
+        format: "video",
+        status: "published",
+        version: "1.0.0",
+        categories: [{ categoryId: "cat-1", categoryName: "Frontend" }],
+        license: "CC-BY",
+        thumbnailUrl: null,
+        uploadedAt: "2026-03-20T10:00:00Z",
+        publishedAt: "2026-03-20T11:00:00Z",
+        updatedAt: "2026-03-20T12:00:00Z",
+      },
+      creator: {
+        id: "creator-1",
+        username: "alice",
+      },
+      ratingSummary: {
+        averageRating: 4.8,
+        ratingCount: 11,
+        downloadCount: 34,
+      },
+      downloadInfo: {
+        requiresAuthentication: true,
+        canDownload: true,
+        downloadPath: "nanos/react-basics.mp4",
+      },
+    });
+    mockedGetNanoRatings.mockResolvedValue({
+      nanoId: "nano-1",
+      aggregation: {
+        averageRating: 4.8,
+        medianRating: 5,
+        ratingCount: 11,
+        distribution: [],
+      },
+      currentUserRating: null,
+    });
+    mockedGetNanoComments.mockResolvedValue({
+      comments: [],
+      pagination: {
+        current_page: 1,
+        page_size: 5,
+        total_results: 0,
+        total_pages: 1,
+        has_next_page: false,
+        has_prev_page: false,
+      },
+    });
+    mockedCreateNanoComment.mockResolvedValue({
+      comment: {
+        commentId: "comment-2",
+        nanoId: "nano-1",
+        userId: "user-1",
+        username: "user",
+        content: "Schon freigegeben.",
+        moderationStatus: "approved",
+        createdAt: "2026-03-21T10:00:00Z",
+        updatedAt: "2026-03-21T10:00:00Z",
+        isEdited: false,
+      },
+    });
+
+    render(
+      <LanguageProvider>
+        <AuthContext.Provider
+          value={{
+            ...authValue,
+            isAuthenticated: true,
+            user: {
+              id: "user-1",
+              email: "user@example.com",
+              username: "user",
+              role: "creator",
+            },
+          }}
+        >
+          <MemoryRouter initialEntries={["/nano/nano-1"]}>
+            <Routes>
+              <Route path="/nano/:id" element={<NanoDetailsPage />} />
+            </Routes>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </LanguageProvider>
+    );
+
+    await screen.findByRole("heading", { name: "React Basics" });
+
+    fireEvent.change(screen.getByLabelText("Eigenen Kommentar verfassen"), {
+      target: {
+        value: "Schon freigegeben.",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kommentar absenden" }));
+
+    await screen.findByText("Ihr Kommentar");
+    expect(screen.queryByText("Ihr Kommentar wartet auf Moderation")).not.toBeInTheDocument();
+  });
 });
 
 describe("NotFoundPage", () => {

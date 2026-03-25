@@ -211,6 +211,8 @@ const de = {
   nano_details_comment_pending_message:
     "Ihr Kommentar wurde gespeichert und wartet auf Moderation, bevor er öffentlich erscheint.",
   nano_details_comment_pending_preview_title: "Ihr Kommentar wartet auf Moderation",
+  nano_details_comment_approved_preview_title: "Ihr Kommentar",
+  nano_details_comment_hidden_preview_title: "Ihr ausgeblendeter Kommentar",
   nano_details_comment_conflict:
     "Für diese Nano-Lerneinheit haben Sie bereits einen Kommentar eingereicht. Bearbeiten ist separat vorgesehen.",
   nano_details_comment_validation_error: "Bitte geben Sie einen nicht-leeren Kommentar ein.",
@@ -340,6 +342,8 @@ const de = {
   moderator_queue_title: "Moderations-Warteschlange",
   moderator_queue_subtitle: "Nanos zur Überprüfung und Freigabe",
   moderator_queue_empty: "Keine Nanos zur Überprüfung in der Warteschlange",
+  moderator_queue_pending_ratings_title: "Ausstehende Bewertungen",
+  moderator_queue_pending_comments_title: "Ausstehende Kommentare",
   moderator_approve: "Freigeben",
   moderator_approving: "Wird freigegeben...",
   moderator_reject: "Ablehnen",
@@ -580,6 +584,8 @@ const en: Record<TranslationKey, string> = {
   nano_details_comment_pending_message:
     "Your comment was saved and is awaiting moderation before it becomes public.",
   nano_details_comment_pending_preview_title: "Your comment is pending moderation",
+  nano_details_comment_approved_preview_title: "Your comment",
+  nano_details_comment_hidden_preview_title: "Your hidden comment",
   nano_details_comment_conflict:
     "You already submitted a comment for this nano learning unit. Editing is handled separately.",
   nano_details_comment_validation_error: "Please enter a non-empty comment.",
@@ -708,6 +714,8 @@ const en: Record<TranslationKey, string> = {
   moderator_queue_title: "Moderation Queue",
   moderator_queue_subtitle: "Nanos awaiting review and approval",
   moderator_queue_empty: "No nanos pending review in the queue",
+  moderator_queue_pending_ratings_title: "Pending ratings",
+  moderator_queue_pending_comments_title: "Pending comments",
   moderator_approve: "Approve",
   moderator_approving: "Approving...",
   moderator_reject: "Reject",

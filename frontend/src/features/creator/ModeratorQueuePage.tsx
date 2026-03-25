@@ -3,7 +3,11 @@ import { useEffect, useState } from "react";
 import {
   approveNano,
   getModerationQueue,
+  moderateNanoComment,
+  moderateNanoRating,
   rejectNano,
+  type ModeratorFeedbackCommentItem,
+  type ModeratorFeedbackRatingItem,
   type ModeratorQueueItem,
   type ModeratorQueueListResponse,
 } from "../../shared/api/moderator";
@@ -13,7 +17,7 @@ import { resolveRbacErrorMessage } from "./errorMessages";
 
 /** Per-row action loading state to avoid blocking the whole list */
 interface RowActionState {
-  [nanoId: string]: "approving" | "rejecting" | null;
+  [actionKey: string]: "approving" | "rejecting" | "hiding" | null;
 }
 
 interface QueuePageState {
@@ -102,6 +106,72 @@ export function ModeratorQueuePage(): JSX.Element {
     }
   };
 
+  const handleApproveRating = async (
+    nanoId: string,
+    ratingId: string
+  ): Promise<void> => {
+    const actionKey = `rating:${ratingId}`;
+    setRowAction((prev) => ({ ...prev, [actionKey]: "approving" }));
+    setActionError(null);
+    try {
+      await moderateNanoRating(nanoId, ratingId, "approved");
+      await fetchQueue(queueState.page);
+    } catch (err) {
+      const message = resolveRbacErrorMessage(err, t);
+      setActionError(`${t("moderator_approve_error")}: ${message}`);
+    } finally {
+      setRowAction((prev) => ({ ...prev, [actionKey]: null }));
+    }
+  };
+
+  const handleHideRating = async (nanoId: string, ratingId: string): Promise<void> => {
+    const actionKey = `rating:${ratingId}`;
+    setRowAction((prev) => ({ ...prev, [actionKey]: "hiding" }));
+    setActionError(null);
+    try {
+      await moderateNanoRating(nanoId, ratingId, "hidden");
+      await fetchQueue(queueState.page);
+    } catch (err) {
+      const message = resolveRbacErrorMessage(err, t);
+      setActionError(`${t("moderator_reject_error")}: ${message}`);
+    } finally {
+      setRowAction((prev) => ({ ...prev, [actionKey]: null }));
+    }
+  };
+
+  const handleApproveComment = async (
+    nanoId: string,
+    commentId: string
+  ): Promise<void> => {
+    const actionKey = `comment:${commentId}`;
+    setRowAction((prev) => ({ ...prev, [actionKey]: "approving" }));
+    setActionError(null);
+    try {
+      await moderateNanoComment(nanoId, commentId, "approved");
+      await fetchQueue(queueState.page);
+    } catch (err) {
+      const message = resolveRbacErrorMessage(err, t);
+      setActionError(`${t("moderator_approve_error")}: ${message}`);
+    } finally {
+      setRowAction((prev) => ({ ...prev, [actionKey]: null }));
+    }
+  };
+
+  const handleHideComment = async (nanoId: string, commentId: string): Promise<void> => {
+    const actionKey = `comment:${commentId}`;
+    setRowAction((prev) => ({ ...prev, [actionKey]: "hiding" }));
+    setActionError(null);
+    try {
+      await moderateNanoComment(nanoId, commentId, "hidden");
+      await fetchQueue(queueState.page);
+    } catch (err) {
+      const message = resolveRbacErrorMessage(err, t);
+      setActionError(`${t("moderator_reject_error")}: ${message}`);
+    } finally {
+      setRowAction((prev) => ({ ...prev, [actionKey]: null }));
+    }
+  };
+
   // -------------------------------------------------------------------------
   // Helpers
   // -------------------------------------------------------------------------
@@ -176,6 +246,86 @@ export function ModeratorQueuePage(): JSX.Element {
     );
   };
 
+  const renderPendingRating = (item: ModeratorFeedbackRatingItem): JSX.Element => {
+    const actionKey = `rating:${item.rating_id}`;
+    const currentAction = rowAction[actionKey] ?? null;
+    const isProcessing = currentAction !== null;
+
+    return (
+      <li
+        key={item.rating_id}
+        className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div className="flex flex-col gap-1">
+          <span className="font-semibold text-neutral-900">{item.score}/5</span>
+          <span className="text-sm text-neutral-500">
+            {t("moderator_queue_creator_label")}: <span className="font-medium text-neutral-700">{item.username ?? "—"}</span>
+          </span>
+          <span className="text-sm text-neutral-500">
+            {t("moderator_queue_submitted_label")}: <span className="font-medium text-neutral-700">{formatDate(item.created_at)}</span>
+          </span>
+        </div>
+
+        <div className="flex shrink-0 gap-2">
+          <button
+            onClick={() => void handleApproveRating(item.nano_id, item.rating_id)}
+            disabled={isProcessing}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-success-600 hover:bg-success-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {currentAction === "approving" ? t("moderator_approving") : t("moderator_approve")}
+          </button>
+          <button
+            onClick={() => void handleHideRating(item.nano_id, item.rating_id)}
+            disabled={isProcessing}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-error-600 hover:bg-error-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {currentAction === "hiding" ? t("moderator_rejecting") : t("moderator_reject")}
+          </button>
+        </div>
+      </li>
+    );
+  };
+
+  const renderPendingComment = (item: ModeratorFeedbackCommentItem): JSX.Element => {
+    const actionKey = `comment:${item.comment_id}`;
+    const currentAction = rowAction[actionKey] ?? null;
+    const isProcessing = currentAction !== null;
+
+    return (
+      <li
+        key={item.comment_id}
+        className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div className="flex flex-col gap-1">
+          <span className="font-semibold text-neutral-900">{item.content}</span>
+          <span className="text-sm text-neutral-500">
+            {t("moderator_queue_creator_label")}: <span className="font-medium text-neutral-700">{item.username ?? "—"}</span>
+          </span>
+          <span className="text-sm text-neutral-500">
+            {t("moderator_queue_submitted_label")}: <span className="font-medium text-neutral-700">{formatDate(item.created_at)}</span>
+          </span>
+        </div>
+
+        <div className="flex shrink-0 gap-2">
+          <button
+            onClick={() => void handleApproveComment(item.nano_id, item.comment_id)}
+            disabled={isProcessing}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-success-600 hover:bg-success-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {currentAction === "approving" ? t("moderator_approving") : t("moderator_approve")}
+          </button>
+          <button
+            onClick={() => void handleHideComment(item.nano_id, item.comment_id)}
+            disabled={isProcessing}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-error-600 hover:bg-error-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {currentAction === "hiding" ? t("moderator_rejecting") : t("moderator_reject")}
+          </button>
+        </div>
+      </li>
+    );
+  };
+
   // -------------------------------------------------------------------------
   // Main render
   // -------------------------------------------------------------------------
@@ -219,12 +369,37 @@ export function ModeratorQueuePage(): JSX.Element {
 
         {/* Queue list */}
         {!queueState.loading && !queueState.error && queueState.data && (
-          <section>
-            {queueState.data.nanos.length === 0 ? (
-              <p className="py-12 text-center text-neutral-500">{t("moderator_queue_empty")}</p>
-            ) : (
-              <ul className="space-y-3">{queueState.data.nanos.map(renderQueueItem)}</ul>
-            )}
+          <section className="space-y-6">
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold text-neutral-900">{t("moderator_queue_title")}</h2>
+              {queueState.data.nanos.length === 0 ? (
+                <p className="text-neutral-500">{t("moderator_queue_empty")}</p>
+              ) : (
+                <ul className="space-y-3">{queueState.data.nanos.map(renderQueueItem)}</ul>
+              )}
+            </section>
+
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold text-neutral-900">
+                {t("moderator_queue_pending_ratings_title")}
+              </h2>
+              {queueState.data.pending_ratings.length === 0 ? (
+                <p className="text-neutral-500">{t("moderator_queue_empty")}</p>
+              ) : (
+                <ul className="space-y-3">{queueState.data.pending_ratings.map(renderPendingRating)}</ul>
+              )}
+            </section>
+
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold text-neutral-900">
+                {t("moderator_queue_pending_comments_title")}
+              </h2>
+              {queueState.data.pending_comments.length === 0 ? (
+                <p className="text-neutral-500">{t("moderator_queue_empty")}</p>
+              ) : (
+                <ul className="space-y-3">{queueState.data.pending_comments.map(renderPendingComment)}</ul>
+              )}
+            </section>
 
             {/* Pagination */}
             {queueState.data.pagination.total_pages > 1 && (

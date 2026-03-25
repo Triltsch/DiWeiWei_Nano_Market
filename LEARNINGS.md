@@ -234,3 +234,9 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Für auth-kritische Komponenten darf Redis-Ausfall nicht automatisch zu Hard-Fails in Token-Flows führen; ein begrenzter In-Memory-Fallback mit TTL-Semantik hält Login/Refresh/Blacklist-Logik in degraded mode funktional und verbessert Test-/Dev-Robustheit.
 - Validierungsaussagen immer gegen frische, vollständige Läufe absichern (nicht gegen gemischte Task-Historie); bei Zweifel gezielt Full-Suite erneut ausführen und erst danach den Gate-Status dokumentieren.
 - Post-Login-Redirects müssen rollenbewusst designt sein: ein globaler Default auf eine rollenbeschränkte Route (z. B. `/dashboard`) erzeugt bei `consumer` sofortige Forbidden-Loops und sollte durch role-aware Fallbacks (z. B. `/search`) ersetzt werden.
+
+## Ergänzung Issues #93, #94, #95 (Moderator Queue + Login Redirect)
+
+- Moderations-Queues dürfen pending Feedback nicht nur implizit über Public-Listen ausschließen; sie brauchen einen expliziten Moderator-Read-Pfad für `pending` Ratings und Kommentare, sonst bleiben Inhalte faktisch unmoderierbar.
+- Wenn ein lokaler Preview-State mehrere Moderationsstatus anzeigen kann, muss auch die Überschrift statusbewusst sein; ein statischer "pending"-Titel erzeugt falsche UI-Semantik für bereits freigegebene oder ausgeblendete Inhalte.
+- Redirect-Parameter nach Login immer zuerst gegen Open-Redirect-Regeln validieren und erst danach mit einer rollenabhängigen Fallback-Route kombinieren; so werden sowohl Sicherheits- als auch RBAC-Fehlpfade sauber vermieden.
