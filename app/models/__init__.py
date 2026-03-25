@@ -223,6 +223,14 @@ class AuditAction(str, enum.Enum):
     DELETION_CONFIRMED = "deletion_confirmed"
 
 
+class FeedbackModerationStatus(str, enum.Enum):
+    """Moderation lifecycle for ratings and comments."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    HIDDEN = "hidden"
+
+
 class AuditLog(Base):
     """Audit log for tracking user actions and system events"""
 
@@ -466,6 +474,29 @@ class NanoRating(Base):
         nullable=False,
         comment="Star score between 1 and 5",
     )
+    moderation_status: Mapped[FeedbackModerationStatus] = mapped_column(
+        SQLEnum(FeedbackModerationStatus),
+        default=FeedbackModerationStatus.PENDING,
+        nullable=False,
+        index=True,
+        comment="Moderation status for rating visibility",
+    )
+    moderated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Timestamp of latest moderation decision",
+    )
+    moderated_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Moderator/admin who made the latest decision",
+    )
+    moderation_reason: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Optional reason for the latest moderation decision",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
@@ -512,6 +543,29 @@ class NanoComment(Base):
         Text,
         nullable=False,
         comment="Sanitized comment content (1-1000 chars)",
+    )
+    moderation_status: Mapped[FeedbackModerationStatus] = mapped_column(
+        SQLEnum(FeedbackModerationStatus),
+        default=FeedbackModerationStatus.PENDING,
+        nullable=False,
+        index=True,
+        comment="Moderation status for comment visibility",
+    )
+    moderated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Timestamp of latest moderation decision",
+    )
+    moderated_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Moderator/admin who made the latest decision",
+    )
+    moderation_reason: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Optional reason for the latest moderation decision",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True

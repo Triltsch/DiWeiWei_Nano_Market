@@ -11,12 +11,14 @@ from decimal import Decimal
 from unittest.mock import Mock
 
 import pytest
+from sqlalchemy import select
 
 from app.models import (
     AuditAction,
     AuditLog,
     Category,
     CompetencyLevel,
+    FeedbackModerationStatus,
     LicenseType,
     Nano,
     NanoCategoryAssignment,
@@ -1273,7 +1275,7 @@ class TestNanoRatingsRoutes:
 
     @pytest.mark.asyncio
     async def test_create_rating_success_and_cache_update(self, async_client, db_session):
-        """Creating a rating succeeds for published Nano and updates denormalized cache fields."""
+        """Creating a rating succeeds but remains pending until moderation approves it."""
         creator = await self._create_user(
             db_session, "creator-rating@example.com", "creator_rating"
         )
@@ -1305,20 +1307,21 @@ class TestNanoRatingsRoutes:
         payload = response.json()
         assert payload["nano_id"] == str(nano.id)
         assert payload["user_rating"]["score"] == 5
-        assert Decimal(str(payload["aggregation"]["average_rating"])) == Decimal("5.00")
-        assert Decimal(str(payload["aggregation"]["median_rating"])) == Decimal("5.00")
-        assert payload["aggregation"]["rating_count"] == 1
+        assert payload["user_rating"]["moderation_status"] == "pending"
+        assert Decimal(str(payload["aggregation"]["average_rating"])) == Decimal("0.00")
+        assert Decimal(str(payload["aggregation"]["median_rating"])) == Decimal("0.00")
+        assert payload["aggregation"]["rating_count"] == 0
         assert payload["aggregation"]["distribution"] == [
             {"score": 1, "count": 0},
             {"score": 2, "count": 0},
             {"score": 3, "count": 0},
             {"score": 4, "count": 0},
-            {"score": 5, "count": 1},
+            {"score": 5, "count": 0},
         ]
 
         await db_session.refresh(nano)
-        assert nano.average_rating == Decimal("5.00")
-        assert nano.rating_count == 1
+        assert nano.average_rating == Decimal("0.00")
+        assert nano.rating_count == 0
 
     @pytest.mark.asyncio
     async def test_create_rating_requires_authentication(self, async_client, db_session):
@@ -1414,7 +1417,7 @@ class TestNanoRatingsRoutes:
 
     @pytest.mark.asyncio
     async def test_update_rating_success_and_aggregation_consistent(self, async_client, db_session):
-        """Updating own rating recalculates aggregation and keeps values consistent."""
+        """Updating own rating resets moderation and removes it from public aggregation."""
         creator = await self._create_user(
             db_session, "creator-update@example.com", "creator_update"
         )
@@ -1442,6 +1445,7 @@ class TestNanoRatingsRoutes:
                 nano_id=nano.id,
                 user_id=rater_1.id,
                 score=4,
+                moderation_status=FeedbackModerationStatus.APPROVED,
             )
         )
         db_session.add(
@@ -1450,6 +1454,7 @@ class TestNanoRatingsRoutes:
                 nano_id=nano.id,
                 user_id=rater_2.id,
                 score=2,
+                moderation_status=FeedbackModerationStatus.APPROVED,
             )
         )
         await db_session.commit()
@@ -1464,20 +1469,21 @@ class TestNanoRatingsRoutes:
         assert response.status_code == 200
         payload = response.json()
         assert payload["user_rating"]["score"] == 5
-        assert Decimal(str(payload["aggregation"]["average_rating"])) == Decimal("4.50")
-        assert Decimal(str(payload["aggregation"]["median_rating"])) == Decimal("4.50")
-        assert payload["aggregation"]["rating_count"] == 2
+        assert payload["user_rating"]["moderation_status"] == "pending"
+        assert Decimal(str(payload["aggregation"]["average_rating"])) == Decimal("4.00")
+        assert Decimal(str(payload["aggregation"]["median_rating"])) == Decimal("4.00")
+        assert payload["aggregation"]["rating_count"] == 1
         assert payload["aggregation"]["distribution"] == [
             {"score": 1, "count": 0},
             {"score": 2, "count": 0},
             {"score": 3, "count": 0},
             {"score": 4, "count": 1},
-            {"score": 5, "count": 1},
+            {"score": 5, "count": 0},
         ]
 
         await db_session.refresh(nano)
-        assert nano.average_rating == Decimal("4.50")
-        assert nano.rating_count == 2
+        assert nano.average_rating == Decimal("4.00")
+        assert nano.rating_count == 1
 
     @pytest.mark.asyncio
     async def test_update_rating_without_existing_rating_returns_404(
@@ -1516,7 +1522,7 @@ class TestNanoRatingsRoutes:
     async def test_get_rating_summary_public_and_authenticated_user_rating(
         self, async_client, db_session
     ):
-        """Read endpoint is public for published Nano and returns caller rating if authenticated."""
+        """Read endpoint is public but aggregates only approved ratings."""
         creator = await self._create_user(db_session, "creator-read@example.com", "creator_read")
         rater_1 = await self._create_user(db_session, "rater-read1@example.com", "rater_read1")
         rater_2 = await self._create_user(db_session, "rater-read2@example.com", "rater_read2")
@@ -1542,6 +1548,7 @@ class TestNanoRatingsRoutes:
                 nano_id=nano.id,
                 user_id=rater_1.id,
                 score=1,
+                moderation_status=FeedbackModerationStatus.APPROVED,
             )
         )
         db_session.add(
@@ -1550,6 +1557,7 @@ class TestNanoRatingsRoutes:
                 nano_id=nano.id,
                 user_id=rater_2.id,
                 score=5,
+                moderation_status=FeedbackModerationStatus.PENDING,
             )
         )
         await db_session.commit()
@@ -1558,9 +1566,9 @@ class TestNanoRatingsRoutes:
         assert public_response.status_code == 200
         public_payload = public_response.json()
         assert public_payload["current_user_rating"] is None
-        assert Decimal(str(public_payload["aggregation"]["average_rating"])) == Decimal("3.00")
-        assert Decimal(str(public_payload["aggregation"]["median_rating"])) == Decimal("3.00")
-        assert public_payload["aggregation"]["rating_count"] == 2
+        assert Decimal(str(public_payload["aggregation"]["average_rating"])) == Decimal("1.00")
+        assert Decimal(str(public_payload["aggregation"]["median_rating"])) == Decimal("1.00")
+        assert public_payload["aggregation"]["rating_count"] == 1
 
         token, _ = create_access_token(rater_2.id, rater_2.email, role="creator")
         auth_response = await async_client.get(
@@ -1571,6 +1579,7 @@ class TestNanoRatingsRoutes:
         auth_payload = auth_response.json()
         assert auth_payload["current_user_rating"] is not None
         assert auth_payload["current_user_rating"]["score"] == 5
+        assert auth_payload["current_user_rating"]["moderation_status"] == "pending"
 
     @pytest.mark.asyncio
     async def test_get_rating_summary_non_published_returns_400(self, async_client, db_session):
@@ -1657,7 +1666,7 @@ class TestNanoCommentsRoutes:
 
     @pytest.mark.asyncio
     async def test_create_comment_success_with_sanitization(self, async_client, db_session):
-        """Valid comment is created for published Nano and sanitized before persistence."""
+        """Valid comment is created pending moderation and sanitized before persistence."""
         creator = await self._create_user(
             db_session, "comment-creator@example.com", "comment_creator"
         )
@@ -1690,6 +1699,7 @@ class TestNanoCommentsRoutes:
         assert payload["nano_id"] == str(nano.id)
         assert payload["user_id"] == str(commenter.id)
         assert payload["content"] == "&lt;script&gt;alert('x')&lt;/script&gt; Great nano!"
+        assert payload["moderation_status"] == "pending"
         assert payload["is_edited"] is False
 
     @pytest.mark.asyncio
@@ -1811,7 +1821,7 @@ class TestNanoCommentsRoutes:
 
     @pytest.mark.asyncio
     async def test_list_comments_pagination_and_stable_sort(self, async_client, db_session):
-        """Comments list is paginated and sorted by updated_at desc, then id desc."""
+        """Comments list shows only approved comments, stably sorted by updated_at and id."""
         creator = await self._create_user(
             db_session, "comment-creator4@example.com", "comment_creator4"
         )
@@ -1840,6 +1850,7 @@ class TestNanoCommentsRoutes:
             nano_id=nano.id,
             user_id=user_a.id,
             content="oldest",
+            moderation_status=FeedbackModerationStatus.APPROVED,
             created_at=base - timedelta(minutes=3),
             updated_at=base - timedelta(minutes=3),
         )
@@ -1848,6 +1859,7 @@ class TestNanoCommentsRoutes:
             nano_id=nano.id,
             user_id=user_b.id,
             content="middle",
+            moderation_status=FeedbackModerationStatus.HIDDEN,
             created_at=base - timedelta(minutes=2),
             updated_at=base - timedelta(minutes=2),
         )
@@ -1856,6 +1868,7 @@ class TestNanoCommentsRoutes:
             nano_id=nano.id,
             user_id=user_c.id,
             content="newest",
+            moderation_status=FeedbackModerationStatus.APPROVED,
             created_at=base - timedelta(minutes=1),
             updated_at=base - timedelta(minutes=1),
         )
@@ -1869,17 +1882,17 @@ class TestNanoCommentsRoutes:
         assert page_2.status_code == 200
 
         page_1_payload = page_1.json()
-        assert [item["content"] for item in page_1_payload["comments"]] == ["newest", "middle"]
-        assert page_1_payload["pagination"]["total_results"] == 3
-        assert page_1_payload["pagination"]["has_next_page"] is True
+        assert [item["content"] for item in page_1_payload["comments"]] == ["newest", "oldest"]
+        assert page_1_payload["pagination"]["total_results"] == 2
+        assert page_1_payload["pagination"]["has_next_page"] is False
 
         page_2_payload = page_2.json()
-        assert [item["content"] for item in page_2_payload["comments"]] == ["oldest"]
+        assert page_2_payload["comments"] == []
         assert page_2_payload["pagination"]["has_prev_page"] is True
 
     @pytest.mark.asyncio
     async def test_update_comment_owner_and_admin_permissions(self, async_client, db_session):
-        """Owner can edit own comment, non-owner gets 403, admin can edit same comment."""
+        """Owner can edit own comment, non-owner gets 403, admin edit re-queues moderation."""
         from app.models import UserRole
 
         creator = await self._create_user(
@@ -1912,6 +1925,7 @@ class TestNanoCommentsRoutes:
             nano_id=nano.id,
             user_id=owner.id,
             content="Original comment",
+            moderation_status=FeedbackModerationStatus.APPROVED,
         )
         db_session.add(comment)
         await db_session.commit()
@@ -1940,3 +1954,180 @@ class TestNanoCommentsRoutes:
         assert forbidden_response.status_code == 403
         assert admin_response.status_code == 200
         assert admin_response.json()["comment"]["content"] == "&lt;b&gt;Admin moderated&lt;/b&gt;"
+        assert admin_response.json()["comment"]["moderation_status"] == "pending"
+
+    @pytest.mark.asyncio
+    async def test_moderation_endpoints_control_public_feedback_visibility(
+        self, async_client, db_session
+    ):
+        """Moderator decisions change what public rating and comment endpoints expose."""
+        from app.models import User, UserRole, UserStatus
+
+        creator = await self._create_user(
+            db_session, "feedback-mod-creator@example.com", "feedback_mod_creator"
+        )
+        author = await self._create_user(
+            db_session, "feedback-mod-author@example.com", "feedback_mod_author"
+        )
+        moderator = User(
+            id=uuid.uuid4(),
+            email="feedback-mod-moderator@example.com",
+            username="feedback_mod_moderator",
+            password_hash="dummy_hash",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            role=UserRole.MODERATOR,
+            preferred_language="en",
+            login_attempts=0,
+        )
+        db_session.add(moderator)
+
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Moderated Feedback Nano",
+            duration_minutes=20,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.flush()
+
+        rating = NanoRating(
+            id=uuid.uuid4(),
+            nano_id=nano.id,
+            user_id=author.id,
+            score=5,
+            moderation_status=FeedbackModerationStatus.PENDING,
+        )
+        comment = NanoComment(
+            id=uuid.uuid4(),
+            nano_id=nano.id,
+            user_id=author.id,
+            content="Needs review",
+            moderation_status=FeedbackModerationStatus.PENDING,
+        )
+        db_session.add_all([rating, comment])
+        await db_session.commit()
+
+        moderator_token, _ = create_access_token(moderator.id, moderator.email, role="moderator")
+
+        public_before = await async_client.get(f"/api/v1/nanos/{nano.id}/ratings")
+        comments_before = await async_client.get(f"/api/v1/nanos/{nano.id}/comments")
+        assert public_before.status_code == 200
+        assert public_before.json()["aggregation"]["rating_count"] == 0
+        assert comments_before.status_code == 200
+        assert comments_before.json()["comments"] == []
+
+        approve_rating = await async_client.patch(
+            f"/api/v1/nanos/{nano.id}/ratings/{rating.id}/moderation",
+            headers={"Authorization": f"Bearer {moderator_token}"},
+            json={"status": "approved", "reason": "Legitimate review"},
+        )
+        approve_comment = await async_client.patch(
+            f"/api/v1/nanos/{nano.id}/comments/{comment.id}/moderation",
+            headers={"Authorization": f"Bearer {moderator_token}"},
+            json={"status": "approved", "reason": "Looks fine"},
+        )
+
+        assert approve_rating.status_code == 200
+        assert approve_rating.json()["rating"]["moderation_status"] == "approved"
+        assert approve_comment.status_code == 200
+        assert approve_comment.json()["comment"]["moderation_status"] == "approved"
+
+        public_after_approve = await async_client.get(f"/api/v1/nanos/{nano.id}/ratings")
+        comments_after_approve = await async_client.get(f"/api/v1/nanos/{nano.id}/comments")
+        assert public_after_approve.json()["aggregation"]["rating_count"] == 1
+        assert comments_after_approve.json()["comments"][0]["content"] == "Needs review"
+
+        hide_comment = await async_client.patch(
+            f"/api/v1/nanos/{nano.id}/comments/{comment.id}/moderation",
+            headers={"Authorization": f"Bearer {moderator_token}"},
+            json={"status": "hidden", "reason": "Policy violation"},
+        )
+        assert hide_comment.status_code == 200
+        assert hide_comment.json()["comment"]["moderation_status"] == "hidden"
+
+        comments_after_hide = await async_client.get(f"/api/v1/nanos/{nano.id}/comments")
+        assert comments_after_hide.json()["comments"] == []
+
+        rating_log_stmt = (
+            select(AuditLog)
+            .where(AuditLog.resource_type == "nano_rating")
+            .where(AuditLog.resource_id == str(rating.id))
+            .where(AuditLog.action == AuditAction.DATA_MODIFIED)
+        )
+        rating_log = (await db_session.execute(rating_log_stmt)).scalar_one_or_none()
+        assert rating_log is not None
+        assert rating_log.event_data["old_value"] == "pending"
+        assert rating_log.event_data["new_value"] == "approved"
+
+        comment_log_stmt = (
+            select(AuditLog)
+            .where(AuditLog.resource_type == "nano_comment")
+            .where(AuditLog.resource_id == str(comment.id))
+            .where(AuditLog.action == AuditAction.DATA_MODIFIED)
+            .where(AuditLog.event_data["new_value"].as_string() == "hidden")
+        )
+        comment_log = (await db_session.execute(comment_log_stmt)).scalar_one_or_none()
+        assert comment_log is not None
+        assert comment_log.event_data["old_value"] == "approved"
+        assert comment_log.event_data["new_value"] == "hidden"
+
+    @pytest.mark.asyncio
+    async def test_feedback_moderation_requires_moderator_or_admin(self, async_client, db_session):
+        """Regular creators cannot moderate feedback items."""
+        creator = await self._create_user(
+            db_session, "feedback-rbac-creator@example.com", "feedback_rbac_creator"
+        )
+        author = await self._create_user(
+            db_session, "feedback-rbac-author@example.com", "feedback_rbac_author"
+        )
+
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Feedback RBAC Nano",
+            duration_minutes=20,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        rating = NanoRating(
+            id=uuid.uuid4(),
+            nano_id=nano.id,
+            user_id=author.id,
+            score=3,
+            moderation_status=FeedbackModerationStatus.PENDING,
+        )
+        comment = NanoComment(
+            id=uuid.uuid4(),
+            nano_id=nano.id,
+            user_id=author.id,
+            content="Review awaiting moderation",
+            moderation_status=FeedbackModerationStatus.PENDING,
+        )
+        db_session.add_all([nano, rating, comment])
+        await db_session.commit()
+
+        creator_token, _ = create_access_token(creator.id, creator.email, role="creator")
+        rating_response = await async_client.patch(
+            f"/api/v1/nanos/{nano.id}/ratings/{rating.id}/moderation",
+            headers={"Authorization": f"Bearer {creator_token}"},
+            json={"status": "approved"},
+        )
+        comment_response = await async_client.patch(
+            f"/api/v1/nanos/{nano.id}/comments/{comment.id}/moderation",
+            headers={"Authorization": f"Bearer {creator_token}"},
+            json={"status": "hidden"},
+        )
+
+        assert rating_response.status_code == 403
+        assert comment_response.status_code == 403

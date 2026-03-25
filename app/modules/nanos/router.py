@@ -25,16 +25,19 @@ from app.modules.auth.middleware import (
 from app.modules.auth.tokens import TokenData
 from app.modules.nanos.schemas import (
     CreatorNanoListResponse,
+    FeedbackModerationRequest,
     MetadataUpdateRequest,
     MetadataUpdateResponse,
     ModeratorQueueListResponse,
     NanoCommentListResponse,
+    NanoCommentModerationResponse,
     NanoCommentMutationResponse,
     NanoCommentUpsertRequest,
     NanoDeleteResponse,
     NanoDetailResponse,
     NanoDownloadInfoResponse,
     NanoMetadataResponse,
+    NanoRatingModerationResponse,
     NanoRatingMutationResponse,
     NanoRatingReadResponse,
     NanoRatingUpsertRequest,
@@ -52,6 +55,8 @@ from app.modules.nanos.service import (
     get_nano_metadata,
     get_nano_ratings,
     get_pending_review_nanos,
+    moderate_nano_comment,
+    moderate_nano_rating,
     update_nano_comment,
     update_nano_metadata,
     update_nano_rating,
@@ -396,6 +401,60 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
             db=db,
         )
 
+    @router.patch(
+        "/{nano_id}/ratings/{rating_id}/moderation",
+        response_model=NanoRatingModerationResponse,
+        status_code=status.HTTP_200_OK,
+        summary="Moderate a Nano rating",
+        description="""
+        Approve or hide a rating for a published Nano.
+
+        **Rules:**
+        - Authentication required
+        - Only moderators and admins may moderate ratings
+        - Public rating aggregation includes approved ratings only
+
+        **Error Cases:**
+        - 400: Nano is not published
+        - 401: Not authenticated
+        - 403: User lacks moderator/admin role
+        - 404: Nano or rating not found
+        - 422: Invalid moderation status
+        """,
+        responses={
+            200: {"description": "Rating moderated successfully"},
+            400: {"description": "Nano is not published"},
+            401: {"description": "Not authenticated"},
+            403: {"description": "User lacks moderator/admin role"},
+            404: {"description": "Nano or rating not found"},
+            422: {"description": "Invalid moderation payload"},
+        },
+    )
+    async def moderate_nano_rating_endpoint(
+        nano_id: UUID,
+        rating_id: UUID,
+        payload: FeedbackModerationRequest,
+        current_user: Annotated[
+            TokenData,
+            Depends(
+                require_any_role(
+                    ROLE_MODERATOR,
+                    ROLE_ADMIN,
+                    detail="Only moderators and admins can moderate ratings",
+                )
+            ),
+        ],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> NanoRatingModerationResponse:
+        """Moderate one rating as moderator/admin."""
+        return await moderate_nano_rating(
+            nano_id=nano_id,
+            rating_id=rating_id,
+            moderation=payload,
+            current_user=current_user,
+            db=db,
+        )
+
     @router.get(
         "/{nano_id}/comments",
         response_model=NanoCommentListResponse,
@@ -519,6 +578,60 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
             nano_id=nano_id,
             comment_id=comment_id,
             payload=payload,
+            current_user=current_user,
+            db=db,
+        )
+
+    @router.patch(
+        "/{nano_id}/comments/{comment_id}/moderation",
+        response_model=NanoCommentModerationResponse,
+        status_code=status.HTTP_200_OK,
+        summary="Moderate a Nano comment",
+        description="""
+        Approve or hide a comment for a published Nano.
+
+        **Rules:**
+        - Authentication required
+        - Only moderators and admins may moderate comments
+        - Public comment listings include approved comments only
+
+        **Error Cases:**
+        - 400: Nano is not published
+        - 401: Not authenticated
+        - 403: User lacks moderator/admin role
+        - 404: Nano or comment not found
+        - 422: Invalid moderation status
+        """,
+        responses={
+            200: {"description": "Comment moderated successfully"},
+            400: {"description": "Nano is not published"},
+            401: {"description": "Not authenticated"},
+            403: {"description": "User lacks moderator/admin role"},
+            404: {"description": "Nano or comment not found"},
+            422: {"description": "Invalid moderation payload"},
+        },
+    )
+    async def moderate_nano_comment_endpoint(
+        nano_id: UUID,
+        comment_id: UUID,
+        payload: FeedbackModerationRequest,
+        current_user: Annotated[
+            TokenData,
+            Depends(
+                require_any_role(
+                    ROLE_MODERATOR,
+                    ROLE_ADMIN,
+                    detail="Only moderators and admins can moderate comments",
+                )
+            ),
+        ],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> NanoCommentModerationResponse:
+        """Moderate one comment as moderator/admin."""
+        return await moderate_nano_comment(
+            nano_id=nano_id,
+            comment_id=comment_id,
+            moderation=payload,
             current_user=current_user,
             db=db,
         )

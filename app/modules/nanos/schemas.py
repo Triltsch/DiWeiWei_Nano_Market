@@ -249,7 +249,9 @@ class NanoRatingAggregation(BaseModel):
 class NanoUserRating(BaseModel):
     """Current authenticated user's rating for a Nano."""
 
+    rating_id: UUID = Field(..., description="Unique identifier of the rating")
     score: int = Field(ge=1, le=5, description="User's submitted star score")
+    moderation_status: str = Field(description="Moderation status of the rating")
     updated_at: datetime = Field(description="Timestamp of the latest rating update")
 
 
@@ -299,9 +301,37 @@ class NanoCommentItem(BaseModel):
     user_id: UUID = Field(..., description="Author user identifier")
     username: Optional[str] = Field(None, description="Author username")
     content: str = Field(..., description="Sanitized comment content")
+    moderation_status: str = Field(description="Moderation status of the comment")
+    moderation_reason: Optional[str] = Field(
+        None,
+        description="Optional reason for the latest moderation decision",
+    )
     created_at: datetime = Field(..., description="Comment creation timestamp")
     updated_at: datetime = Field(..., description="Comment update timestamp")
     is_edited: bool = Field(..., description="Whether the comment was edited after creation")
+
+
+class FeedbackModerationRequest(BaseModel):
+    """Request payload for moderating a rating or comment."""
+
+    status: str = Field(
+        ...,
+        description="Target moderation status: approved or hidden",
+    )
+    reason: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Optional moderation rationale for auditability",
+    )
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        """Allow only terminal moderation decisions via API."""
+        normalized = value.lower()
+        if normalized not in {"approved", "hidden"}:
+            raise ValueError("status must be one of: approved, hidden")
+        return normalized
 
 
 class NanoCommentMutationResponse(BaseModel):
@@ -310,11 +340,40 @@ class NanoCommentMutationResponse(BaseModel):
     comment: NanoCommentItem = Field(..., description="Created or updated comment")
 
 
+class NanoCommentModerationResponse(BaseModel):
+    """Response payload for comment moderation actions."""
+
+    comment: NanoCommentItem = Field(..., description="Moderated comment item")
+
+
 class NanoCommentListResponse(BaseModel):
     """Response payload for paginated Nano comments listing."""
 
     comments: list[NanoCommentItem] = Field(default_factory=list, description="List of comments")
     pagination: "PaginationMeta" = Field(..., description="Pagination metadata")
+
+
+class NanoRatingModerationItem(BaseModel):
+    """Moderation-aware rating item for moderator workflows."""
+
+    rating_id: UUID = Field(..., description="Unique identifier of the rating")
+    nano_id: UUID = Field(..., description="Nano identifier")
+    user_id: UUID = Field(..., description="Rating author identifier")
+    username: Optional[str] = Field(None, description="Rating author username")
+    score: int = Field(ge=1, le=5, description="Star score between 1 and 5")
+    moderation_status: str = Field(description="Moderation status of the rating")
+    moderation_reason: Optional[str] = Field(
+        None,
+        description="Optional reason for the latest moderation decision",
+    )
+    created_at: datetime = Field(..., description="Rating creation timestamp")
+    updated_at: datetime = Field(..., description="Rating update timestamp")
+
+
+class NanoRatingModerationResponse(BaseModel):
+    """Response payload for rating moderation actions."""
+
+    rating: NanoRatingModerationItem = Field(description="Moderated rating item")
 
 
 class NanoDownloadInfo(BaseModel):

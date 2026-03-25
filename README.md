@@ -261,9 +261,10 @@ Sprint-5 QA/Operations Gate: [doc/SPRINT5_QA_GATE.md](doc/SPRINT5_QA_GATE.md)
 - `POST /api/v1/auth/verify-email` - Email verifizieren
 
 ### Nano Ratings (Sprint 6)
-- `GET /api/v1/nanos/{nano_id}/ratings` - Öffentliche Aggregation (Durchschnitt, Median, Verteilung, Stimmenzahl); mit Auth inkl. `current_user_rating`
-- `POST /api/v1/nanos/{nano_id}/ratings` - Eigenes 1-5 Sterne-Rating erstellen (auth erforderlich, genau 1 Rating pro User/Nano)
-- `PATCH /api/v1/nanos/{nano_id}/ratings/me` - Eigenes Rating aktualisieren (auth erforderlich)
+- `GET /api/v1/nanos/{nano_id}/ratings` - Öffentliche Aggregation nur aus `approved` Ratings; mit Auth inkl. eigener Bewertung samt `moderation_status`
+- `POST /api/v1/nanos/{nano_id}/ratings` - Eigenes 1-5 Sterne-Rating erstellen (auth erforderlich, genau 1 Rating pro User/Nano, Startstatus `pending`)
+- `PATCH /api/v1/nanos/{nano_id}/ratings/me` - Eigenes Rating aktualisieren (auth erforderlich, setzt Status zurück auf `pending`)
+- `PATCH /api/v1/nanos/{nano_id}/ratings/{rating_id}/moderation` - Rating freigeben oder ausblenden (`moderator`/`admin`)
 - Bewertbar sind nur `published` Nanos; sonst 400-Fehler
 - `POST /api/v1/auth/refresh-token` - Token erneuern
 - `POST /api/v1/auth/logout` - Logout
@@ -291,6 +292,9 @@ Sprint-5 QA/Operations Gate: [doc/SPRINT5_QA_GATE.md](doc/SPRINT5_QA_GATE.md)
 
 ### Moderation
 - `GET /api/v1/nanos/pending-moderation` - Moderations-Queue (authentifiziert, `moderator`/`admin`)
+- `PATCH /api/v1/nanos/{nano_id}/comments/{comment_id}/moderation` - Kommentar freigeben oder ausblenden (`moderator`/`admin`)
+- Öffentliche Kommentarlisten enthalten nur `approved` Kommentare; neue oder bearbeitete Kommentare starten in `pending`
+- Öffentliche Rating-Aggregationen enthalten nur `approved` Ratings; Moderationsentscheidungen werden im Audit-Log protokolliert
 
 ## 🛠️ Technologie-Stack
 

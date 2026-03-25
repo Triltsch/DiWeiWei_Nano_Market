@@ -8,6 +8,8 @@
 
 The audit logging framework provides comprehensive tracking of all user actions and system events for compliance, debugging, and security monitoring. The system logs events with full context (user, action type, resource, IP address, user agent) and provides querying capabilities for administrators to investigate patterns and anomalies.
 
+Feedback moderation decisions for Nano ratings and comments are also captured in this audit trail. The corresponding entries use `action=DATA_MODIFIED`, `resource_type` values `nano_rating` or `nano_comment`, and include before/after moderation status plus the moderator reason in `metadata`.
+
 ## Architecture
 
 ### Data Model
