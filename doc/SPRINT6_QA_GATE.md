@@ -66,7 +66,7 @@ Observed outcomes:
 - `Checks`: passed (no Black/isort blocking issues)
 - `Test: Verified`: passed (`350 passed`, `1 skipped`, coverage `74.98%`)
 - Pytest warnings: 7 upstream deprecation warnings from third-party dependencies (non-blocking)
-- `.vscode/tasks.json`: exactly one `Test: Verified` task definition present
+- VS Code config: repository contains `.vscode/mcp.json`; no `.vscode/tasks.json` task definition present at gate execution time
 
 ## Environment Integrity Findings
 

@@ -220,6 +220,13 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Response-Payloads externer Services vor `.get(...)` immer typvalidieren (`dict`-Guard), damit unerwartete/empty Antworten als kontrollierter 503 enden statt als `AttributeError`.
 - Bei Doku-Änderungen in bestehenden Markdown-Listen/Runbooks Codefence-Balance explizit prüfen; ein offener Fence kann ganze Abschnitte als Code rendern und Nummerierungsfehler verschleiern.
 
+## Review-Nachtrag PR #96 (Redis-Fallback-Konsistenz)
+
+- Degraded-Fallbacks müssen auch beim **Redis-Read-Miss nach Recovery** greifen, nicht nur im Exception-Pfad; sonst gehen während Outages geschriebene Refresh/Blacklist-Zustände nach Redis-Wiederkehr funktional verloren.
+- Für kurzlebige Fallback-States (Tokens/Blacklist) ist eine **best-effort Re-Synchronisation** zurück nach Redis bei erfolgreichem Read-Miss ein robuster Mittelweg zwischen Verfügbarkeit und Konsistenz.
+- In-Memory-TTL-Stores immer bei `set` vorab prunen und `expires_in_seconds <= 0` als sofortiges Entfernen behandeln, um unnötiges Wachstum und stale Einträge zu vermeiden.
+- QA-/Gate-Dokumente dürfen nur repo-reproduzierbare Fakten enthalten (z. B. keine nicht versionierten `.vscode/tasks.json`-Annahmen); solche Abweichungen werden typischerweise erst im PR-Review sichtbar.
+
 ## Ergänzung Issue #87 (Sprint 6 QA Gate + Stabilisierung)
 
 - QA-Gate-Artefakte sollten nicht nur die Testmatrix, sondern auch reproduzierbare Ausführungsbefehle und konkrete Ergebnisnachweise (`Checks`, Full-`pytest`, Infrastruktur-Health) enthalten; das reduziert Review-Rückfragen und macht CI-Abweichungen schneller nachstellbar.

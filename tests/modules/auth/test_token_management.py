@@ -10,12 +10,15 @@ This test file covers:
 """
 
 import asyncio
+import time
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 from uuid import uuid4
 
 import pytest
 from jose import jwt
 
+import app.redis_client as redis_module
 from app.config import get_settings
 from app.modules.auth.tokens import (
     TokenData,
@@ -347,6 +350,61 @@ class TestRedisTokenStorage:
         # Assert
         expect(retrieved_token).is_none()
 
+    @pytest.mark.asyncio
+    async def test_refresh_token_fallback_is_used_when_redis_recovers_without_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test fallback refresh token remains available across Redis outage and recovery.
+
+        Verifies that when token storage falls back during a Redis outage, a later
+        Redis read-miss still consults fallback storage and returns the token.
+        """
+
+        class FakeRedisClient:
+            def __init__(self) -> None:
+                self.fail_setex = True
+                self.redis_data: dict[str, str] = {}
+
+            async def setex(self, key: str, expires: int, value: str) -> None:
+                if self.fail_setex:
+                    raise ConnectionError("redis unavailable")
+                self.redis_data[key] = value
+
+            async def get(self, key: str) -> Optional[str]:
+                return self.redis_data.get(key)
+
+        redis_module._fallback_store.clear()
+        fake_client = FakeRedisClient()
+
+        async def fake_get_redis() -> FakeRedisClient:
+            return fake_client
+
+        monkeypatch.setattr(redis_module, "get_redis", fake_get_redis)
+
+        user_id = str(uuid4())
+        token = "fallback_refresh_token"
+
+        await store_refresh_token(user_id, token, 3600)
+
+        fake_client.fail_setex = False
+        retrieved_token = await get_refresh_token(user_id)
+
+        expect(retrieved_token).equal(token)
+        expect(fake_client.redis_data.get(f"refresh_token:{user_id}")).equal(token)
+
+    def test_fallback_set_prunes_and_drops_non_positive_ttl(self) -> None:
+        """Test fallback set performs pruning and ignores non-positive TTL values."""
+
+        redis_module._fallback_store.clear()
+        redis_module._fallback_store["expired-key"] = ("value", time.time() - 10)
+
+        redis_module._fallback_set("active-key", "active", 120)
+        redis_module._fallback_set("non-positive", "value", 0)
+
+        expect("expired-key" in redis_module._fallback_store).to_be_false()
+        expect(redis_module._fallback_store.get("active-key")).is_not_none()
+        expect("non-positive" in redis_module._fallback_store).to_be_false()
+
 
 class TestTokenBlacklisting:
     """Tests for token blacklist/revocation mechanism."""
@@ -406,6 +464,42 @@ class TestTokenBlacklisting:
         # Assert
         is_blacklisted = await is_token_blacklisted(token)
         expect(is_blacklisted).to_be_false()
+
+    @pytest.mark.asyncio
+    async def test_blacklist_fallback_is_used_when_redis_recovers_without_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test fallback blacklist remains enforced across Redis outage and recovery."""
+
+        class FakeRedisClient:
+            def __init__(self) -> None:
+                self.fail_setex = True
+                self.redis_data: dict[str, str] = {}
+
+            async def setex(self, key: str, expires: int, value: str) -> None:
+                if self.fail_setex:
+                    raise ConnectionError("redis unavailable")
+                self.redis_data[key] = value
+
+            async def exists(self, key: str) -> int:
+                return 1 if key in self.redis_data else 0
+
+        redis_module._fallback_store.clear()
+        fake_client = FakeRedisClient()
+
+        async def fake_get_redis() -> FakeRedisClient:
+            return fake_client
+
+        monkeypatch.setattr(redis_module, "get_redis", fake_get_redis)
+
+        token = "fallback_blacklist_token"
+        await blacklist_token(token, 3600)
+
+        fake_client.fail_setex = False
+        blacklisted = await is_token_blacklisted(token)
+
+        expect(blacklisted).to_be_true()
+        expect(fake_client.redis_data.get(f"blacklist:{token}")).equal("1")
 
 
 class TestTokenClaims:

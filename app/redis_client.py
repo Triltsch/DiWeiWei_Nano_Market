@@ -25,7 +25,11 @@ def _fallback_prune_expired() -> None:
 
 
 def _fallback_set(key: str, value: str, expires_in_seconds: int) -> None:
-    expires_at = time.time() + max(expires_in_seconds, 0)
+    _fallback_prune_expired()
+    if expires_in_seconds <= 0:
+        _fallback_store.pop(key, None)
+        return
+    expires_at = time.time() + expires_in_seconds
     _fallback_store[key] = (value, expires_at)
 
 
@@ -39,6 +43,36 @@ def _fallback_get(key: str) -> Optional[str]:
 
 def _fallback_delete(key: str) -> None:
     _fallback_store.pop(key, None)
+
+
+def _fallback_get_with_ttl(key: str) -> tuple[Optional[str], Optional[int]]:
+    _fallback_prune_expired()
+    entry = _fallback_store.get(key)
+    if entry is None:
+        return None, None
+
+    value, expires_at = entry
+    if expires_at is None:
+        return value, None
+
+    ttl_seconds = int(expires_at - time.time())
+    if ttl_seconds <= 0:
+        _fallback_store.pop(key, None)
+        return None, None
+
+    return value, ttl_seconds
+
+
+async def _best_effort_resync_to_redis(
+    client: redis.Redis, key: str, value: str, ttl_seconds: Optional[int]
+) -> None:
+    if ttl_seconds is None or ttl_seconds <= 0:
+        return
+
+    try:
+        await client.setex(key, ttl_seconds, value)
+    except Exception:
+        pass
 
 
 def _is_redis_unavailable(error: Exception) -> bool:
@@ -143,8 +177,18 @@ async def get_refresh_token(user_id: str) -> Optional[str]:
     except Exception as error:
         if not _is_redis_unavailable(error):
             raise
-        token = _fallback_get(key)
-    return token if token else None
+        fallback_token, _ = _fallback_get_with_ttl(key)
+        return fallback_token
+
+    if token:
+        return token
+
+    fallback_token, ttl_seconds = _fallback_get_with_ttl(key)
+    if fallback_token is None:
+        return None
+
+    await _best_effort_resync_to_redis(client, key, fallback_token, ttl_seconds)
+    return fallback_token
 
 
 async def delete_refresh_token(user_id: str) -> None:
@@ -194,8 +238,17 @@ async def is_token_blacklisted(token: str) -> bool:
     key = f"blacklist:{token}"
     try:
         exists = await client.exists(key)
-        return exists > 0
     except Exception as error:
         if not _is_redis_unavailable(error):
             raise
         return _fallback_get(key) is not None
+
+    if exists > 0:
+        return True
+
+    fallback_value, ttl_seconds = _fallback_get_with_ttl(key)
+    if fallback_value is None:
+        return False
+
+    await _best_effort_resync_to_redis(client, key, fallback_value, ttl_seconds)
+    return True
