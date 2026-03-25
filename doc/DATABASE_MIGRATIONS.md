@@ -206,6 +206,23 @@ Or manually stamp the current version:
 python -m alembic stamp head
 ```
 
+### Issue: Revision Is `head`, but Tables Are Missing
+
+**Problem:** `alembic_version` is already at latest revision, but application tables (for example `users`, `nanos`) are missing in `public`.
+
+**Cause:** Inconsistent local state (migration pointer advanced without complete schema materialization, often due to reused local volumes).
+
+**Solution (local Compose PostgreSQL on 5432):**
+
+```bash
+# Reset revision pointer, then replay all migrations
+DATABASE_URL="postgresql://diwei_user:diwei_password@localhost:5432/diwei_nano_market" python -m alembic stamp base
+DATABASE_URL="postgresql://diwei_user:diwei_password@localhost:5432/diwei_nano_market" python -m alembic upgrade head
+
+# Validate required core tables
+docker compose exec -T postgres psql -U diwei_user -d diwei_nano_market -c "select tablename from pg_tables where schemaname='public' and tablename in ('users','nanos','nano_ratings','nano_comments') order by tablename;"
+```
+
 ## Migration Testing
 
 ### Test Setup

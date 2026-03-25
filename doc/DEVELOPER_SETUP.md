@@ -468,6 +468,32 @@ redis.exceptions.ConnectionError: Error 111 connecting to localhost:6379. Connec
    # Test manual load
    export $(cat .env | xargs)
    pytest tests/
+
+### Issue 5: Alembic Shows `head`, but Core Tables Are Missing
+
+**Symptom**:
+- `python -m alembic current` shows latest revision (for example `d91f4c3e8a4b (head)`)
+- but queries against `public.users`, `public.nanos`, `public.nano_ratings`, `public.nano_comments` fail with `relation does not exist`
+
+**Root Cause**:
+- Local PostgreSQL volume is in an inconsistent migration state (`alembic_version` at head without matching schema objects).
+
+**Recovery (local Docker Compose DB on port 5432)**:
+```bash
+# Force migration pointer back to base and replay all revisions
+DATABASE_URL="postgresql://diwei_user:diwei_password@localhost:5432/diwei_nano_market" python -m alembic stamp base
+DATABASE_URL="postgresql://diwei_user:diwei_password@localhost:5432/diwei_nano_market" python -m alembic upgrade head
+
+# Verify core tables exist
+docker compose exec -T postgres psql -U diwei_user -d diwei_nano_market -c "select tablename from pg_tables where schemaname='public' and tablename in ('users','nanos','nano_ratings','nano_comments') order by tablename;"
+```
+
+**After recovery**:
+- Re-run local QA seeding and search reindex if needed:
+```bash
+python scripts/seed_qa_demo_data.py
+python scripts/reindex_search.py
+```
    ```
 
 4. **Docker Compose app container using localhost instead of service name**

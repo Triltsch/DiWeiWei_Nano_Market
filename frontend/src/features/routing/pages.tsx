@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PropsWithChildren } from "react";
+import { useEffect, useId, useRef, useState, type PropsWithChildren } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import {
@@ -15,12 +15,21 @@ import {
   UploadWizardPage as UploadWizardPageComponent,
 } from "../creator";
 import {
+  createNanoComment,
+  createNanoRating,
   getNanoDetail,
+  getNanoComments,
   getNanoDownloadInfo,
+  getNanoRatings,
+  NanoFeedbackApiError,
   NanoDetailApiError,
   normalizeSearchLevel,
   searchNanos,
+  updateMyNanoRating,
+  type NanoComment,
+  type NanoCommentsResponse,
   type NanoDetail,
+  type NanoRatingsResponse,
   type SearchFilters,
   type SearchNano,
 } from "../../shared/api";
@@ -208,6 +217,9 @@ const PAGE_SIZE = 20;
 /** Debounce delay (ms) for the keyword search input. */
 const DEBOUNCE_MS = 300;
 
+/** Page size for the public comments area on the detail page. */
+const COMMENTS_PAGE_SIZE = 5;
+
 const NANO_STATUS_TRANSLATION_KEYS: Partial<Record<string, TranslationKey>> = {
   draft: "nano_status_draft",
   pending_review: "nano_status_pending_review",
@@ -220,6 +232,77 @@ const COMPETENCY_TRANSLATION_KEYS: Partial<Record<string, TranslationKey>> = {
   intermediate: "competency_intermediate",
   advanced: "competency_advanced",
 };
+
+const FEEDBACK_STATUS_TRANSLATION_KEYS: Partial<Record<string, TranslationKey>> = {
+  approved: "nano_details_feedback_status_approved",
+  pending: "nano_details_feedback_status_pending",
+  hidden: "nano_details_feedback_status_hidden",
+};
+
+const RATING_STATUS_MESSAGE_KEYS: Partial<Record<string, TranslationKey>> = {
+  approved: "nano_details_rating_status_approved",
+  pending: "nano_details_rating_status_pending",
+  hidden: "nano_details_rating_status_hidden",
+};
+
+const COMMENT_STATUS_MESSAGE_KEYS: Partial<Record<string, TranslationKey>> = {
+  approved: "nano_details_comment_status_approved",
+  pending: "nano_details_comment_status_pending",
+  hidden: "nano_details_comment_status_hidden",
+};
+
+function getFeedbackStatusLabel(status: string, t: (key: TranslationKey) => string): string {
+  const translationKey = FEEDBACK_STATUS_TRANSLATION_KEYS[status];
+  return translationKey ? t(translationKey) : status;
+}
+
+function getFeedbackStatusMessage(
+  status: string,
+  type: "rating" | "comment",
+  t: (key: TranslationKey) => string,
+): string | null {
+  const translationKey =
+    type === "rating" ? RATING_STATUS_MESSAGE_KEYS[status] : COMMENT_STATUS_MESSAGE_KEYS[status];
+  return translationKey ? t(translationKey) : null;
+}
+
+function getFeedbackStatusClasses(status: string): string {
+  switch (status) {
+    case "approved":
+      return "bg-success-100 text-success-700";
+    case "hidden":
+      return "bg-error-100 text-error-700";
+    default:
+      return "bg-warning-100 text-warning-700";
+  }
+}
+
+function buildDefaultRatingsState(nanoId: string, detail: NanoDetail | null): NanoRatingsResponse {
+  return {
+    nanoId,
+    aggregation: {
+      averageRating: detail?.ratingSummary.averageRating ?? 0,
+      medianRating: detail?.ratingSummary.averageRating ?? 0,
+      ratingCount: detail?.ratingSummary.ratingCount ?? 0,
+      distribution: [],
+    },
+    currentUserRating: null,
+  };
+}
+
+function buildDefaultCommentsState(): NanoCommentsResponse {
+  return {
+    comments: [],
+    pagination: {
+      current_page: 1,
+      page_size: COMMENTS_PAGE_SIZE,
+      total_results: 0,
+      total_pages: 1,
+      has_next_page: false,
+      has_prev_page: false,
+    },
+  };
+}
 
 function formatTimestamp(value: string, locale: string): string {
   if (!value) {
@@ -313,14 +396,6 @@ export function SearchPage(): JSX.Element {
       setSearchError(null);
       setCurrentPage(1);
       setHasNextPage(false);
-
-      if (debouncedQuery.length === 0) {
-        setResults([]);
-        setTotal(0);
-        setLastPageCount(0);
-        setIsLoading(false);
-        return;
-      }
 
       try {
         const response = await searchNanos({
@@ -599,15 +674,32 @@ export function SearchPage(): JSX.Element {
 }
 export function NanoDetailsPage(): JSX.Element {
   const { language, t } = useTranslation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const params = useParams<{ id: string }>();
   const nanoId = params.id ?? "";
+  const commentFieldId = useId();
   const [detail, setDetail] = useState<NanoDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorCode, setErrorCode] = useState<"generic" | "not-found" | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [ratings, setRatings] = useState<NanoRatingsResponse | null>(null);
+  const [isRatingsLoading, setIsRatingsLoading] = useState(true);
+  const [ratingsError, setRatingsError] = useState<string | null>(null);
+  const [selectedRating, setSelectedRating] = useState<number | null>(null);
+  const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
+  const [ratingMessage, setRatingMessage] = useState<string | null>(null);
+  const [ratingError, setRatingError] = useState<string | null>(null);
+  const [comments, setComments] = useState<NanoCommentsResponse | null>(null);
+  const [commentsPage, setCommentsPage] = useState(1);
+  const [isCommentsLoading, setIsCommentsLoading] = useState(true);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [isCommentSubmitting, setIsCommentSubmitting] = useState(false);
+  const [commentMessage, setCommentMessage] = useState<string | null>(null);
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [latestPendingComment, setLatestPendingComment] = useState<NanoComment | null>(null);
 
   const locale = language === "de" ? "de-DE" : "en-US";
   const loginRedirectPath = `/login?redirect=${encodeURIComponent(`/nano/${nanoId}`)}`;
@@ -658,6 +750,153 @@ export function NanoDetailsPage(): JSX.Element {
     };
   }, [nanoId]);
 
+  useEffect(() => {
+    setCommentsPage(1);
+    setSelectedRating(null);
+    setRatingMessage(null);
+    setRatingError(null);
+    setCommentMessage(null);
+    setCommentError(null);
+    setLatestPendingComment(null);
+    setCommentDraft("");
+  }, [nanoId]);
+
+  useEffect(() => {
+    if (!detail) {
+      return;
+    }
+
+    if (detail.metadata.status !== "published") {
+      setRatings(buildDefaultRatingsState(nanoId, detail));
+      setComments(buildDefaultCommentsState());
+      setIsRatingsLoading(false);
+      setIsCommentsLoading(false);
+      setRatingsError(null);
+      setCommentsError(null);
+      return;
+    }
+
+    if (!nanoId) {
+      return;
+    }
+
+    let isActive = true;
+
+    const loadRatings = async (): Promise<void> => {
+      setIsRatingsLoading(true);
+      setRatingsError(null);
+
+      try {
+        const response = await getNanoRatings(nanoId);
+        if (!isActive) {
+          return;
+        }
+
+        setRatings(response);
+        setSelectedRating(response.currentUserRating?.score ?? null);
+        setDetail((currentDetail) =>
+          currentDetail
+            ? {
+                ...currentDetail,
+                ratingSummary: {
+                  ...currentDetail.ratingSummary,
+                  averageRating: response.aggregation.averageRating,
+                  ratingCount: response.aggregation.ratingCount,
+                },
+              }
+            : currentDetail
+        );
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setRatings(buildDefaultRatingsState(nanoId, detail));
+        if (error instanceof NanoFeedbackApiError) {
+          if (error.code === "unauthorized") {
+            navigate(loginRedirectPath);
+            return;
+          }
+
+          if (error.code === "forbidden") {
+            setRatingsError(t("auth_error_forbidden"));
+            return;
+          }
+        }
+
+        setRatingsError(t("nano_details_rating_error"));
+      } finally {
+        if (isActive) {
+          setIsRatingsLoading(false);
+        }
+      }
+    };
+
+    void loadRatings();
+
+    return () => {
+      isActive = false;
+    };
+  }, [detail?.metadata.status, isAuthenticated, loginRedirectPath, nanoId, navigate, t, user?.id]);
+
+  useEffect(() => {
+    if (!detail) {
+      return;
+    }
+
+    if (detail.metadata.status !== "published") {
+      setComments(buildDefaultCommentsState());
+      setIsCommentsLoading(false);
+      setCommentsError(null);
+      return;
+    }
+
+    if (!nanoId) {
+      return;
+    }
+
+    let isActive = true;
+
+    const loadComments = async (): Promise<void> => {
+      setIsCommentsLoading(true);
+      setCommentsError(null);
+
+      try {
+        const response = await getNanoComments(nanoId, {
+          page: commentsPage,
+          limit: COMMENTS_PAGE_SIZE,
+        });
+
+        if (!isActive) {
+          return;
+        }
+
+        setComments(response);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        if (error instanceof NanoFeedbackApiError && error.code === "forbidden") {
+          setCommentsError(t("auth_error_forbidden"));
+          return;
+        }
+
+        setCommentsError(t("nano_details_comments_error"));
+      } finally {
+        if (isActive) {
+          setIsCommentsLoading(false);
+        }
+      }
+    };
+
+    void loadComments();
+
+    return () => {
+      isActive = false;
+    };
+  }, [commentsPage, detail?.metadata.status, nanoId, t]);
+
   const handleDownloadClick = async (): Promise<void> => {
     if (!nanoId) {
       return;
@@ -685,6 +924,126 @@ export function NanoDetailsPage(): JSX.Element {
       setDownloadError(t("nano_details_download_error"));
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handleRatingSelect = async (score: number): Promise<void> => {
+    if (!nanoId) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      navigate(loginRedirectPath);
+      return;
+    }
+
+    setSelectedRating(score);
+    setRatingError(null);
+    setRatingMessage(null);
+    setIsRatingSubmitting(true);
+
+    try {
+      const response = ratings?.currentUserRating
+        ? await updateMyNanoRating(nanoId, score)
+        : await createNanoRating(nanoId, score);
+
+      setRatings({
+        nanoId: response.nanoId,
+        aggregation: response.aggregation,
+        currentUserRating: response.userRating,
+      });
+      setDetail((currentDetail) =>
+        currentDetail
+          ? {
+              ...currentDetail,
+              ratingSummary: {
+                ...currentDetail.ratingSummary,
+                averageRating: response.aggregation.averageRating,
+                ratingCount: response.aggregation.ratingCount,
+              },
+            }
+          : currentDetail
+      );
+      setRatingMessage(t("nano_details_rating_saved_message"));
+    } catch (error) {
+      if (error instanceof NanoFeedbackApiError) {
+        if (error.code === "unauthorized") {
+          navigate(loginRedirectPath);
+          return;
+        }
+
+        if (error.code === "forbidden") {
+          setRatingError(t("auth_error_forbidden"));
+          return;
+        }
+
+        if (error.code === "conflict") {
+          setRatingError(t("nano_details_rating_conflict"));
+          return;
+        }
+
+        if (error.code === "validation") {
+          setRatingError(t("nano_details_rating_validation_error"));
+          return;
+        }
+      }
+
+      setRatingError(t("nano_details_rating_submit_error"));
+    } finally {
+      setIsRatingSubmitting(false);
+    }
+  };
+
+  const handleCommentSubmit = async (): Promise<void> => {
+    if (!nanoId) {
+      return;
+    }
+
+    if (!isAuthenticated) {
+      navigate(loginRedirectPath);
+      return;
+    }
+
+    if (commentDraft.trim().length === 0) {
+      setCommentError(t("nano_details_comment_validation_error"));
+      return;
+    }
+
+    setCommentError(null);
+    setCommentMessage(null);
+    setIsCommentSubmitting(true);
+
+    try {
+      const response = await createNanoComment(nanoId, commentDraft);
+      setLatestPendingComment(response.comment);
+      setCommentDraft("");
+      setCommentMessage(t("nano_details_comment_pending_message"));
+    } catch (error) {
+      if (error instanceof NanoFeedbackApiError) {
+        if (error.code === "unauthorized") {
+          navigate(loginRedirectPath);
+          return;
+        }
+
+        if (error.code === "forbidden") {
+          setCommentError(t("auth_error_forbidden"));
+          return;
+        }
+
+        if (error.code === "conflict") {
+          setCommentError(t("nano_details_comment_conflict"));
+          return;
+        }
+
+        if (error.code === "validation") {
+          setCommentError(t("nano_details_comment_validation_error"));
+          return;
+        }
+      }
+
+      setCommentError(t("nano_details_comment_submit_error"));
+    } finally {
+      setIsCommentSubmitting(false);
     }
   };
 
@@ -754,6 +1113,17 @@ export function NanoDetailsPage(): JSX.Element {
   const updatedAtLabel = detail.metadata.updatedAt
     ? formatTimestamp(detail.metadata.updatedAt, locale)
     : t("search_not_available");
+  const ratingsState = ratings ?? buildDefaultRatingsState(nanoId, detail);
+  const commentsState = comments ?? buildDefaultCommentsState();
+  const currentUserRating = ratingsState.currentUserRating;
+  const currentRatingStatus = currentUserRating
+    ? getFeedbackStatusLabel(currentUserRating.moderationStatus, t)
+    : null;
+  const currentRatingMessage = currentUserRating
+    ? getFeedbackStatusMessage(currentUserRating.moderationStatus, "rating", t)
+    : null;
+  const ratingAverageLabel = ratingsState.aggregation.averageRating.toFixed(1);
+  const isPublished = detail.metadata.status === "published";
 
   return (
     <PageLayout>
@@ -834,29 +1204,228 @@ export function NanoDetailsPage(): JSX.Element {
 
           <article className="card-elevated space-y-3">
             <h2 className="text-lg font-semibold text-neutral-900">{t("nano_details_ratings_title")}</h2>
+            {ratingsError && (
+              <p className="text-sm text-error-600" role="alert">
+                {ratingsError}
+              </p>
+            )}
             <dl className="space-y-2 text-sm text-neutral-700">
               <div className="flex items-center justify-between gap-3">
                 <dt>{t("nano_details_avg_rating_label")}</dt>
-                <dd className="font-medium">{detail.ratingSummary.averageRating.toFixed(1)}</dd>
+                <dd className="font-medium">{ratingAverageLabel}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <dt>{t("nano_details_rating_count_label")}</dt>
-                <dd className="font-medium">{detail.ratingSummary.ratingCount}</dd>
+                <dd className="font-medium">{ratingsState.aggregation.ratingCount}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <dt>{t("nano_details_download_count_label")}</dt>
                 <dd className="font-medium">{detail.ratingSummary.downloadCount}</dd>
               </div>
             </dl>
+
+            {!isPublished && <p className="text-sm text-neutral-700">{t("nano_details_feedback_unavailable")}</p>}
+
+            {isPublished && (
+              <div className="space-y-3 border-t border-neutral-200 pt-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-neutral-800">{t("nano_details_rating_prompt")}</p>
+                  {!isAuthenticated && (
+                    <p className="text-sm text-neutral-700">{t("nano_details_rating_login_prompt")}</p>
+                  )}
+                </div>
+
+                {isRatingsLoading ? (
+                  <p className="text-sm text-neutral-700">{t("nano_details_rating_loading")}</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2" aria-label={t("nano_details_rating_widget_label")}>
+                    {Array.from({ length: 5 }).map((_, index) => {
+                      const score = index + 1;
+                      const isActive = score <= (selectedRating ?? currentUserRating?.score ?? 0);
+
+                      return (
+                        <button
+                          key={`rating-${score}`}
+                          type="button"
+                          className={`rounded-md border px-3 py-2 text-lg leading-none transition-colors ${
+                            isActive
+                              ? "border-warning-400 bg-warning-100 text-warning-700"
+                              : "border-neutral-300 bg-white text-neutral-500 hover:border-primary-400 hover:text-primary-600"
+                          }`}
+                          aria-label={`${t("nano_details_rating_choose")}: ${score}`}
+                          onClick={() => {
+                            void handleRatingSelect(score);
+                          }}
+                          disabled={isRatingSubmitting}
+                        >
+                          {"★".repeat(score)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {isRatingSubmitting && <p className="text-sm text-neutral-700">{t("nano_details_rating_submitting")}</p>}
+                {ratingMessage && <p className="text-sm text-success-700">{ratingMessage}</p>}
+                {ratingError && (
+                  <p className="text-sm text-error-600" role="alert">
+                    {ratingError}
+                  </p>
+                )}
+
+                {currentUserRating && (
+                  <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p>
+                        <span className="font-medium">{t("nano_details_your_rating_label")}</span>{" "}
+                        {currentUserRating.score}/5
+                      </p>
+                      <span
+                        className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${getFeedbackStatusClasses(currentUserRating.moderationStatus)}`}
+                      >
+                        {currentRatingStatus}
+                      </span>
+                    </div>
+                    {currentRatingMessage && <p className="mt-2">{currentRatingMessage}</p>}
+                  </div>
+                )}
+              </div>
+            )}
           </article>
         </div>
 
         <article className="card-elevated space-y-3">
-          <h2 className="text-lg font-semibold text-neutral-900">{t("nano_details_chat_title")}</h2>
-          <p className="text-sm text-neutral-700">{t("nano_details_chat_description")}</p>
-          <button type="button" className="btn-outline" onClick={handleChatClick}>
-            {isAuthenticated ? t("nano_details_chat_button_open") : t("nano_details_chat_button_login")}
-          </button>
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold text-neutral-900">{t("nano_details_chat_title")}</h2>
+            <p className="text-sm text-neutral-700">{t("nano_details_comments_description")}</p>
+          </div>
+
+          {!isPublished && <p className="text-sm text-neutral-700">{t("nano_details_feedback_unavailable")}</p>}
+
+          {isPublished && (
+            <>
+              <div className="space-y-2 rounded-md border border-neutral-200 bg-neutral-50 p-4">
+                <label className="block space-y-2" htmlFor={commentFieldId}>
+                  <span className="text-sm font-medium text-neutral-800">{t("nano_details_comment_label")}</span>
+                  <textarea
+                    id={commentFieldId}
+                    className="min-h-28 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                    value={commentDraft}
+                    onChange={(event) => setCommentDraft(event.target.value)}
+                    placeholder={t("nano_details_comment_placeholder")}
+                    disabled={isCommentSubmitting}
+                  />
+                </label>
+                {!isAuthenticated && (
+                  <p className="text-sm text-neutral-700">{t("nano_details_comment_login_prompt")}</p>
+                )}
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => {
+                      void handleCommentSubmit();
+                    }}
+                    disabled={isCommentSubmitting}
+                  >
+                    {isCommentSubmitting ? t("nano_details_comment_submitting") : t("nano_details_comment_submit")}
+                  </button>
+                  <button type="button" className="btn-outline" onClick={handleChatClick}>
+                    {isAuthenticated ? t("nano_details_chat_button_open") : t("nano_details_chat_button_login")}
+                  </button>
+                </div>
+                {commentMessage && <p className="text-sm text-success-700">{commentMessage}</p>}
+                {commentError && (
+                  <p className="text-sm text-error-600" role="alert">
+                    {commentError}
+                  </p>
+                )}
+              </div>
+
+              {latestPendingComment && (
+                <section className="rounded-md border border-warning-200 bg-warning-50 p-4 text-sm text-neutral-700">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-semibold text-neutral-900">{t("nano_details_comment_pending_preview_title")}</h3>
+                    <span
+                      className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${getFeedbackStatusClasses(latestPendingComment.moderationStatus)}`}
+                    >
+                      {getFeedbackStatusLabel(latestPendingComment.moderationStatus, t)}
+                    </span>
+                  </div>
+                  <p className="mt-2 whitespace-pre-wrap">{latestPendingComment.content}</p>
+                  {getFeedbackStatusMessage(latestPendingComment.moderationStatus, "comment", t) && (
+                    <p className="mt-2">{getFeedbackStatusMessage(latestPendingComment.moderationStatus, "comment", t)}</p>
+                  )}
+                </section>
+              )}
+
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold text-neutral-900">{t("nano_details_comments_title")}</h3>
+                  {commentsState.pagination.total_results > 0 && (
+                    <p className="text-sm text-neutral-600">
+                      {t("page_of")} {commentsState.pagination.current_page} {t("of")} {commentsState.pagination.total_pages}
+                    </p>
+                  )}
+                </div>
+
+                {isCommentsLoading && <p className="text-sm text-neutral-700">{t("nano_details_comments_loading")}</p>}
+                {commentsError && (
+                  <p className="text-sm text-error-600" role="alert">
+                    {commentsError}
+                  </p>
+                )}
+                {!isCommentsLoading && !commentsError && commentsState.comments.length === 0 && (
+                  <p className="text-sm text-neutral-700">{t("nano_details_comments_empty")}</p>
+                )}
+
+                {!isCommentsLoading && commentsState.comments.length > 0 && (
+                  <ul className="space-y-3">
+                    {commentsState.comments.map((comment) => {
+                      const authorLabel = comment.username ?? t("search_creator_fallback");
+                      const updatedLabel = comment.updatedAt
+                        ? formatTimestamp(comment.updatedAt, locale)
+                        : t("search_not_available");
+
+                      return (
+                        <li key={comment.commentId} className="rounded-md border border-neutral-200 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-neutral-900">{authorLabel}</p>
+                            <p className="text-xs text-neutral-500">{updatedLabel}</p>
+                          </div>
+                          <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">{comment.content}</p>
+                          {comment.isEdited && (
+                            <p className="mt-2 text-xs text-neutral-500">{t("nano_details_comment_edited")}</p>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+
+                {commentsState.pagination.total_pages > 1 && (
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      className="btn-outline"
+                      onClick={() => setCommentsPage((currentPage) => Math.max(1, currentPage - 1))}
+                      disabled={!commentsState.pagination.has_prev_page || isCommentsLoading}
+                    >
+                      {t("prev")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-outline"
+                      onClick={() => setCommentsPage((currentPage) => currentPage + 1)}
+                      disabled={!commentsState.pagination.has_next_page || isCommentsLoading}
+                    >
+                      {t("next")}
+                    </button>
+                  </div>
+                )}
+              </section>
+            </>
+          )}
         </article>
 
         <div>

@@ -1,5 +1,25 @@
 # Implementation Status
 
+## 📌 Current Sprint Snapshot (Issue-basiert)
+
+**Stand:** March 25, 2026
+
+**Abgeschlossen:**
+- ✅ Sprint 1-5 abgeschlossen
+- ✅ Sprint-5-Issues: #70, #71, #72, #73, #74 (alle closed)
+
+**Aktuell in Arbeit:**
+- 🚧 Sprint 6
+- ✅ Bereits erledigt in Sprint 6: #83 (Ratings Backend), #84 (Comments Backend), #85 (Moderationsworkflow)
+- 🚧 Noch offen in Sprint 6: #86 (Frontend-Integration), #87 (QA-Gate), #88 (Observability)
+
+**Leitplanken unverändert:**
+- Meilisearch als MVP-Search-Stack
+- Performance-Ziel: `<500ms p95`
+- Security/Compliance als verpflichtender DoD-Bestandteil
+
+---
+
 ## ✅ Sprint 2 [S2-FE-04]: Configure Axios Client + JWT Injection Hook Points - COMPLETE
 
 **Status**: COMPLETE - Centralized HTTP client with environment configuration and JWT token injection
@@ -1315,6 +1335,31 @@ Service functions for GDPR compliance:
 - Frontend linting passes (eslint)
 - Docker infrastructure starts successfully (all services healthy)
 - Test suite infrastructure verified (pytest + Docker services)
+
+---
+
+## ✅ Sprint 5 Abschluss + Sprint 6 Fortschritt (Konsolidiert)
+
+### Sprint 5 (vollständig abgeschlossen)
+
+Alle geplanten Sprint-5-Issues sind abgeschlossen und gemerged:
+- ✅ #70 — Story 7.5 Monitoring Baseline
+- ✅ #71 — Story 2.5 Nano Detail View API
+- ✅ #72 — Story 8.6 Creator Dashboard
+- ✅ #73 — Story 8.5 Nano Detail Page
+- ✅ #74 — Sprint-5 QA/Operations Gate
+
+### Sprint 6 (laufend)
+
+**Bereits abgeschlossen:**
+- ✅ #83 — Star Rating Backend (1-5 + Aggregation)
+- ✅ #84 — Comments/Reviews Backend
+- ✅ #85 — Moderation für Ratings/Comments
+
+**Noch offen:**
+- 🚧 #86 — Frontend-Integration von Ratings/Comments auf Nano Detail
+- 🚧 #87 — QA-Gate Feedback-System (Integration + E2E)
+- 🚧 #88 — Observability für Feedback-Endpunkte
 
 
 

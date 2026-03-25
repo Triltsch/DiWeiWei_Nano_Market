@@ -7,7 +7,7 @@ This document captures the Sprint-4 operating contract for the Meilisearch-based
 `GET /api/v1/search`
 
 ### Query Parameters
-- `q` (required): case-insensitive full-text query
+- `q` (optional): case-insensitive full-text query; omitted/empty means browse published nanos
 - `category` (optional): exact category filter
 - `level` (optional): competency level `1`, `2`, or `3`
 - `duration` (optional): `0-15`, `15-30`, or `30+`
@@ -27,6 +27,7 @@ The frontend discovery client maps `meta.pagination` to its load-more UI state. 
 
 ## Filters & Pagination Semantics
 - Search only returns Nanos with `status = published`
+- Without `q`, the endpoint behaves as a browse feed for published Nanos
 - Filters combine with logical `AND`
 - Partial matches are handled by Meilisearch
 - Pagination is page-based in the API and translated to the discovery UI load-more interaction
@@ -37,6 +38,15 @@ The automated integration test suite validates the Sprint-4 latency target with 
 - test: `tests/modules/search/test_search_integration.py::test_search_latency_p95_under_500ms`
 - target: p95 typical query latency `< 500ms`
 - execution path: API -> Meilisearch index with representative seeded documents
+
+## Local Reindex
+If local PostgreSQL data was created outside the application workflow, rebuild Meilisearch explicitly:
+
+```bash
+python scripts/reindex_search.py
+```
+
+The QA seed script also triggers a reindex automatically after seeding demo Nanos.
 
 ## Security Minimum Checks
 The search endpoint enforces and/or documents the following minimum checks:

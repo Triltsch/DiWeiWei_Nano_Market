@@ -1,32 +1,252 @@
-"""
-Business logic for search functionality.
+"""Business logic for search functionality.
 
-This module provides service functions for full-text search using Meilisearch,
-including query processing, Redis caching (TTL 30 minutes), and pagination.
+This module provides read and indexing flows for Meilisearch-backed discovery,
+including browse/search requests, Redis caching, and full index rebuilds from
+published PostgreSQL data.
 """
 
 import logging
+import json
 from datetime import datetime, timezone
 from hashlib import sha256
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import urlencode
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 from uuid import UUID
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.models import Category, Nano, NanoCategoryAssignment, NanoStatus, User
 from app.modules.search.schemas import SearchNano, SearchResponse
 from app.redis_client import get_redis
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
+MEILI_TASK_POLL_INTERVAL_SECONDS = 0.25
+MEILI_TASK_MAX_POLLS = 60
+MEILI_FILTERABLE_ATTRIBUTES = [
+    "status",
+    "category",
+    "competency_level",
+    "duration_minutes",
+    "language",
+]
+MEILI_SORTABLE_ATTRIBUTES = ["average_rating", "published_at", "download_count"]
+
 
 def _cache_key_hash(cache_key: str) -> str:
     """Return a short hash for safe cache key logging without raw user input."""
     return sha256(cache_key.encode("utf-8")).hexdigest()[:12]
+
+
+def _meili_headers() -> dict[str, str]:
+    headers = {"Content-Type": "application/json"}
+    if settings.MEILI_MASTER_KEY:
+        headers["Authorization"] = f"Bearer {settings.MEILI_MASTER_KEY}"
+    return headers
+
+
+def _meili_request(path: str, *, method: str = "GET", payload: Any = None) -> tuple[int, Any]:
+    body = None
+    if payload is not None:
+        body = json.dumps(payload).encode("utf-8")
+
+    request = Request(
+        f"{settings.MEILI_URL.rstrip('/')}{path}",
+        data=body,
+        headers=_meili_headers(),
+        method=method,
+    )
+
+    try:
+        with urlopen(request, timeout=10) as response:
+            response_body = response.read().decode("utf-8")
+            return response.status, json.loads(response_body) if response_body else None
+    except HTTPError as error:
+        response_body = error.read().decode("utf-8", errors="replace")
+        parsed_body: Any
+        try:
+            parsed_body = json.loads(response_body) if response_body else None
+        except json.JSONDecodeError:
+            parsed_body = response_body
+        return error.code, parsed_body
+
+
+async def _wait_for_meili_task(
+    task_uid: int, *, ignore_index_not_found: bool = False
+) -> None:
+    for _ in range(MEILI_TASK_MAX_POLLS):
+        response_status, payload = _meili_request(f"/tasks/{task_uid}")
+        if response_status >= 400:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Search task lookup failed: {payload}",
+            )
+        task_status = payload.get("status")
+        if task_status == "succeeded":
+            return
+        if task_status == "failed":
+            error = payload.get("error")
+            if ignore_index_not_found and isinstance(error, dict) and error.get("code") == "index_not_found":
+                return
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Search indexing task failed: {payload}",
+            )
+
+        import asyncio
+
+        await asyncio.sleep(MEILI_TASK_POLL_INTERVAL_SECONDS)
+
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Timed out waiting for search indexing task",
+    )
+
+
+def _task_uid_from_response(payload: dict[str, Any]) -> int:
+    task_uid = payload.get("taskUid")
+    if not isinstance(task_uid, int):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Invalid Meilisearch task response: {payload}",
+        )
+    return task_uid
+
+
+async def _build_search_documents(db: AsyncSession) -> list[dict[str, Any]]:
+    nano_result = await db.execute(
+        select(Nano, User.username)
+        .outerjoin(User, Nano.creator_id == User.id)
+        .where(Nano.status == NanoStatus.PUBLISHED)
+        .order_by(Nano.average_rating.desc(), Nano.published_at.desc(), Nano.id.desc())
+    )
+    nano_rows = nano_result.all()
+    if not nano_rows:
+        return []
+
+    nano_ids = [nano.id for nano, _ in nano_rows]
+    category_result = await db.execute(
+        select(NanoCategoryAssignment.nano_id, Category.name)
+        .join(Category, NanoCategoryAssignment.category_id == Category.id)
+        .where(NanoCategoryAssignment.nano_id.in_(nano_ids))
+        .order_by(NanoCategoryAssignment.nano_id, NanoCategoryAssignment.rank.asc(), Category.name.asc())
+    )
+
+    primary_categories: dict[UUID, str] = {}
+    for nano_id, category_name in category_result.all():
+        primary_categories.setdefault(nano_id, category_name)
+
+    documents: list[dict[str, Any]] = []
+    for nano, creator_username in nano_rows:
+        published_at = nano.published_at or nano.updated_at or nano.uploaded_at
+        documents.append(
+            {
+                "id": str(nano.id),
+                "title": nano.title,
+                "description": nano.description,
+                "creator": creator_username,
+                "duration_minutes": nano.duration_minutes,
+                "competency_level": int(nano.competency_level),
+                "category": primary_categories.get(nano.id),
+                "format": nano.format.value.lower(),
+                "average_rating": float(nano.average_rating),
+                "rating_count": nano.rating_count,
+                "published_at": published_at.isoformat() if published_at else None,
+                "thumbnail_url": nano.thumbnail_url,
+                "status": nano.status.value,
+                "language": nano.language,
+                "download_count": nano.download_count,
+            }
+        )
+
+    return documents
+
+
+async def rebuild_search_index(db: AsyncSession, index_name: Optional[str] = None) -> dict[str, Any]:
+    """Rebuild the configured Meilisearch index from published PostgreSQL nanos."""
+    target_index = index_name or settings.MEILI_INDEX_UID
+    documents = await _build_search_documents(db)
+
+    try:
+        delete_status, delete_payload = _meili_request(
+            f"/indexes/{target_index}", method="DELETE"
+        )
+        if delete_status == 202:
+            await _wait_for_meili_task(
+                _task_uid_from_response(delete_payload),
+                ignore_index_not_found=True,
+            )
+        elif delete_status != 404:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Search index deletion failed: {delete_payload}",
+            )
+
+        create_status, create_payload = _meili_request(
+            "/indexes",
+            method="POST",
+            payload={"uid": target_index, "primaryKey": "id"},
+        )
+        if create_status >= 400:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Search index creation failed: {create_payload}",
+            )
+        await _wait_for_meili_task(_task_uid_from_response(create_payload))
+
+        filterable_status, filterable_payload = _meili_request(
+            f"/indexes/{target_index}/settings/filterable-attributes",
+            method="PUT",
+            payload=MEILI_FILTERABLE_ATTRIBUTES,
+        )
+        if filterable_status >= 400:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Search filterable settings update failed: {filterable_payload}",
+            )
+        await _wait_for_meili_task(_task_uid_from_response(filterable_payload))
+
+        sortable_status, sortable_payload = _meili_request(
+            f"/indexes/{target_index}/settings/sortable-attributes",
+            method="PUT",
+            payload=MEILI_SORTABLE_ATTRIBUTES,
+        )
+        if sortable_status >= 400:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Search sortable settings update failed: {sortable_payload}",
+            )
+        await _wait_for_meili_task(_task_uid_from_response(sortable_payload))
+
+        documents_status, documents_payload = _meili_request(
+            f"/indexes/{target_index}/documents",
+            method="POST",
+            payload=documents,
+        )
+        if documents_status >= 400:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Search document upload failed: {documents_payload}",
+            )
+        await _wait_for_meili_task(_task_uid_from_response(documents_payload))
+    except HTTPException:
+        raise
+    except Exception as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Search indexing unavailable",
+        ) from error
+
+    await invalidate_search_cache(reason="search_reindex")
+    logger.info("search_index_rebuilt", extra={"index_name": target_index, "documents": len(documents)})
+    return {"index_name": target_index, "document_count": len(documents)}
 
 
 class MeilisearchClient:
@@ -232,7 +452,7 @@ async def invalidate_search_cache(reason: str) -> int:
 
 async def search_nanos(
     db: AsyncSession,
-    query: str,
+    query: Optional[str] = None,
     category: Optional[str] = None,
     level: Optional[int] = None,
     duration: Optional[str] = None,
@@ -245,7 +465,7 @@ async def search_nanos(
 
     Args:
         db: Database session
-        query: Search query string (case-insensitive)
+        query: Optional search query string (case-insensitive). Empty query browses published nanos.
         category: Optional category name filter
         level: Optional competency level filter (1, 2, or 3)
         duration: Optional duration filter ("0-15", "15-30", "30+")
@@ -259,8 +479,6 @@ async def search_nanos(
     Raises:
         HTTPException: If search service is unavailable or query is invalid
     """
-    _ = db
-
     if page < 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -271,12 +489,6 @@ async def search_nanos(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="limit must be between 1 and 100",
-        )
-
-    if not query or not query.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="query parameter is required and cannot be empty",
         )
 
     if level is not None and level not in [1, 2, 3]:
@@ -299,7 +511,7 @@ async def search_nanos(
             detail="language must be a two-letter lowercase ISO 639-1 code",
         )
 
-    normalized_query = query.strip()
+    normalized_query = query.strip() if query else ""
     cache_key = build_search_cache_key(
         query=normalized_query,
         category=category,

@@ -147,4 +147,43 @@ describe("searchNanos", () => {
       },
     });
   });
+
+  it("omits q when browsing published nanos without a search term", async () => {
+    const getSpy = vi.spyOn(httpClient, "get").mockResolvedValue(
+      createAxiosResponse({
+        success: true,
+        data: [],
+        meta: {
+          pagination: {
+            current_page: 1,
+            page_size: 20,
+            total_results: 0,
+            total_pages: 0,
+            has_next_page: false,
+            has_prev_page: false,
+          },
+        },
+        timestamp: "2026-03-17T12:00:00Z",
+      })
+    );
+
+    await searchNanos({
+      query: "",
+      filters: {},
+      limit: 20,
+      page: 1,
+    });
+
+    expect(getSpy).toHaveBeenCalledWith("/api/v1/search", {
+      params: {
+        q: undefined,
+        category: undefined,
+        level: undefined,
+        duration: undefined,
+        language: undefined,
+        page: 1,
+        limit: 20,
+      },
+    });
+  });
 });
