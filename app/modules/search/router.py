@@ -1,9 +1,4 @@
-"""
-Router for search endpoints.
-
-This module provides the API endpoint for full-text search functionality
-using Meilisearch.
-"""
+"""Router for search endpoints backed by Meilisearch."""
 
 from typing import Annotated, Optional
 
@@ -34,12 +29,12 @@ def get_search_router(prefix: str = "/api/v1/search", tags: list[str] | None = N
     @router.get(
         "",
         response_model=SearchResponse,
-        summary="Search for Nanos",
+        summary="Search or browse published Nanos",
         description="""
         Full-text search for published Nano learning units.
 
         **Query Parameters:**
-        - `q`: Search query (required, case-insensitive, supports partial matches)
+        - `q`: Optional search query (case-insensitive, supports partial matches)
         - `category`: Optional category filter (exact match)
         - `level`: Optional competency level filter (1=Basic, 2=Intermediate, 3=Advanced)
         - `duration`: Optional duration filter (0-15, 15-30, or 30+ minutes)
@@ -49,7 +44,8 @@ def get_search_router(prefix: str = "/api/v1/search", tags: list[str] | None = N
 
         **Returns:**
         - List of published Nanos matching the search criteria
-        - Sorted by relevance (Meilisearch ranking) and average rating
+        - Without `q`, behaves as a browse endpoint for published Nanos
+        - Sorted by relevance when `q` is present, otherwise by rating/date order from the index
         - Pagination metadata included
 
         **Error Cases:**
@@ -106,7 +102,10 @@ def get_search_router(prefix: str = "/api/v1/search", tags: list[str] | None = N
         },
     )
     async def search(
-        q: Annotated[str, Query(min_length=1, description="Search query (required)")],
+        q: Annotated[
+            Optional[str],
+            Query(description="Optional search query; omit to browse published Nanos"),
+        ] = None,
         category: Annotated[
             Optional[str], Query(description="Optional category filter (exact match)")
         ] = None,

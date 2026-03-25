@@ -199,3 +199,23 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - VS-Code-Task-Output kann veraltete Ergebnisse aus früheren Läufen zeigen; für authoritative CI-Statuschecks direkte Terminal-Befehle statt gecachten Task-Outputs verwenden.
 - Öffentliche Response-Schemas dürfen keine moderationsinternen Notizen enthalten (`moderation_reason`); dafür gezielte API-Response-Assertions in Integrationstests ergänzen, um Contract-Leaks früh zu erkennen.
 - Bei Audit-pflichtigen Statusänderungen Commit-Grenze so setzen, dass Fachänderung und Audit-Log in **einer** Transaktion persistieren; kein Vorab-Commit vor `AuditLogger.log_action`.
+
+## Ergänzung Issue #86 (Frontend Feedback Integration)
+
+- Öffentliche Comment-Listen zeigen nur `approved` Inhalte; nach erfolgreichem Create/Update muss das Frontend deshalb einen lokalen Pending-Hinweis bzw. Preview für den eigenen Kommentar anzeigen, statt den Kommentar künstlich in die öffentliche Liste einzumischen.
+- Rating- und Comment-Clients als eigenes Boundary-Modul kapseln und HTTP-Status (`401/403/404/409/422`) in typisierte Error-Codes mappen; die Page kann dann Redirect, RBAC-Message und Validation-Feedback sauber unterscheiden.
+- Feedback-Fetches auf der Detailseite nur für `published` Nanos ausführen; bei nicht veröffentlichten Detailansichten stattdessen einen klaren Hinweis rendern, um vermeidbare 400er vom Backend zu umgehen.
+
+## Ergänzung Issue #86 (Search/Browse + Local Reindex)
+
+- Discovery-UI sollte bei leerem Suchbegriff nicht in einen Nichtstun-Zustand fallen: für `q=""` aktiv browse laden, damit veröffentlichte Nanos sofort sichtbar sind.
+- Search-API-Contract für lokale UX robuster gestalten: `q` optional behandeln und ohne Query in einen klaren Browse-Modus für `published` wechseln.
+- Lokale Reindex-Tools (`scripts/reindex_search.py`, QA-Seed) müssen dieselbe DB-Zielauflösung wie die Docker-Compose-Umgebung verwenden; harte Host-Defaults führen schnell zu inkonsistenter Datenbasis.
+- Bei Meilisearch-Rebuilds lokale Hilfs-Skripte ohne zusätzliche Runtime-Abhängigkeiten (z. B. `httpx`) implementieren, wenn diese nicht sicher im App-Container verfügbar sind.
+- Alembic kann lokal in inkonsistentem Zustand sein (`alembic_version` auf `head`, aber Kern-Tabellen fehlen); verlässliche Recovery ist `stamp base` + `upgrade head` gegen die konkrete Compose-DB.
+
+## Ergänzung PR #92 Review-Fixes
+
+- Für async Services keine blockierenden Netzwerk-Calls direkt im Event-Loop verwenden (`urlopen` etc.); wenn kein Async-Client genutzt wird, den Call per `asyncio.to_thread(...)` kapseln.
+- Response-Payloads externer Services vor `.get(...)` immer typvalidieren (`dict`-Guard), damit unerwartete/empty Antworten als kontrollierter 503 enden statt als `AttributeError`.
+- Bei Doku-Änderungen in bestehenden Markdown-Listen/Runbooks Codefence-Balance explizit prüfen; ein offener Fence kann ganze Abschnitte als Code rendern und Nummerierungsfehler verschleiern.

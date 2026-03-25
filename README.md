@@ -4,354 +4,198 @@
 
 Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und umfassenden Tests.
 
-## 📊 Aktueller Stand
+## 📊 Status
 
-**Fertiggestellte Stories**: 1.1, 1.3, 1.4, 1.5, 7.2, 7.3, 8.1, 8.2, 8.4, 2.2, 2.4, 7.4, 3.5 ✅
-- ✅ User Registration & Login mit Email-Verifizierung
-- ✅ Password Hashing (Bcrypt, OWASP-konform)
-- ✅ Email Verification Flow (JWT-basiert)
-- ✅ Audit Logging Framework (40+ Event-Typen)
-- ✅ ZIP Upload API (Nano-Lerneinheiten hochladen)
-- ✅ Nano Upload Domain Model mit Alembic Migrations
-- ✅ Frontend Foundation (React 18 + Vite + Tailwind + Router)
-- ✅ Zentraler Axios HTTP-Client mit JWT-Injection (S2-FE-04)
-- ✅ React Query + App Provider Composition inkl. Sample Query Hook (S2-FE-05)
-- ✅ Nano Metadata Capture (Story 2.2) - GET/POST metadata endpoints with validation
-- ✅ Nano Status Workflow (Story 2.4) - PATCH endpoint for status transitions with state machine validation
-- ✅ Landing Page & Global Navigation (Story 8.2) - Responsive navbar with hamburger menu, active route highlighting, language selector placeholder, WCAG 2.1 AA compliance
-- ✅ Nano Discovery Page & Search UI (Story 8.4) - `/search` with debounce, filters, loading/empty states, URL sync, and load-more pagination
-- ✅ Redis Cache Setup für Search (Story 7.4) - deterministische Cache-Keys, 30-Minuten TTL, Invalidierung bei Nano-Datenänderungen, degraded mode ohne API-Ausfall
-- ✅ Search UI/API Integration (Story 3.5) - Discovery-UI gegen `GET /api/v1/search`, Request-/Response-Contract-Mapping, API-Fehlerzustände, backend-konsistente Filter/Pagination, Contract-Tests
-- ✅ Backend Comments/Reviews (Issue #84) - veröffentlichte-Nano Kommentare mit Validierung/Sanitization, stabiler Pagination-Sortierung und Ownership/RBAC-Edit-Regeln
+**Abgeschlossene Sprints:**
+- ✅ Sprint 1-2: Foundation & Security, Upload, Frontend Basis
+- ✅ Sprint 3: Nano Management & Landing Page
+- ✅ Sprint 4: Search Infrastruktur & Discovery
+- ✅ Sprint 5: Monitoring, Nano Detail, Creator Dashboard, QA/Operations Gate
 
-**Qualität**:
-- Backend-Tests: alle aktuellen Tests bestanden (pytest; exakte Anzahl siehe CI-Status)
-- Code Coverage erfolgreich (Ziel: >70%)
-- Frontend: Vitest Test-Setup aktiv (`npm test`)
-- Black/isort Code-Formatierung
-- PostgreSQL + SQLite Support
+**Aktueller Sprint:**
+- 🚧 Sprint 6 (in Arbeit): Feedback-System (Ratings, Comments, Moderation, Frontend-Integration, Observability, QA-Gate)
 
-## 📌 Aktueller Planungsstand (März 2026)
+**Aktuell verfügbar (Sprint 3-6):**
+Stories 1.1, 1.3–1.5, 7.2–7.5, 8.1–8.6, 2.2, 2.4, 2.5, 3.5 sowie Sprint-6-Bausteine #83, #84, #85
 
-- Sprint 4 ist abgeschlossen (Search Infrastruktur + Discovery UI/API Integration)
-- Sprint 5 ist als nächster Sprint geplant und in GitHub-Issues geschnitten
-- Sprint-5-Issues sind dem Milestone **"Sprint 5 done"** zugeordnet
-- Suchtechnologie für MVP ist konsistent auf **Meilisearch** festgelegt
-- Globales DoD-Performanceziel wurde auf **`<500ms p95`** harmonisiert
+Für detaillierte Feature-Liste siehe [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md).
 
-### Sprint 5 Planung (nächster Sprint)
+**Qualität:** Backend-Tests ✅ | Code Coverage >70% ✅ | Frontend Vitest aktiv ✅ | Black/isort ✅
 
-**Sprintziel:** Creators können Nanos zuverlässig verwalten/veröffentlichen; Nano-Details sind end-to-end nutzbar; Monitoring ist operativ verfügbar.
+## 📌 Sprint 6 Status
 
-**Geplante Sprint-5-Issues:**
-- [#70 Sprint 5 — Story 7.5: Prometheus/Grafana Monitoring Baseline](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/70)
-- [#71 Sprint 5 — Story 2.5: Nano Detail View API (Backend)](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/71)
-- [#72 Sprint 5 — Story 8.6: Creator Dashboard (Upload/Manage Nanos)](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/72)
-- [#73 Sprint 5 — Story 8.5: Nano Detail Page (Frontend)](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/73)
-- [#74 Sprint 5 — QA/Operations Gate: Detail+Dashboard+Monitoring Abnahme](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/74)
+**Sprintziel:** Feedback-System end-to-end liefern (Rating, Comments, Moderation) inkl. Frontend-Integration, Monitoring und QA-Abnahme.
 
-**Priorisierung innerhalb Sprint 5:**
-1. Enabler/Blocker: Monitoring (Story 7.5)
-2. MVP-Kernfunktion: Nano Detail Backend + Frontend (Story 2.5 + 8.5)
-3. MVP-Kernfunktion: Creator Dashboard (Story 8.6)
-4. Qualität/NFR-Abnahme: QA/Operations Gate
+**Sprint 5 (abgeschlossen):**
+- ✅ [#70 Story 7.5](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/70) – Monitoring Baseline
+- ✅ [#71 Story 2.5](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/71) – Nano Detail View API
+- ✅ [#72 Story 8.6](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/72) – Creator Dashboard
+- ✅ [#73 Story 8.5](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/73) – Nano Detail Page
+- ✅ [#74 QA Gate](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/74) – Sprint-5-Abnahme
 
-**Konsolidierte Leitplanken für Sprint 5/6:**
-- Search-Stack im MVP: **Meilisearch** (kein Elasticsearch/OpenSearch im MVP-Scope)
-- DoD-Performanceziel (global): **`<500ms p95`**
-- Security/Compliance bleibt Pflichtbestandteil der Story-Abnahme (DoD + Audit-Logging)
+**Sprint 6 (bereits erledigt):**
+- ✅ [#83](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/83) – Backend Star Rating
+- ✅ [#84](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/84) – Backend Comments/Reviews
+- ✅ [#85](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/85) – Moderationsworkflow
+
+**Sprint 6 (offen/in Arbeit):**
+- 🚧 [#86](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/86) – Frontend-Integration Rating/Comments
+- 🚧 [#87](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/87) – QA-Gate Feedback-System
+- 🚧 [#88](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/88) – Observability Feedback-Endpunkte
+
+**Leitlinien (Sprint 5/6):**
+- Search-Stack: **Meilisearch** (MVP)
+- Performance DoD: **<500ms p95**
+- Security/Compliance: Pflichtbestandteil Story-Abnahme
 
 ## 🚀 Quick Start
 
-> **📚 For comprehensive setup instructions**, including troubleshooting, migration workflows, and MinIO configuration, see **[doc/DEVELOPER_SETUP.md](./doc/DEVELOPER_SETUP.md)**.
+> **📚 Full setup with troubleshooting, migrations, and MinIO config:** [doc/DEVELOPER_SETUP.md](./doc/DEVELOPER_SETUP.md)
 
-### Voraussetzungen
-- Python 3.13.1+
-- Docker & Docker Compose (für lokale Services)
+**Requirements:** Python 3.13.1+, Docker & Docker Compose
 
-### Installation & Start
-
+**Start Backend:**
 ```bash
-# 1. Repository klonen
-git clone https://github.com/Triltsch/DiWeiWei_Nano_Market.git
-cd DiWeiWei_Nano_Market
-
-# 2. Virtual Environment erstellen und aktivieren
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1  # Windows
-# source .venv/bin/activate    # macOS/Linux
-
-# 3. Dependencies installieren
+git clone https://github.com/Triltsch/DiWeiWei_Nano_Market.git && cd DiWeiWei_Nano_Market
+python -m venv .venv && .\.venv\Scripts\Activate.ps1  # or source .venv/bin/activate
 pip install -e .
-
-# 4. Umgebungsvariablen konfigurieren
-cp .env.example .env
-# .env editieren und SECRET_KEY, DATABASE_URL etc. anpassen
-
-# 5. Docker Services starten (PostgreSQL, Redis, MinIO, Meilisearch)
-docker-compose up -d
-
-# 6. Datenbank initialisieren
-python scripts/init_db.py
-
-# 7. Anwendung starten
+cp .env.example .env  # configure as needed
+docker-compose up -d && python scripts/init_db.py
 python -m uvicorn app.main:app --reload
 ```
+API: http://localhost:8000 | Docs: http://localhost:8000/docs
 
-**API Dokumentation**: http://localhost:8000/docs
-
-### Frontend starten (Story 8.1)
-
+**Start Frontend:**
 ```bash
-# Frontend Workspace wechseln
-cd frontend
-
-# Dependencies installieren
-npm install
-
-# Dev Server starten (Vite)
-npm run dev
-
-# Optional: Typprüfung und Frontend-Tests
-npm run typecheck
-npm test
+cd frontend && npm install && npm run dev
 ```
+Frontend: http://localhost:5173
 
-Frontend Dev Server: http://localhost:5173
-
-### Tests ausführen
-
+**Run Tests:**
 ```bash
-# Standard: CI-safe Tests (SQLite/PostgreSQL + gemocktes MinIO)
-pytest tests/ -v
-
-# Mit Coverage Report
-pytest tests/ --cov=app --cov-report=html
-
-# Optional: echte MinIO-Integrationstests aktivieren
-# (setzt laufendes MinIO via docker-compose voraus)
-RUN_REAL_MINIO_TESTS=1 pytest tests/modules/upload/test_storage.py -k real_minio -v
-
-# Frontend Tests (Vitest)
-cd frontend
-npm test
-
-# Frontend Build + Typecheck
-npm run typecheck
-npm run build
+pytest tests/ -v                    # Backend tests
+cd frontend && npm test             # Frontend tests
 ```
-
-## 📋 Implementierte Features
-
-### Sprint 1 – Foundation & Security
-- **Story 1.1 / Issue #2 – User Registration & Login**
-  - Registrierung mit eindeutiger E-Mail, Username-Regeln und Passwortvalidierung
-  - E-Mail-Verifizierung mit 24h Token-Laufzeit und Resend-Flow
-  - Login mit JWT Access Token (15 Min.) und Refresh Token (7 Tage)
-  - Account-Lockout nach mehrfachen Fehlversuchen sowie Logout-/Session-Handling
-- **Story 1.3 / Issue #4 – Password Hashing Implementation**
-  - Sichere Passwort-Hashing- und Verify-Logik auf Basis von bcrypt
-  - Durchsetzung der Passwort-Policy inkl. Stärkevalidierung
-  - Keine Speicherung oder Protokollierung von Klartext-Passwörtern
-- **Story 1.4 / Issue #5 – DSGVO Compliance Basics**
-  - Consent-Tracking für Nutzungsbedingungen und Datenschutz
-  - Datenexport im maschinenlesbaren Format
-  - Löschanforderungen mit Grace-Period sowie Privacy-/ToS-Verknüpfung im Flow
-- **Story 1.5 / Issue #6 – Audit Logging Framework**
-  - Zentrale, strukturierte und unveränderliche Audit-Logs in der Datenbank
-  - Logging von Auth-, Datenzugriffs- und Änderungsereignissen
-  - Abfrage-/Filterpfade für Admin- und Security-Auswertungen
-
-### Sprint 2 – Platform, Upload & Frontend Foundation
-- **Story 7.2 / Issues #27, #29 – Infrastruktur & Developer Setup**
-  - Docker-Compose-Provisionierung für PostgreSQL und MinIO mit Health Checks und Persistent Volumes
-  - Dokumentierter Migrations-Workflow und Developer-Setup für lokale Entwicklung
-- **Story 7.3 / Issue #23 – MinIO Storage Integration & Upload-Basis**
-  - Objektpersistenz für Uploads in MinIO mit privater Ablage und deterministischen Keys
-  - Fehlerpfade für Storage-Probleme und lokale Compose-Kompatibilität
-  - Grundlage für ZIP-Upload-Verarbeitung und Dateiverknüpfung zu Nano-Entwürfen
-- **Story 8.1 / Issues #30, #31, #32, #33, #34 – Frontend Foundation**
-  - React-18-/Vite-/TypeScript-Bootstrap mit Strict-TS-Basis
-  - Tailwind-CSS-Konfiguration mit Design-Tokens und Baseline-Styles
-  - Routing-Skeleton für Kernrouten und Fallback-Seiten
-  - Zentraler Axios-Client mit vorbereiteten JWT-Interceptor-Hookpoints
-  - Frontend-Compose-Integration und produktionsfähiger Build-Output
-
-### Sprint 3 – Core Nano Management & Landing Page
-- **Story 2.2 / Issue #53 – Nano Metadata Capture**
-  - Persistente Nano-Metadaten in PostgreSQL mit Validierung und GET/POST-Endpunkten
-  - Unterstützung für Titel, Beschreibung, Kategorie, Level, Dauer, Sprache und weitere Metadaten
-  - Editierbarkeit im Draft-Zustand als Grundlage für den Veröffentlichungsworkflow
-- **Story 2.4 / Issue #52 – Nano Status Workflow**
-  - Statusmodell für Nanos inklusive valider Zustandsübergänge
-  - Veröffentlichung nur bei vollständigen Metadaten
-  - Rechteprüfung pro Creator sowie Audit-Logging bei Statuswechseln
-- **Story 8.2 / Issue #54 – Landing Page & Global Navigation**
-  - Öffentliche Landing Page mit Hero-Bereich, Value Proposition und CTA-Buttons
-  - Responsive globale Navigation mit Auth-Zuständen, Active Route Highlighting und Mobile-Menü
-  - Sprachumschalter-Platzhalter, WCAG-orientierte Semantik und Docker-/Dev-Frontend-Anbindung
-
-### Sprint 4 – Search Infrastruktur
-- **Story 7.4 / Issue #62 – Redis Cache Setup (Self-Hosted) für Search**
-  - Redis-basierter Search-Response-Cache für `/api/v1/search` mit TTL = 30 Minuten
-  - Deterministische Cache-Key-Strategie auf Basis aller Suchparameter (`q`, `category`, `level`, `duration`, `page`, `limit`)
-  - Cache-Invalidierung bei Nano-Metadaten- und Statusänderungen
-  - Degraded Mode: Redis-Ausfall führt nicht zu API-Ausfall (Live-Search über Meilisearch als Fallback)
-  - Observability-Hooks via strukturierte Cache hit/miss/store/invalidate Logs
 
 ## 🐳 Docker Services
 
-**docker-compose.yml** - Vollständige Entwicklungsumgebung:
-- PostgreSQL 13 (Port 5432)
-- Redis 7 (Port 6379)
-- MinIO (Port 9000/9001)
-- Meilisearch v1.6.0 (Port 7700)
-- FastAPI App (Port 8000)
-- Prometheus (Port 9090)
-- Grafana (Port 3001)
-- PostgreSQL Exporter (Port 9187)
-- Redis Exporter (Port 9121)
+**docker-compose.yml:**
+- PostgreSQL 13 (5432), Redis 7 (6379), MinIO (9000/9001)
+- Meilisearch v1.6.0 (7700), FastAPI (8000)
+- Prometheus (9090), Grafana (3001, admin/admin)
+- Exporters: PostgreSQL (9187), Redis (9121)
 
 ```bash
-# Services starten
-docker-compose up -d
-
-# Status prüfen (alle sollten "healthy" sein)
-docker-compose ps
-
-# Services stoppen
-docker-compose down
+docker-compose up -d           # Start all services
+docker-compose ps              # Health check (all should be "healthy")
+docker-compose down            # Stop services
 ```
 
-**Zugriff**:
-- API: http://localhost:8000
-- Swagger: http://localhost:8000/docs
+**Access:**
+- API: http://localhost:8000 | Swagger: http://localhost:8000/docs
 - Prometheus: http://localhost:9090
-- Grafana: http://localhost:3001 (admin/admin)
-- MinIO Console: http://localhost:9001 (minioadmin/minioadmin)
+- Grafana: http://localhost:3001
+- MinIO: http://localhost:9001 (minioadmin/minioadmin)
 - Meilisearch: http://localhost:7700
 
-Monitoring-Runbook: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md)
-Sprint-5 QA/Operations Gate: [doc/SPRINT5_QA_GATE.md](doc/SPRINT5_QA_GATE.md)
+Runbooks: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md) | [doc/SPRINT5_QA_GATE.md](doc/SPRINT5_QA_GATE.md)
 
-**Umgebungsvariablen**: Siehe `.env.example` für alle Konfigurationsoptionen.
+## 📚 API & Roles
 
-## 📚 Wichtige API Endpoints
+**Full API Documentation:** http://localhost:8000/docs
 
-**Vollständige API-Dokumentation**: http://localhost:8000/docs
+### Roles & Access (MVP)
+- **Rollen:** `creator` (default), `moderator`, `admin`, `consumer` (legacy read-only)
+- **JWT Claim:** `role` – used in frontend routing and API guards
 
-### Rollen- und Zugriffspolitik (MVP)
+| Action | consumer | creator | moderator | admin |
+|--------|:--------:|:-------:|:---------:|:-----:|
+| Dashboard/Upload | ❌ | ✅ | ✅ | ✅ |
+| Moderation Queue | ❌ | ❌ | ✅ | ✅ |
+| Admin Panel | ❌ | ❌ | ❌ | ✅ |
+| View Public Content | ✅ | ✅ | ✅ | ✅ |
 
-- **Rollen**: `creator`, `moderator`, `admin` (zusätzlich `consumer` als niedrigste Legacy-/Read-Rolle)
-- **Default bei Registrierung**: `creator`
-- **Token/User-State Konsistenz**: Rolle wird im JWT-Claim `role` geführt und im Frontend für Navigation + Route-Guards ausgewertet
+### Authentication (Implemented)
+- `POST /api/v1/auth/register` – Registration
+- `POST /api/v1/auth/login` – Login (JWT Access + Refresh)
+- `POST /api/v1/auth/verify-email` – Email verification
+- `POST /api/v1/auth/refresh-token` – Refresh access token
+- `POST /api/v1/auth/logout` – Logout
 
-| Bereich / Aktion | consumer | creator | moderator | admin |
-|---|---:|---:|---:|---:|
-| Dashboard (`/dashboard`, `/creator-dashboard`) | ❌ | ✅ | ✅ | ✅ |
-| Upload / Edit eigener Nanos (`/upload`, `/nanos/:id/edit`) | ❌ | ✅ | ✅ | ✅ |
-| Moderation Queue (`/moderator/queue`) | ❌ | ❌ | ✅ | ✅ |
-| Admin Panel (`/admin`) | ❌ | ❌ | ❌ | ✅ |
-| Download nicht veröffentlichter Nanos | ❌ | ✅ (eigene) | ✅ | ✅ |
-| Öffentliche Suche/Published Nanos | ✅ | ✅ | ✅ | ✅ |
+### Nanos & Upload (Implemented – Sprint 2-5)
+- `POST /api/v1/upload/nano` – Upload ZIP (creates draft)
+- `GET /api/v1/nanos/{nano_id}` – Fetch nano metadata
+- `GET /api/v1/nanos/{nano_id}/detail` – Detail view with role-based visibility
+- `GET /api/v1/nanos/my-nanos` – Creator list with status/filter
+- `DELETE /api/v1/nanos/{nano_id}` – Delete/archive own nano (creator)
+- `POST /api/v1/nanos/{nano_id}/metadata` – Update metadata (creator, draft only)
+- `PATCH /api/v1/nanos/{nano_id}/status` – Change status (state machine)
 
-### Authentifizierung
-- `POST /api/v1/auth/register` - User Registration
-- `POST /api/v1/auth/login` - Login (JWT Access + Refresh Token)
-- `POST /api/v1/auth/verify-email` - Email verifizieren
+### Search (Implemented – Sprint 4)
+- `GET /api/v1/search` – Published nanos (Redis-cached, 30min TTL, deterministic keys)
 
-### Nano Ratings (Sprint 6)
-- `GET /api/v1/nanos/{nano_id}/ratings` - Öffentliche Aggregation nur aus `approved` Ratings; mit Auth inkl. eigener Bewertung samt `moderation_status`
-- `POST /api/v1/nanos/{nano_id}/ratings` - Eigenes 1-5 Sterne-Rating erstellen (auth erforderlich, genau 1 Rating pro User/Nano, Startstatus `pending`)
-- `PATCH /api/v1/nanos/{nano_id}/ratings/me` - Eigenes Rating aktualisieren (auth erforderlich, setzt Status zurück auf `pending`)
-- `PATCH /api/v1/nanos/{nano_id}/ratings/{rating_id}/moderation` - Rating freigeben oder ausblenden (`moderator`/`admin`)
-- Bewertbar sind nur `published` Nanos; sonst 400-Fehler
-- `POST /api/v1/auth/refresh-token` - Token erneuern
-- `POST /api/v1/auth/logout` - Logout
+### Comments (Implemented – Sprint 4+)
+- `GET /api/v1/nanos/{nano_id}/comments` – Public comments (approved only)
+- `POST /api/v1/nanos/{nano_id}/comments` – Add comment (auth, starts pending)
+- `PATCH /api/v1/nanos/{nano_id}/comments/{id}/moderation` – Approve/hide (mod/admin)
 
-### Uploads
-- `POST /api/v1/upload/nano` - ZIP-Datei hochladen (authentifiziert, erstellt Nano im Draft-Status)
+### Ratings (Implemented – Sprint 4+)
+- `GET /api/v1/nanos/{nano_id}/ratings` – Aggregation (approved only, includes own pending if auth)
+- `POST /api/v1/nanos/{nano_id}/ratings` – Add 1-5 star rating (1 per user/nano, pending start)
+- `PATCH /api/v1/nanos/{nano_id}/ratings/me` – Update own (resets to pending)
+- `PATCH /api/v1/nanos/{nano_id}/ratings/{id}/moderation` – Approve/hide (mod/admin)
 
-### Audit
-- `GET /api/v1/audit/logs` - Audit Logs abrufen (Admin)
-- `GET /api/v1/audit/suspicious` - Verdächtige Aktivitäten (Admin)
+### Moderation & Audit (Implemented)
+- `GET /api/v1/nanos/pending-moderation` – Queue (mod/admin)
+- `GET /api/v1/audit/logs` – Audit logs (admin)
+- `GET /api/v1/audit/suspicious` – Suspicious activity (admin)
 
-### Search
-- `GET /api/v1/search` - Volltextsuche für veröffentlichte Nanos mit Filtern, Pagination und Redis-Cache
+### Planned / In Progress (Sprint 6)
+- Feedback-Frontend Integration (Issue #86)
+- Feedback QA-Gate (Issue #87)
+- Feedback Observability Extension (Issue #88)
 
-### Nanos
-- `GET /api/v1/nanos/{nano_id}` - Nano-Metadaten abrufen (bestehender Metadata-Endpunkt)
-- `GET /api/v1/nanos/{nano_id}/detail` - Nano-Detailansicht im `success/data/meta/timestamp`-Schema mit status-/rollenabhängiger Sichtbarkeit
-- `GET /api/v1/nanos/{nano_id}/download-info` - Download-Informationen abrufen (authentifiziert; nicht veröffentlichte Nanos nur für berechtigte Rollen)
-- `POST /api/v1/nanos/{nano_id}/metadata` - Nano-Metadaten aktualisieren (nur Creator, nur Draft)
-- `PATCH /api/v1/nanos/{nano_id}/status` - Nano-Status gemäß State Machine ändern
+## 🛠️ Tech Stack
 
-### Creator Dashboard (Story 8.6)
-- `GET /api/v1/nanos/my-nanos` - Liste eigener Nanos mit Pagination und Status-Filter (authentifiziert, `creator`/`moderator`/`admin`)
-- `DELETE /api/v1/nanos/{nano_id}` - Eigene Nano löschen/archivieren (authentifiziert, nur Creator, nur Draft/Archived)
-
-### Moderation
-- `GET /api/v1/nanos/pending-moderation` - Moderations-Queue (authentifiziert, `moderator`/`admin`)
-- `PATCH /api/v1/nanos/{nano_id}/comments/{comment_id}/moderation` - Kommentar freigeben oder ausblenden (`moderator`/`admin`)
-- Öffentliche Kommentarlisten enthalten nur `approved` Kommentare; neue oder bearbeitete Kommentare starten in `pending`
-- Öffentliche Rating-Aggregationen enthalten nur `approved` Ratings; Moderationsentscheidungen werden im Audit-Log protokolliert
-
-## 🛠️ Technologie-Stack
-
-| Komponente | Technologie | Version |
-|------------|-------------|---------|
+| Component | Tech | Version |
+|-----------|------|---------|
 | Framework | FastAPI | 0.133.1 |
-| Database ORM | SQLAlchemy | 2.0.47 |
+| ORM | SQLAlchemy | 2.0.47 |
 | Validation | Pydantic | 2.12.5 |
 | Auth | JWT (python-jose) | 3.3.0 |
-| Password | passlib + bcrypt | 1.7.4 |
+| Crypto | passlib + bcrypt | 1.7.4 |
 | DB (Prod) | PostgreSQL | 13+ |
-| DB (Test) | SQLite | - |
-| Testing | pytest + Vitest | pytest 9.0.2 / vitest 3.x |
-| Objektspeicher | MinIO | 2024-12-13 |
-| Suchmaschine | Meilisearch | 1.6.0 |
-| Frontend | React + Vite + TypeScript + React Query | React 18 / Vite 5 / TanStack Query 5 |
+| DB (Test) | SQLite | – |
+| Testing | pytest + Vitest | 9.0.2 / 3.x |
+| Storage | MinIO | 2024-12-13 |
+| Search | Meilisearch | 1.6.0 |
+| Frontend | React + Vite + TypeScript + TanStack Query | 18 / 5 / 5.x |
 
-## 📖 Weitere Dokumentation
+## 📖 Documentation
 
-### Developer Guides
-- **[doc/DEVELOPER_SETUP.md](./doc/DEVELOPER_SETUP.md)** - **Comprehensive setup guide** for Sprint 2 (DB, MinIO, uploads, troubleshooting)
-- **[doc/DATABASE_MIGRATIONS.md](./doc/DATABASE_MIGRATIONS.md)** - Alembic migration workflow and best practices
+### Core Guides
+- [doc/DEVELOPER_SETUP.md](./doc/DEVELOPER_SETUP.md) – Full setup, troubleshooting, MinIO
+- [doc/DATABASE_MIGRATIONS.md](./doc/DATABASE_MIGRATIONS.md) – Alembic workflow & best practices
+- Local DB recovery tip: if Alembic shows `head` but core tables are missing, use the recovery runbook in [doc/DEVELOPER_SETUP.md](./doc/DEVELOPER_SETUP.md#issue-5-alembic-shows-head-but-core-tables-are-missing)
+- [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) – Detailed feature status
+- [LEARNINGS.md](./LEARNINGS.md) – Architecture decisions & lessons learned
 
-### Architecture & Implementation
-- **[IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md)** - Detaillierte Implementierungsdokumentation
-- **[LEARNINGS.md](./LEARNINGS.md)** - Architektur-Entscheidungen und Erkenntnisse
-- **[doc/planning/](./doc/planning/)** - Projektplanung und Requirements
+### Feature Docs
+- [doc/AUDIT_LOGGING.md](./doc/AUDIT_LOGGING.md) – AuditLogger framework (40+ event types)
+- [doc/FRONTEND_S2_SETUP.md](./doc/FRONTEND_S2_SETUP.md) – React/Vite/Tailwind seed
+- [doc/REACT_QUERY_SETUP.md](./doc/REACT_QUERY_SETUP.md) – TanStack Query integration
+- [doc/SEARCH_CACHE.md](./doc/SEARCH_CACHE.md) – Redis cache strategy (TTL, keys, invalidation, degraded mode)
+- [doc/SEARCH_OPERATIONS.md](./doc/SEARCH_OPERATIONS.md) – Search API contract, pagination, performance baseline
 
-### Feature-Specific Docs
-- **[doc/AUDIT_LOGGING.md](./doc/AUDIT_LOGGING.md)** - Audit logging framework (40+ event types)
-- **[doc/FRONTEND_S2_SETUP.md](./doc/FRONTEND_S2_SETUP.md)** - React + Vite + Tailwind setup (Story 8.1)
-- **[doc/REACT_QUERY_SETUP.md](./doc/REACT_QUERY_SETUP.md)** - TanStack Query integration
-- **[doc/SEARCH_CACHE.md](./doc/SEARCH_CACHE.md)** - Redis-Cache-Strategie für Search (TTL, Keys, Invalidierung, degraded mode)
-- **[doc/SEARCH_OPERATIONS.md](./doc/SEARCH_OPERATIONS.md)** - Search API contract, pagination/filter semantics, performance baseline und QA-Gate
+## 🔒 Security
 
-## 🔒 Sicherheitsfeatures
-
-- **Password Hashing**: Bcrypt (Cost: 12, OWASP-konform)
-- **Account Lockout**: 3 Fehlversuche → 60 Min Sperre
-- **Email Verification**: Pflicht vor Login (JWT, 24h gültig)
-- **Session Management**: Access Token (15 Min) + Refresh Token (7 Tage)
-- **Audit Logging**: Alle Security-Events mit IP, User-Agent, Timestamps
-
-## 🔜 Nächste Schritte
-
-### Nächster Sprint (Sprint 5)
-- **Story 7.5**: Prometheus/Grafana Monitoring Baseline
-- **Story 2.5**: Nano Detail View API (Backend)
-- **Story 8.5**: Nano Detail Page (Frontend)
-- **Story 8.6**: Creator Dashboard (Upload/Manage)
-- **QA/Operations Gate**: Sprint-5-Abnahme für Detail/Dashboard/Monitoring
-
-### Ausblick Sprint 6
-- **Story 4.1**: Star Rating
-- **Story 4.2**: Comments / Reviews
-- **Story 4.4**: Rating Moderation
+- **Password:** Bcrypt (Cost 12, OWASP)
+- **Account Lockout:** 3 failed attempts → 60 min ban
+- **Email:** Verification required before login (JWT, 24h)
+- **Sessions:** Access Token (15 min) + Refresh (7 days)
+- **Audit:** All security events logged with IP, User-Agent, timestamp
 
 ---
 
-**Letzte Aktualisierung**: März 2026
+**Last Updated:** March 2026
+

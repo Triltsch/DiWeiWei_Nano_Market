@@ -24,6 +24,14 @@ export { approveNano, getModerationQueue, rejectNano } from "./moderator";
 export { publishNano, updateNanoMetadata, uploadNanoZip } from "./upload";
 export { getNanoDetail, getNanoDownloadInfo, NanoDetailApiError } from "./nanoDetail";
 export {
+  createNanoComment,
+  createNanoRating,
+  getNanoComments,
+  getNanoRatings,
+  NanoFeedbackApiError,
+  updateMyNanoRating,
+} from "./nanoFeedback";
+export {
   clearAuthSession,
   getAccessToken,
   getRefreshToken,
@@ -47,3 +55,12 @@ export type {
 } from "./moderator";
 export type { UpdateNanoMetadataRequest, UploadNanoResponse } from "./upload";
 export type { NanoDetail, NanoDownloadInfo } from "./nanoDetail";
+export type {
+  NanoComment,
+  NanoCommentMutationResponse,
+  NanoCommentsResponse,
+  NanoRatingAggregation,
+  NanoRatingMutationResponse,
+  NanoRatingsResponse,
+  NanoUserRating,
+} from "./nanoFeedback";

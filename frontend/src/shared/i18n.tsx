@@ -169,11 +169,62 @@ const de = {
   nano_details_avg_rating_label: "Durchschnittsbewertung",
   nano_details_rating_count_label: "Anzahl Bewertungen",
   nano_details_download_count_label: "Anzahl Downloads",
+  nano_details_rating_prompt: "Wie hilfreich war diese Nano-Lerneinheit?",
+  nano_details_rating_login_prompt: "Melden Sie sich an, um eine Bewertung abzugeben.",
+  nano_details_rating_widget_label: "Sternbewertung",
+  nano_details_rating_choose: "Bewertung auswählen",
+  nano_details_rating_loading: "Bewertungen werden geladen...",
+  nano_details_rating_error: "Bewertungen konnten nicht geladen werden.",
+  nano_details_rating_submitting: "Bewertung wird gespeichert...",
+  nano_details_rating_saved_message:
+    "Ihre Bewertung wurde gespeichert und wartet auf Moderation, bevor sie öffentlich gezählt wird.",
+  nano_details_rating_submit_error: "Bewertung konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+  nano_details_rating_conflict:
+    "Für diese Nano-Lerneinheit existiert bereits eine Bewertung. Wählen Sie erneut, um sie zu aktualisieren.",
+  nano_details_rating_validation_error: "Bitte wählen Sie eine gültige Bewertung zwischen 1 und 5 Sternen.",
+  nano_details_your_rating_label: "Ihre Bewertung:",
+  nano_details_feedback_status_approved: "Freigegeben",
+  nano_details_feedback_status_pending: "In Moderation",
+  nano_details_feedback_status_hidden: "Ausgeblendet",
+  nano_details_rating_status_approved: "Ihre Bewertung ist freigegeben und wird in der öffentlichen Statistik berücksichtigt.",
+  nano_details_rating_status_pending:
+    "Ihre Bewertung wartet auf Moderation und ist noch nicht Teil der öffentlichen Statistik.",
+  nano_details_rating_status_hidden:
+    "Ihre Bewertung wurde ausgeblendet und ist derzeit nicht öffentlich sichtbar.",
   nano_details_chat_title: "Feedback und Austausch",
   nano_details_chat_description:
     "Treten Sie mit der Community in Kontakt und starten Sie den Austausch zur Nano-Lerneinheit.",
   nano_details_chat_button_login: "Anmelden, um den Chat zu öffnen",
   nano_details_chat_button_open: "Zum Austausch",
+  nano_details_comments_title: "Kommentare",
+  nano_details_comments_description:
+    "Freigegebene Kommentare sind öffentlich sichtbar. Neue Kommentare erscheinen erst nach der Moderation.",
+  nano_details_comments_loading: "Kommentare werden geladen...",
+  nano_details_comments_error: "Kommentare konnten nicht geladen werden.",
+  nano_details_comments_empty: "Noch keine freigegebenen Kommentare vorhanden.",
+  nano_details_comment_label: "Eigenen Kommentar verfassen",
+  nano_details_comment_placeholder:
+    "Teilen Sie Ihre Einschätzung, Hinweise oder Verbesserungsvorschläge zu dieser Nano-Lerneinheit.",
+  nano_details_comment_login_prompt: "Melden Sie sich an, um einen Kommentar zu verfassen.",
+  nano_details_comment_submit: "Kommentar absenden",
+  nano_details_comment_submitting: "Kommentar wird gesendet...",
+  nano_details_comment_pending_message:
+    "Ihr Kommentar wurde gespeichert und wartet auf Moderation, bevor er öffentlich erscheint.",
+  nano_details_comment_pending_preview_title: "Ihr Kommentar wartet auf Moderation",
+  nano_details_comment_conflict:
+    "Für diese Nano-Lerneinheit haben Sie bereits einen Kommentar eingereicht. Bearbeiten ist separat vorgesehen.",
+  nano_details_comment_validation_error: "Bitte geben Sie einen nicht-leeren Kommentar ein.",
+  nano_details_comment_submit_error:
+    "Kommentar konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+  nano_details_comment_status_approved:
+    "Ihr Kommentar ist freigegeben und öffentlich sichtbar.",
+  nano_details_comment_status_pending:
+    "Ihr Kommentar wartet auf Moderation und ist noch nicht öffentlich sichtbar.",
+  nano_details_comment_status_hidden:
+    "Ihr Kommentar wurde ausgeblendet und ist derzeit nicht öffentlich sichtbar.",
+  nano_details_comment_edited: "Bearbeitet",
+  nano_details_feedback_unavailable:
+    "Bewertungen und Kommentare sind nur für veröffentlichte Nano-Lerneinheiten verfügbar.",
   dashboard_title: "Übersicht",
   dashboard_description: "Geschützte Übersichts-Route (Platzhalter).",
   profile_title: "Profil",
@@ -486,11 +537,62 @@ const en: Record<TranslationKey, string> = {
   nano_details_avg_rating_label: "Average rating",
   nano_details_rating_count_label: "Rating count",
   nano_details_download_count_label: "Download count",
+  nano_details_rating_prompt: "How helpful was this nano learning unit?",
+  nano_details_rating_login_prompt: "Sign in to submit a rating.",
+  nano_details_rating_widget_label: "Star rating",
+  nano_details_rating_choose: "Choose rating",
+  nano_details_rating_loading: "Loading ratings...",
+  nano_details_rating_error: "Could not load ratings.",
+  nano_details_rating_submitting: "Saving rating...",
+  nano_details_rating_saved_message:
+    "Your rating was saved and is awaiting moderation before it appears in public totals.",
+  nano_details_rating_submit_error: "Could not save rating. Please try again.",
+  nano_details_rating_conflict:
+    "A rating already exists for this nano learning unit. Choose again to update it.",
+  nano_details_rating_validation_error: "Please choose a valid rating between 1 and 5 stars.",
+  nano_details_your_rating_label: "Your rating:",
+  nano_details_feedback_status_approved: "Approved",
+  nano_details_feedback_status_pending: "Pending moderation",
+  nano_details_feedback_status_hidden: "Hidden",
+  nano_details_rating_status_approved:
+    "Your rating is approved and included in the public aggregation.",
+  nano_details_rating_status_pending:
+    "Your rating is awaiting moderation and is not yet included in the public aggregation.",
+  nano_details_rating_status_hidden:
+    "Your rating is currently hidden and not publicly visible.",
   nano_details_chat_title: "Feedback and discussion",
   nano_details_chat_description:
     "Connect with the community and start the discussion around this nano learning unit.",
   nano_details_chat_button_login: "Log in to open discussion",
   nano_details_chat_button_open: "Open discussion",
+  nano_details_comments_title: "Comments",
+  nano_details_comments_description:
+    "Approved comments are visible publicly. New comments appear only after moderation.",
+  nano_details_comments_loading: "Loading comments...",
+  nano_details_comments_error: "Could not load comments.",
+  nano_details_comments_empty: "No approved comments yet.",
+  nano_details_comment_label: "Write your comment",
+  nano_details_comment_placeholder:
+    "Share your assessment, questions, or improvement suggestions for this nano learning unit.",
+  nano_details_comment_login_prompt: "Sign in to write a comment.",
+  nano_details_comment_submit: "Submit comment",
+  nano_details_comment_submitting: "Submitting comment...",
+  nano_details_comment_pending_message:
+    "Your comment was saved and is awaiting moderation before it becomes public.",
+  nano_details_comment_pending_preview_title: "Your comment is pending moderation",
+  nano_details_comment_conflict:
+    "You already submitted a comment for this nano learning unit. Editing is handled separately.",
+  nano_details_comment_validation_error: "Please enter a non-empty comment.",
+  nano_details_comment_submit_error: "Could not save comment. Please try again.",
+  nano_details_comment_status_approved:
+    "Your comment is approved and visible publicly.",
+  nano_details_comment_status_pending:
+    "Your comment is awaiting moderation and is not yet public.",
+  nano_details_comment_status_hidden:
+    "Your comment is currently hidden and not publicly visible.",
+  nano_details_comment_edited: "Edited",
+  nano_details_feedback_unavailable:
+    "Ratings and comments are available only for published nano learning units.",
   dashboard_title: "Dashboard",
   dashboard_description: "Protected dashboard placeholder route.",
   profile_title: "Profile",

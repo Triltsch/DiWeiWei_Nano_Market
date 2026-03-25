@@ -10,26 +10,36 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.search.service import (
-    build_search_cache_key,
-    invalidate_search_cache,
-    search_nanos,
-)
+from app.modules.search.service import build_search_cache_key, invalidate_search_cache, search_nanos
 
 
 class TestSearchNanosService:
     """Tests for search_nanos service function."""
 
     @pytest.mark.asyncio
-    async def test_search_missing_query(self):
-        """Empty query is rejected with HTTP 400."""
+    async def test_search_missing_query_browses_published_nanos(self):
+        """Missing query falls back to browse mode and still hits Meilisearch."""
         mock_db = AsyncMock(spec=AsyncSession)
 
-        with pytest.raises(HTTPException) as exc_info:
-            await search_nanos(db=mock_db, query="", page=1, limit=20)
+        with (
+            patch("app.modules.search.service.get_redis") as mock_get_redis,
+            patch("app.modules.search.service.MeilisearchClient") as mock_client_class,
+        ):
+            mock_redis = AsyncMock()
+            mock_redis.get = AsyncMock(return_value=None)
+            mock_redis.setex = AsyncMock(return_value=True)
+            mock_get_redis.return_value = mock_redis
 
-        assert exc_info.value.status_code == 400
-        assert "required" in exc_info.value.detail.lower()
+            mock_client_instance = MagicMock()
+            mock_client_class.return_value = mock_client_instance
+            mock_client_instance.search.return_value = {"hits": [], "estimatedTotalHits": 0}
+
+            result = await search_nanos(db=mock_db, query="", page=1, limit=20)
+
+        assert result.success is True
+        assert result.meta.query.search_query == ""
+        mock_client_instance.search.assert_called_once()
+        assert mock_client_instance.search.call_args.kwargs["query"] == ""
 
     @pytest.mark.asyncio
     async def test_search_invalid_page(self):

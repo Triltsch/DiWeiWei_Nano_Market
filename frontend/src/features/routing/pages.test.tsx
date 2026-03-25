@@ -18,15 +18,25 @@ vi.mock("../../shared/api", async () => {
   const actual = await vi.importActual<typeof import("../../shared/api")>("../../shared/api");
   return {
     ...actual,
+    createNanoComment: vi.fn(),
+    createNanoRating: vi.fn(),
     searchNanos: vi.fn(),
+    getNanoComments: vi.fn(),
     getNanoDetail: vi.fn(),
     getNanoDownloadInfo: vi.fn(),
+    getNanoRatings: vi.fn(),
+    updateMyNanoRating: vi.fn(),
   };
 });
 
+const mockedCreateNanoComment = vi.mocked(sharedApi.createNanoComment);
+const mockedCreateNanoRating = vi.mocked(sharedApi.createNanoRating);
+const mockedGetNanoComments = vi.mocked(sharedApi.getNanoComments);
 const mockedSearchNanos = vi.mocked(sharedApi.searchNanos);
 const mockedGetNanoDetail = vi.mocked(sharedApi.getNanoDetail);
 const mockedGetNanoDownloadInfo = vi.mocked(sharedApi.getNanoDownloadInfo);
+const mockedGetNanoRatings = vi.mocked(sharedApi.getNanoRatings);
+const mockedUpdateMyNanoRating = vi.mocked(sharedApi.updateMyNanoRating);
 
 function LocationProbe(): JSX.Element {
   const location = useLocation();
@@ -47,9 +57,14 @@ function renderHomeWithAuth(authValue: AuthContextValue): void {
 
 describe("HomePage", () => {
   beforeEach(() => {
+    mockedCreateNanoComment.mockReset();
+    mockedCreateNanoRating.mockReset();
+    mockedGetNanoComments.mockReset();
     mockedSearchNanos.mockReset();
     mockedGetNanoDetail.mockReset();
     mockedGetNanoDownloadInfo.mockReset();
+    mockedGetNanoRatings.mockReset();
+    mockedUpdateMyNanoRating.mockReset();
     window.localStorage.removeItem("diwei_ui_language");
   });
 
@@ -468,7 +483,20 @@ describe("SearchPage", () => {
     });
 
     renderSearch();
-    expect(mockedSearchNanos).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(mockedSearchNanos).toHaveBeenCalledWith({
+        query: "",
+        filters: {
+          category: "",
+          level: "",
+          duration: "",
+          language: "",
+        },
+        limit: 20,
+        page: 1,
+      });
+    });
 
     const keywordInput = screen.getByLabelText("Suchbegriff");
     fireEvent.change(keywordInput, { target: { value: "python" } });
@@ -476,7 +504,7 @@ describe("SearchPage", () => {
     expect(screen.getByTestId("location-probe").textContent).toBe("/search?q=python");
 
     await waitFor(() => {
-      expect(mockedSearchNanos).toHaveBeenCalledTimes(1);
+      expect(mockedSearchNanos).toHaveBeenCalledTimes(2);
       expect(mockedSearchNanos).toHaveBeenLastCalledWith({
         query: "python",
         filters: {
@@ -508,11 +536,21 @@ describe("SearchPage", () => {
       "Keine Nano-Lerneinheiten gefunden. Bitte versuchen Sie andere Suchbegriffe."
     );
     expect(emptyState).toBeTruthy();
-    expect(mockedSearchNanos).not.toHaveBeenCalled();
+    expect(mockedSearchNanos).toHaveBeenCalledTimes(1);
   });
 
   it("shows a localized error state when the search API request fails", async () => {
-    mockedSearchNanos.mockRejectedValue(new Error("Search backend unavailable"));
+    mockedSearchNanos
+      .mockResolvedValueOnce({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 20,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPrevPage: false,
+      })
+      .mockRejectedValueOnce(new Error("Search backend unavailable"));
 
     renderSearch();
 
@@ -525,7 +563,7 @@ describe("SearchPage", () => {
     expect(errorMessage).toBeTruthy();
 
     await waitFor(() => {
-      expect(mockedSearchNanos).toHaveBeenCalledTimes(1);
+      expect(mockedSearchNanos).toHaveBeenCalledTimes(2);
       expect(mockedSearchNanos).toHaveBeenLastCalledWith({
         query: "python",
         filters: {
@@ -721,8 +759,13 @@ describe("NanoDetailsPage", () => {
   };
 
   beforeEach(() => {
+    mockedCreateNanoComment.mockReset();
+    mockedCreateNanoRating.mockReset();
+    mockedGetNanoComments.mockReset();
     mockedGetNanoDetail.mockReset();
     mockedGetNanoDownloadInfo.mockReset();
+    mockedGetNanoRatings.mockReset();
+    mockedUpdateMyNanoRating.mockReset();
     window.localStorage.removeItem("diwei_ui_language");
   });
 
@@ -764,6 +807,39 @@ describe("NanoDetailsPage", () => {
         downloadPath: null,
       },
     });
+    mockedGetNanoRatings.mockResolvedValue({
+      nanoId: "nano-1",
+      aggregation: {
+        averageRating: 4.8,
+        medianRating: 5,
+        ratingCount: 11,
+        distribution: [],
+      },
+      currentUserRating: null,
+    });
+    mockedGetNanoComments.mockResolvedValue({
+      comments: [
+        {
+          commentId: "comment-1",
+          nanoId: "nano-1",
+          userId: "user-2",
+          username: "bob",
+          content: "Sehr hilfreich und klar strukturiert.",
+          moderationStatus: "approved",
+          createdAt: "2026-03-20T11:00:00Z",
+          updatedAt: "2026-03-20T11:00:00Z",
+          isEdited: false,
+        },
+      ],
+      pagination: {
+        current_page: 1,
+        page_size: 5,
+        total_results: 1,
+        total_pages: 1,
+        has_next_page: false,
+        has_prev_page: false,
+      },
+    });
 
     render(
       <LanguageProvider>
@@ -782,8 +858,10 @@ describe("NanoDetailsPage", () => {
     expect(screen.getByText("Download")).toBeTruthy();
     expect(screen.getByText("Bewertungen und Nutzung")).toBeTruthy();
     expect(screen.getByText("Feedback und Austausch")).toBeTruthy();
+    expect(screen.getByText("Kommentare")).toBeTruthy();
     expect(screen.getByText("Frontend")).toBeTruthy();
     expect(screen.getByText("CC-BY")).toBeTruthy();
+    expect(screen.getByText("Sehr hilfreich und klar strukturiert.")).toBeTruthy();
   });
 
   it("redirects unauthenticated users to login when download is clicked", async () => {
@@ -818,6 +896,27 @@ describe("NanoDetailsPage", () => {
         requiresAuthentication: true,
         canDownload: false,
         downloadPath: null,
+      },
+    });
+    mockedGetNanoRatings.mockResolvedValue({
+      nanoId: "nano-1",
+      aggregation: {
+        averageRating: 4.8,
+        medianRating: 5,
+        ratingCount: 11,
+        distribution: [],
+      },
+      currentUserRating: null,
+    });
+    mockedGetNanoComments.mockResolvedValue({
+      comments: [],
+      pagination: {
+        current_page: 1,
+        page_size: 5,
+        total_results: 0,
+        total_pages: 1,
+        has_next_page: false,
+        has_prev_page: false,
       },
     });
 
@@ -860,6 +959,99 @@ describe("NanoDetailsPage", () => {
     });
 
     expect(mockedGetNanoDownloadInfo).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Verifies that unauthenticated feedback actions follow the same redirect
+   * contract as downloads and send the user to login with a return target.
+   */
+  it("redirects unauthenticated users to login when they try to rate", async () => {
+    mockedGetNanoDetail.mockResolvedValue({
+      nanoId: "nano-1",
+      title: "React Basics",
+      metadata: {
+        description: "Intro course",
+        durationMinutes: 12,
+        competencyLevel: "beginner",
+        language: "en",
+        format: "video",
+        status: "published",
+        version: "1.0.0",
+        categories: [{ categoryId: "cat-1", categoryName: "Frontend" }],
+        license: "CC-BY",
+        thumbnailUrl: null,
+        uploadedAt: "2026-03-20T10:00:00Z",
+        publishedAt: "2026-03-20T11:00:00Z",
+        updatedAt: "2026-03-20T12:00:00Z",
+      },
+      creator: {
+        id: "creator-1",
+        username: "alice",
+      },
+      ratingSummary: {
+        averageRating: 4.8,
+        ratingCount: 11,
+        downloadCount: 34,
+      },
+      downloadInfo: {
+        requiresAuthentication: true,
+        canDownload: false,
+        downloadPath: null,
+      },
+    });
+    mockedGetNanoRatings.mockResolvedValue({
+      nanoId: "nano-1",
+      aggregation: {
+        averageRating: 4.8,
+        medianRating: 5,
+        ratingCount: 11,
+        distribution: [],
+      },
+      currentUserRating: null,
+    });
+    mockedGetNanoComments.mockResolvedValue({
+      comments: [],
+      pagination: {
+        current_page: 1,
+        page_size: 5,
+        total_results: 0,
+        total_pages: 1,
+        has_next_page: false,
+        has_prev_page: false,
+      },
+    });
+
+    render(
+      <LanguageProvider>
+        <AuthContext.Provider value={authValue}>
+          <MemoryRouter initialEntries={["/nano/nano-1"]}>
+            <Routes>
+              <Route
+                path="/nano/:id"
+                element={
+                  <>
+                    <NanoDetailsPage />
+                    <LocationProbe />
+                  </>
+                }
+              />
+              <Route path="/login" element={<LocationProbe />} />
+            </Routes>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </LanguageProvider>
+    );
+
+    await screen.findByRole("heading", { name: "React Basics" });
+    fireEvent.click(screen.getByRole("button", { name: "Bewertung auswählen: 5" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-probe").textContent).toBe(
+        "/login?redirect=%2Fnano%2Fnano-1"
+      );
+    });
+
+    expect(mockedCreateNanoRating).not.toHaveBeenCalled();
   });
 
   it("navigates to the presigned download URL returned by the API", async () => {
@@ -908,6 +1100,32 @@ describe("NanoDetailsPage", () => {
           downloadPath: "nanos/react-basics.mp4",
         },
       });
+      mockedGetNanoRatings.mockResolvedValue({
+        nanoId: "nano-1",
+        aggregation: {
+          averageRating: 4.8,
+          medianRating: 5,
+          ratingCount: 11,
+          distribution: [],
+        },
+        currentUserRating: {
+          ratingId: "rating-1",
+          score: 4,
+          moderationStatus: "approved",
+          updatedAt: "2026-03-20T11:30:00Z",
+        },
+      });
+      mockedGetNanoComments.mockResolvedValue({
+        comments: [],
+        pagination: {
+          current_page: 1,
+          page_size: 5,
+          total_results: 0,
+          total_pages: 1,
+          has_next_page: false,
+          has_prev_page: false,
+        },
+      });
       mockedGetNanoDownloadInfo.mockResolvedValue({
         nanoId: "nano-1",
         canDownload: true,
@@ -952,6 +1170,141 @@ describe("NanoDetailsPage", () => {
         value: originalLocation,
       });
     }
+  });
+
+  /**
+   * Verifies that authenticated users can submit a rating and a comment while
+   * the UI keeps public moderation semantics explicit.
+   */
+  it("submits feedback and shows pending moderation state", async () => {
+    mockedGetNanoDetail.mockResolvedValue({
+      nanoId: "nano-1",
+      title: "React Basics",
+      metadata: {
+        description: "Intro course",
+        durationMinutes: 12,
+        competencyLevel: "beginner",
+        language: "en",
+        format: "video",
+        status: "published",
+        version: "1.0.0",
+        categories: [{ categoryId: "cat-1", categoryName: "Frontend" }],
+        license: "CC-BY",
+        thumbnailUrl: null,
+        uploadedAt: "2026-03-20T10:00:00Z",
+        publishedAt: "2026-03-20T11:00:00Z",
+        updatedAt: "2026-03-20T12:00:00Z",
+      },
+      creator: {
+        id: "creator-1",
+        username: "alice",
+      },
+      ratingSummary: {
+        averageRating: 4.8,
+        ratingCount: 11,
+        downloadCount: 34,
+      },
+      downloadInfo: {
+        requiresAuthentication: true,
+        canDownload: true,
+        downloadPath: "nanos/react-basics.mp4",
+      },
+    });
+    mockedGetNanoRatings.mockResolvedValue({
+      nanoId: "nano-1",
+      aggregation: {
+        averageRating: 4.8,
+        medianRating: 5,
+        ratingCount: 11,
+        distribution: [],
+      },
+      currentUserRating: null,
+    });
+    mockedGetNanoComments.mockResolvedValue({
+      comments: [],
+      pagination: {
+        current_page: 1,
+        page_size: 5,
+        total_results: 0,
+        total_pages: 1,
+        has_next_page: false,
+        has_prev_page: false,
+      },
+    });
+    mockedCreateNanoRating.mockResolvedValue({
+      nanoId: "nano-1",
+      aggregation: {
+        averageRating: 4.8,
+        medianRating: 5,
+        ratingCount: 12,
+        distribution: [],
+      },
+      userRating: {
+        ratingId: "rating-1",
+        score: 5,
+        moderationStatus: "pending",
+        updatedAt: "2026-03-21T10:00:00Z",
+      },
+    });
+    mockedCreateNanoComment.mockResolvedValue({
+      comment: {
+        commentId: "comment-2",
+        nanoId: "nano-1",
+        userId: "user-1",
+        username: "user",
+        content: "Bitte noch Beispiele fuer Hooks ergaenzen.",
+        moderationStatus: "pending",
+        createdAt: "2026-03-21T10:00:00Z",
+        updatedAt: "2026-03-21T10:00:00Z",
+        isEdited: false,
+      },
+    });
+
+    render(
+      <LanguageProvider>
+        <AuthContext.Provider
+          value={{
+            ...authValue,
+            isAuthenticated: true,
+            user: {
+              id: "user-1",
+              email: "user@example.com",
+              username: "user",
+              role: "creator",
+            },
+          }}
+        >
+          <MemoryRouter initialEntries={["/nano/nano-1"]}>
+            <Routes>
+              <Route path="/nano/:id" element={<NanoDetailsPage />} />
+            </Routes>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </LanguageProvider>
+    );
+
+    await screen.findByRole("heading", { name: "React Basics" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Bewertung auswählen: 5" }));
+
+    await screen.findByText(
+      "Ihre Bewertung wurde gespeichert und wartet auf Moderation, bevor sie öffentlich gezählt wird."
+    );
+    expect(screen.getByText("Ihre Bewertung:")).toBeTruthy();
+    expect(screen.getByText("In Moderation")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Eigenen Kommentar verfassen"), {
+      target: {
+        value: "Bitte noch Beispiele fuer Hooks ergaenzen.",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kommentar absenden" }));
+
+    await screen.findByText(
+      "Ihr Kommentar wurde gespeichert und wartet auf Moderation, bevor er öffentlich erscheint."
+    );
+    expect(screen.getByText("Ihr Kommentar wartet auf Moderation")).toBeTruthy();
+    expect(screen.getByText("Bitte noch Beispiele fuer Hooks ergaenzen.")).toBeTruthy();
   });
 });
 

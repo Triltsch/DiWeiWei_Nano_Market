@@ -21,22 +21,80 @@ class TestSearchRoutes:
     @pytest.mark.unit
     def test_get_search_endpoint_missing_query(self, client):
         """
-        Test that search endpoint requires the query parameter.
+        Test that search endpoint supports browse mode without a query.
 
-        Expected: 422 Unprocessable Entity (missing required parameter).
+        Expected: 200 OK with empty query echoed in metadata.
         """
-        response = client.get("/api/v1/search")
-        assert response.status_code == 422
+        from datetime import datetime, timezone
+
+        from app.modules.search.schemas import SearchResponse
+
+        with patch("app.modules.search.router.search_nanos") as mock_search:
+            mock_search.return_value = SearchResponse(
+                success=True,
+                data=[],
+                meta={
+                    "pagination": {
+                        "current_page": 1,
+                        "page_size": 20,
+                        "total_results": 0,
+                        "total_pages": 0,
+                        "has_next_page": False,
+                        "has_prev_page": False,
+                    },
+                    "query": {
+                        "search_query": "",
+                        "category": None,
+                        "level": None,
+                        "duration": None,
+                        "language": None,
+                    },
+                },
+                timestamp=datetime.now(timezone.utc),
+            )
+
+            response = client.get("/api/v1/search")
+
+        assert response.status_code == 200
 
     @pytest.mark.unit
     def test_get_search_endpoint_empty_query(self, client):
         """
-        Test that search endpoint rejects empty query string.
+        Test that search endpoint treats empty query string as browse mode.
 
-        Expected: 422 Unprocessable Entity (validation error).
+        Expected: 200 OK.
         """
-        response = client.get("/api/v1/search?q=")
-        assert response.status_code == 422
+        from datetime import datetime, timezone
+
+        from app.modules.search.schemas import SearchResponse
+
+        with patch("app.modules.search.router.search_nanos") as mock_search:
+            mock_search.return_value = SearchResponse(
+                success=True,
+                data=[],
+                meta={
+                    "pagination": {
+                        "current_page": 1,
+                        "page_size": 20,
+                        "total_results": 0,
+                        "total_pages": 0,
+                        "has_next_page": False,
+                        "has_prev_page": False,
+                    },
+                    "query": {
+                        "search_query": "",
+                        "category": None,
+                        "level": None,
+                        "duration": None,
+                        "language": None,
+                    },
+                },
+                timestamp=datetime.now(timezone.utc),
+            )
+
+            response = client.get("/api/v1/search?q=")
+
+        assert response.status_code == 200
 
     @pytest.mark.unit
     def test_get_search_endpoint_invalid_page(self, client):
