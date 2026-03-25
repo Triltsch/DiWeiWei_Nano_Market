@@ -2043,6 +2043,7 @@ class TestNanoCommentsRoutes:
         comments_after_approve = await async_client.get(f"/api/v1/nanos/{nano.id}/comments")
         assert public_after_approve.json()["aggregation"]["rating_count"] == 1
         assert comments_after_approve.json()["comments"][0]["content"] == "Needs review"
+        assert "moderation_reason" not in comments_after_approve.json()["comments"][0]
 
         hide_comment = await async_client.patch(
             f"/api/v1/nanos/{nano.id}/comments/{comment.id}/moderation",

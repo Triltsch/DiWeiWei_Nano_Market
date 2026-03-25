@@ -14,6 +14,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models import (
     AuditAction,
@@ -387,7 +388,9 @@ def _quantize_rating(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def _approved_feedback_filter(model: type[NanoRating] | type[NanoComment]):
+def _approved_feedback_filter(
+    model: type[NanoRating] | type[NanoComment],
+) -> ColumnElement[bool]:
     """Build a reusable filter for publicly visible feedback."""
     return model.moderation_status == FeedbackModerationStatus.APPROVED
 
@@ -686,7 +689,6 @@ async def _build_comment_item(comment: NanoComment, db: AsyncSession) -> NanoCom
         username=username,
         content=comment.content,
         moderation_status=comment.moderation_status.value,
-        moderation_reason=comment.moderation_reason,
         created_at=comment.created_at,
         updated_at=comment.updated_at,
         is_edited=comment.updated_at > comment.created_at,
@@ -762,7 +764,6 @@ async def get_nano_comments(
             username=username,
             content=comment.content,
             moderation_status=comment.moderation_status.value,
-            moderation_reason=comment.moderation_reason,
             created_at=comment.created_at,
             updated_at=comment.updated_at,
             is_edited=comment.updated_at > comment.created_at,
@@ -903,8 +904,6 @@ async def moderate_nano_rating(
     _apply_feedback_moderation(target=rating, moderation=moderation, moderator=current_user)
     await db.flush()
     aggregation = await _sync_nano_rating_cache(nano=nano, db=db)
-    await db.commit()
-    await db.refresh(rating)
 
     await AuditLogger.log_action(
         session=db,
@@ -922,6 +921,7 @@ async def moderate_nano_rating(
         },
     )
     await db.commit()
+    await db.refresh(rating)
 
     return NanoRatingModerationResponse(rating=await _build_rating_item(rating=rating, db=db))
 
@@ -952,8 +952,7 @@ async def moderate_nano_comment(
 
     previous_status = comment.moderation_status.value
     _apply_feedback_moderation(target=comment, moderation=moderation, moderator=current_user)
-    await db.commit()
-    await db.refresh(comment)
+    await db.flush()
 
     await AuditLogger.log_action(
         session=db,
@@ -970,6 +969,7 @@ async def moderate_nano_comment(
         },
     )
     await db.commit()
+    await db.refresh(comment)
 
     return NanoCommentModerationResponse(comment=await _build_comment_item(comment=comment, db=db))
 

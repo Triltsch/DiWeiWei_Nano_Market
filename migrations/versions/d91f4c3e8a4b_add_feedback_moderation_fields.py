@@ -38,7 +38,7 @@ def upgrade() -> None:
             "moderation_status",
             feedbackmoderationstatus,
             nullable=False,
-            server_default="PENDING",
+            server_default=sa.text("'PENDING'"),
             comment="Moderation status for rating visibility",
         ),
     )
@@ -90,7 +90,7 @@ def upgrade() -> None:
             "moderation_status",
             feedbackmoderationstatus,
             nullable=False,
-            server_default="PENDING",
+            server_default=sa.text("'PENDING'"),
             comment="Moderation status for comment visibility",
         ),
     )

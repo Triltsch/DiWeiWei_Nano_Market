@@ -302,10 +302,6 @@ class NanoCommentItem(BaseModel):
     username: Optional[str] = Field(None, description="Author username")
     content: str = Field(..., description="Sanitized comment content")
     moderation_status: str = Field(description="Moderation status of the comment")
-    moderation_reason: Optional[str] = Field(
-        None,
-        description="Optional reason for the latest moderation decision",
-    )
     created_at: datetime = Field(..., description="Comment creation timestamp")
     updated_at: datetime = Field(..., description="Comment update timestamp")
     is_edited: bool = Field(..., description="Whether the comment was edited after creation")
