@@ -272,6 +272,51 @@ class NanoRatingMutationResponse(BaseModel):
     aggregation: NanoRatingAggregation = Field(description="Updated aggregated rating metrics")
 
 
+class NanoCommentUpsertRequest(BaseModel):
+    """Request payload for creating or updating a Nano comment/review."""
+
+    content: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description="Comment content (1-1000 characters)",
+    )
+
+    @field_validator("content")
+    @classmethod
+    def validate_content_not_blank(cls, value: str) -> str:
+        """Ensure content is not empty after trimming whitespace."""
+        if not value.strip():
+            raise ValueError("content must not be empty")
+        return value
+
+
+class NanoCommentItem(BaseModel):
+    """One comment item in Nano comments responses."""
+
+    comment_id: UUID = Field(..., description="Unique identifier for the comment")
+    nano_id: UUID = Field(..., description="Nano identifier")
+    user_id: UUID = Field(..., description="Author user identifier")
+    username: Optional[str] = Field(None, description="Author username")
+    content: str = Field(..., description="Sanitized comment content")
+    created_at: datetime = Field(..., description="Comment creation timestamp")
+    updated_at: datetime = Field(..., description="Comment update timestamp")
+    is_edited: bool = Field(..., description="Whether the comment was edited after creation")
+
+
+class NanoCommentMutationResponse(BaseModel):
+    """Response payload for comment create/update operations."""
+
+    comment: NanoCommentItem = Field(..., description="Created or updated comment")
+
+
+class NanoCommentListResponse(BaseModel):
+    """Response payload for paginated Nano comments listing."""
+
+    comments: list[NanoCommentItem] = Field(default_factory=list, description="List of comments")
+    pagination: "PaginationMeta" = Field(..., description="Pagination metadata")
+
+
 class NanoDownloadInfo(BaseModel):
     """Download access information for Nano detail view response."""
 

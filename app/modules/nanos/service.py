@@ -7,6 +7,7 @@ Nano metadata with proper validation and authorization checks.
 
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
+from html import escape
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -21,6 +22,7 @@ from app.models import (
     LicenseType,
     Nano,
     NanoCategoryAssignment,
+    NanoComment,
     NanoFormat,
     NanoRating,
     NanoStatus,
@@ -36,6 +38,10 @@ from app.modules.nanos.schemas import (
     ModeratorQueueItem,
     ModeratorQueueListResponse,
     NanoCategoryResponse,
+    NanoCommentItem,
+    NanoCommentListResponse,
+    NanoCommentMutationResponse,
+    NanoCommentUpsertRequest,
     NanoDeleteResponse,
     NanoDetailCreator,
     NanoDetailData,
@@ -58,6 +64,8 @@ from app.modules.nanos.schemas import (
 )
 from app.modules.search.service import invalidate_search_cache
 from app.modules.upload.storage import StorageError, get_storage_adapter
+
+MAX_COMMENT_LENGTH = 1000
 
 
 async def get_nano_metadata(
@@ -398,6 +406,15 @@ def _validate_published_for_rating(nano: Nano) -> None:
         )
 
 
+def _validate_published_for_comments(nano: Nano) -> None:
+    """Ensure comment actions are only performed on published Nanos."""
+    if nano.status != NanoStatus.PUBLISHED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Comments are only allowed for published Nanos",
+        )
+
+
 async def _calculate_nano_rating_aggregation(
     nano_id: UUID, db: AsyncSession
 ) -> NanoRatingAggregation:
@@ -599,6 +616,191 @@ async def get_nano_ratings(
         aggregation=aggregation,
         current_user_rating=current_user_rating,
     )
+
+
+def _sanitize_comment_content(content: str) -> str:
+    """Normalize and sanitize comment content before persistence."""
+    normalized = content.strip().replace("\r\n", "\n").replace("\r", "\n")
+    return escape(normalized, quote=False)
+
+
+def _validate_sanitized_comment_content(content: str) -> None:
+    """Ensure sanitized comment content still fits storage/API limits."""
+    if len(content) > MAX_COMMENT_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Sanitized comment content exceeds maximum length of "
+                f"{MAX_COMMENT_LENGTH} characters"
+            ),
+        )
+
+
+def _can_manage_comment(comment: NanoComment, current_user: TokenData) -> bool:
+    """Return whether caller may edit a comment (owner, moderator, or admin)."""
+    if comment.user_id == current_user.user_id:
+        return True
+    return current_user.role in {UserRole.ADMIN.value, UserRole.MODERATOR.value}
+
+
+async def _build_comment_item(comment: NanoComment, db: AsyncSession) -> NanoCommentItem:
+    """Build API comment item with author context."""
+    user_stmt = select(User.username).where(User.id == comment.user_id)
+    user_result = await db.execute(user_stmt)
+    username = user_result.scalar_one_or_none()
+
+    return NanoCommentItem(
+        comment_id=comment.id,
+        nano_id=comment.nano_id,
+        user_id=comment.user_id,
+        username=username,
+        content=comment.content,
+        created_at=comment.created_at,
+        updated_at=comment.updated_at,
+        is_edited=comment.updated_at > comment.created_at,
+    )
+
+
+async def get_nano_comments(
+    nano_id: UUID,
+    db: AsyncSession,
+    page: int = 1,
+    limit: int = 20,
+) -> NanoCommentListResponse:
+    """Get paginated comments for a published Nano with stable sorting."""
+    nano = await _get_nano_or_404(nano_id=nano_id, db=db)
+    _validate_published_for_comments(nano=nano)
+
+    count_stmt = select(func.count(NanoComment.id)).where(NanoComment.nano_id == nano_id)
+    count_result = await db.execute(count_stmt)
+    total_results = int(count_result.scalar() or 0)
+
+    total_pages = (total_results + limit - 1) // limit if limit > 0 else 1
+    offset = (page - 1) * limit
+
+    list_stmt = (
+        select(NanoComment, User.username)
+        .outerjoin(User, NanoComment.user_id == User.id)
+        .where(NanoComment.nano_id == nano_id)
+        .order_by(desc(NanoComment.updated_at), desc(NanoComment.id))
+        .offset(offset)
+        .limit(limit)
+    )
+    list_result = await db.execute(list_stmt)
+    rows = list_result.all()
+
+    comments = [
+        NanoCommentItem(
+            comment_id=comment.id,
+            nano_id=comment.nano_id,
+            user_id=comment.user_id,
+            username=username,
+            content=comment.content,
+            created_at=comment.created_at,
+            updated_at=comment.updated_at,
+            is_edited=comment.updated_at > comment.created_at,
+        )
+        for comment, username in rows
+    ]
+
+    return NanoCommentListResponse(
+        comments=comments,
+        pagination=PaginationMeta(
+            current_page=page,
+            page_size=limit,
+            total_results=total_results,
+            total_pages=total_pages,
+            has_next_page=page < total_pages,
+            has_prev_page=page > 1,
+        ),
+    )
+
+
+async def create_nano_comment(
+    nano_id: UUID,
+    payload: NanoCommentUpsertRequest,
+    current_user: TokenData,
+    db: AsyncSession,
+) -> NanoCommentMutationResponse:
+    """Create a comment for the authenticated user on a published Nano."""
+    nano = await _get_nano_or_404(nano_id=nano_id, db=db)
+    _validate_published_for_comments(nano=nano)
+
+    existing_stmt = select(NanoComment).where(
+        NanoComment.nano_id == nano_id,
+        NanoComment.user_id == current_user.user_id,
+    )
+    existing_result = await db.execute(existing_stmt)
+    existing_comment = existing_result.scalar_one_or_none()
+
+    if existing_comment is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A comment for this Nano by the current user already exists",
+        )
+
+    sanitized_content = _sanitize_comment_content(payload.content)
+    _validate_sanitized_comment_content(sanitized_content)
+
+    comment = NanoComment(
+        nano_id=nano_id,
+        user_id=current_user.user_id,
+        content=sanitized_content,
+    )
+    db.add(comment)
+
+    try:
+        await db.flush()
+        await db.commit()
+        await db.refresh(comment)
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A comment for this Nano by the current user already exists",
+        ) from exc
+
+    return NanoCommentMutationResponse(comment=await _build_comment_item(comment=comment, db=db))
+
+
+async def update_nano_comment(
+    nano_id: UUID,
+    comment_id: UUID,
+    payload: NanoCommentUpsertRequest,
+    current_user: TokenData,
+    db: AsyncSession,
+) -> NanoCommentMutationResponse:
+    """Update a Nano comment by owner, moderator, or admin."""
+    nano = await _get_nano_or_404(nano_id=nano_id, db=db)
+    _validate_published_for_comments(nano=nano)
+
+    comment_stmt = select(NanoComment).where(
+        NanoComment.id == comment_id,
+        NanoComment.nano_id == nano_id,
+    )
+    comment_result = await db.execute(comment_stmt)
+    comment = comment_result.scalar_one_or_none()
+
+    if comment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comment not found for this Nano",
+        )
+
+    if not _can_manage_comment(comment=comment, current_user=current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allowed to edit this comment",
+        )
+
+    sanitized_content = _sanitize_comment_content(payload.content)
+    _validate_sanitized_comment_content(sanitized_content)
+
+    comment.content = sanitized_content
+    await db.commit()
+    await db.refresh(comment)
+
+    return NanoCommentMutationResponse(comment=await _build_comment_item(comment=comment, db=db))
 
 
 async def update_nano_metadata(

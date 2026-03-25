@@ -22,6 +22,7 @@ Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und 
 - ✅ Nano Discovery Page & Search UI (Story 8.4) - `/search` with debounce, filters, loading/empty states, URL sync, and load-more pagination
 - ✅ Redis Cache Setup für Search (Story 7.4) - deterministische Cache-Keys, 30-Minuten TTL, Invalidierung bei Nano-Datenänderungen, degraded mode ohne API-Ausfall
 - ✅ Search UI/API Integration (Story 3.5) - Discovery-UI gegen `GET /api/v1/search`, Request-/Response-Contract-Mapping, API-Fehlerzustände, backend-konsistente Filter/Pagination, Contract-Tests
+- ✅ Backend Comments/Reviews (Issue #84) - veröffentlichte-Nano Kommentare mit Validierung/Sanitization, stabiler Pagination-Sortierung und Ownership/RBAC-Edit-Regeln
 
 **Qualität**:
 - Backend-Tests: alle aktuellen Tests bestanden (pytest; exakte Anzahl siehe CI-Status)

@@ -481,6 +481,54 @@ class NanoRating(Base):
         return f"<NanoRating(id={self.id}, nano_id={self.nano_id}, user_id={self.user_id}, score={self.score})>"
 
 
+class NanoComment(Base):
+    """User comment/review for a published Nano."""
+
+    __tablename__ = "nano_comments"
+    __table_args__ = (
+        UniqueConstraint("nano_id", "user_id", name="uq_nano_comments_nano_user"),
+        CheckConstraint("length(content) >= 1", name="ck_nano_comments_content_non_empty"),
+        CheckConstraint("length(content) <= 1000", name="ck_nano_comments_content_max_length"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    nano_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("nanos.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Reviewed Nano",
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="User who submitted the comment",
+    )
+    content: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Sanitized comment content (1-1000 chars)",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+        index=True,
+    )
+
+    def __repr__(self) -> str:
+        """String representation of NanoComment."""
+        return f"<NanoComment(id={self.id}, nano_id={self.nano_id}, " f"user_id={self.user_id})>"
+
+
 class NanoVersion(Base):
     """
     Nano version audit trail.
