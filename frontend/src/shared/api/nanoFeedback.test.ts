@@ -230,4 +230,70 @@ describe("rating and comment mutations", () => {
       message: "A comment for this Nano by the current user already exists",
     });
   });
+
+  /**
+   * Verifies auth failures map to typed unauthorized errors so UI routes can
+   * redirect users to login consistently.
+   */
+  it("maps HTTP 401 rating creation to typed unauthorized error", async () => {
+    vi.spyOn(httpClient, "post").mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 401,
+        data: {
+          detail: "Not authenticated",
+        },
+      },
+    });
+
+    await expect(createNanoRating("nano-1", 5)).rejects.toMatchObject<NanoFeedbackApiError>({
+      name: "NanoFeedbackApiError",
+      code: "unauthorized",
+      message: "Not authenticated",
+    });
+  });
+
+  /**
+   * Verifies role and permission failures map to typed forbidden errors that
+   * page-level handlers can surface as access messages.
+   */
+  it("maps HTTP 403 comments fetch to typed forbidden error", async () => {
+    vi.spyOn(httpClient, "get").mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 403,
+        data: {
+          detail: "Insufficient permissions",
+        },
+      },
+    });
+
+    await expect(getNanoComments("nano-1", { page: 1, limit: 5 })).rejects.toMatchObject<NanoFeedbackApiError>({
+      name: "NanoFeedbackApiError",
+      code: "forbidden",
+      message: "Insufficient permissions",
+    });
+  });
+
+  /**
+   * Verifies input/schema failures map to typed validation errors for precise
+   * form feedback in the detail page comment composer.
+   */
+  it("maps HTTP 422 comment creation to typed validation error", async () => {
+    vi.spyOn(httpClient, "post").mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 422,
+        data: {
+          detail: "Comment content must not be blank",
+        },
+      },
+    });
+
+    await expect(createNanoComment("nano-1", "   ")).rejects.toMatchObject<NanoFeedbackApiError>({
+      name: "NanoFeedbackApiError",
+      code: "validation",
+      message: "Comment content must not be blank",
+    });
+  });
 });

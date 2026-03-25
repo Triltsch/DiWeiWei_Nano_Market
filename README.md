@@ -98,7 +98,7 @@ docker-compose down            # Stop services
 - MinIO: http://localhost:9001 (minioadmin/minioadmin)
 - Meilisearch: http://localhost:7700
 
-Runbooks: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md) | [doc/SPRINT5_QA_GATE.md](doc/SPRINT5_QA_GATE.md)
+Runbooks: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md) | [doc/SPRINT5_QA_GATE.md](doc/SPRINT5_QA_GATE.md) | [doc/SPRINT6_QA_GATE.md](doc/SPRINT6_QA_GATE.md)
 
 ## 📚 API & Roles
 
@@ -186,6 +186,7 @@ Runbooks: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md) | [doc/SPRINT5_QA_G
 - [doc/REACT_QUERY_SETUP.md](./doc/REACT_QUERY_SETUP.md) – TanStack Query integration
 - [doc/SEARCH_CACHE.md](./doc/SEARCH_CACHE.md) – Redis cache strategy (TTL, keys, invalidation, degraded mode)
 - [doc/SEARCH_OPERATIONS.md](./doc/SEARCH_OPERATIONS.md) – Search API contract, pagination, performance baseline
+- [doc/SPRINT6_QA_GATE.md](./doc/SPRINT6_QA_GATE.md) – QA gate evidence for feedback integration + moderation flows
 
 ## 🔒 Security
 
