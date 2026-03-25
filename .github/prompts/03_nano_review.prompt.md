@@ -17,21 +17,18 @@ Given a pull request, perform the necessary steps in the following order:
 - Ask for the pull request URL or ID. If the user provides a URL, extract the pull request ID from the URL.
 - Check if the current branch is the branch the pull request relates to. If not, switch to the correct branch.
 - Check if the pull request is already closed. In this case, check if the reviewer suggestions were already implemented or are outdated. For the suggestions which are not implemented yet and not outdated, assume that they were added to the PR after the PR was closed and merged. Open a new branch, implement the suggestions and create a new PR in this case.
+- **REQUIRED: Use ONLY MCP GitHub tools (sequentially, NO parallels)** to fetch PR data. This ensures stable, reliable API communication. Never use fallback methods or manual GitHub CLI unless MCP is completely unavailable.
 - **Read through peer review related comments carefully**: Review comments may be returned in different API responses than general issue comments.
-- **Mandatory comment discovery sequence (do not skip):**
-	1. Fetch the active pull request metadata.
-	2. Fetch the pull request by issue/PR number.
-	3. Check all returned fields for review content: comments, timeline comments, reviews, threads, inline suggestions, and bot reviews.
-	4. **Search for specialized MCP GitHub tools**: Use `tool_search_tool_regex` with pattern `mcp_github.*review|pull_request.*review` to discover tools like `mcp_github_pull_request_read` which provides the `get_review_comments` method for fetching inline review threads with full context (isResolved, isOutdated, isCollapsed, author, body, path, line).
-	5. If available, call `mcp_github_pull_request_read` with method `get_review_comments` to fetch all review threads. This returns the complete review data structure that standard PR fetch methods do not expose.
-	6. If no review comments are found after steps 1-5 but the user indicates comments exist in the PR UI, assume API coverage is incomplete and continue with fallback discovery.
-- **Fallback discovery when standard methods do not expose review threads:**
-	- **First**: Search for and use specialized MCP GitHub tools (see step 4 above) before attempting other methods.
-	- **Second**: If available in the environment, use authenticated GitHub CLI/API to query review threads.
-	- **Last resort**: Ask the user for direct review-comment links or screenshots of each unresolved thread.
-	- If authenticated access is not available, explicitly state this limitation and continue using user-provided review content as source of truth.
+- **Mandatory MCP-based comment discovery sequence (sequential calls only):**
+	1. Call `mcp_github_pull_request_read` with method `get` to fetch base PR metadata (state, title, head/base refs).
+	2. Call `mcp_github_pull_request_read` with method `get_reviews` to fetch all review summaries.
+	3. Call `mcp_github_pull_request_read` with method `get_review_comments` to fetch ALL inline review threads with full context (isResolved, isOutdated, isCollapsed, author, body, path, line).
+	4. Call `mcp_github_pull_request_read` with method `get_comments` to fetch general PR comments (non-review).
+	5. Filter results: keep only unresolved (`is_resolved=false`) and non-outdated (`is_outdated=false`) comments for implementation.
+	6. If not-yet-started after step 5: **this is normal**. Every GitHub PR may have zero unresolved comments. Document which MCP calls returned empty and proceed to branch check.
+- **NO fallback methods allowed** unless all 4 MCP calls above complete AND return no results. In that case, only then escalate to authenticated GitHub CLI or user-provided review links.
 - **Copilot AI review handling:** Treat Copilot AI review comments exactly like human inline review comments. They are required input and must be implemented unless outdated or explicitly declined by the user.
-- **Stopping rule:** Never conclude "no reviewer comments" after a single API call. Only conclude this after all discovery steps above are completed and results are documented.
+- **Stopping rule:** Only conclude "no reviewer comments" AFTER completing all 4 MCP calls above. Document exact call sequence and result counts in final report.
 - Implement the suggested changes in the codebase following the project guidelines and best practices.
 - Analyze why the suggested changes were found in a pull request only and not during the initial implementation. Add appropriate learnings and tests if this can prevent similar issues in the future.
 
