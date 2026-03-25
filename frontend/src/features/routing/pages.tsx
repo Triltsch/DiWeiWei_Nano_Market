@@ -282,7 +282,7 @@ function buildDefaultRatingsState(nanoId: string, detail: NanoDetail | null): Na
     nanoId,
     aggregation: {
       averageRating: detail?.ratingSummary.averageRating ?? 0,
-      medianRating: detail?.ratingSummary.averageRating ?? 0,
+      medianRating: 0,
       ratingCount: detail?.ratingSummary.ratingCount ?? 0,
       distribution: [],
     },
@@ -1297,7 +1297,7 @@ export function NanoDetailsPage(): JSX.Element {
         <article className="card-elevated space-y-3">
           <div className="space-y-1">
             <h2 className="text-lg font-semibold text-neutral-900">{t("nano_details_chat_title")}</h2>
-            <p className="text-sm text-neutral-700">{t("nano_details_comments_description")}</p>
+            <p className="text-sm text-neutral-700">{t("nano_details_chat_description")}</p>
           </div>
 
           {!isPublished && <p className="text-sm text-neutral-700">{t("nano_details_feedback_unavailable")}</p>}

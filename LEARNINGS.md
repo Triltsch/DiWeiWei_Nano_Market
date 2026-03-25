@@ -213,3 +213,9 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 - Lokale Reindex-Tools (`scripts/reindex_search.py`, QA-Seed) müssen dieselbe DB-Zielauflösung wie die Docker-Compose-Umgebung verwenden; harte Host-Defaults führen schnell zu inkonsistenter Datenbasis.
 - Bei Meilisearch-Rebuilds lokale Hilfs-Skripte ohne zusätzliche Runtime-Abhängigkeiten (z. B. `httpx`) implementieren, wenn diese nicht sicher im App-Container verfügbar sind.
 - Alembic kann lokal in inkonsistentem Zustand sein (`alembic_version` auf `head`, aber Kern-Tabellen fehlen); verlässliche Recovery ist `stamp base` + `upgrade head` gegen die konkrete Compose-DB.
+
+## Ergänzung PR #92 Review-Fixes
+
+- Für async Services keine blockierenden Netzwerk-Calls direkt im Event-Loop verwenden (`urlopen` etc.); wenn kein Async-Client genutzt wird, den Call per `asyncio.to_thread(...)` kapseln.
+- Response-Payloads externer Services vor `.get(...)` immer typvalidieren (`dict`-Guard), damit unerwartete/empty Antworten als kontrollierter 503 enden statt als `AttributeError`.
+- Bei Doku-Änderungen in bestehenden Markdown-Listen/Runbooks Codefence-Balance explizit prüfen; ein offener Fence kann ganze Abschnitte als Code rendern und Nummerierungsfehler verschleiern.

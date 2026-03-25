@@ -468,6 +468,7 @@ redis.exceptions.ConnectionError: Error 111 connecting to localhost:6379. Connec
    # Test manual load
    export $(cat .env | xargs)
    pytest tests/
+   ```
 
 ### Issue 5: Alembic Shows `head`, but Core Tables Are Missing
 
@@ -494,7 +495,6 @@ docker compose exec -T postgres psql -U diwei_user -d diwei_nano_market -c "sele
 python scripts/seed_qa_demo_data.py
 python scripts/reindex_search.py
 ```
-   ```
 
 4. **Docker Compose app container using localhost instead of service name**
    **Solution**: In `docker-compose.yml`, explicitly override:
@@ -503,7 +503,7 @@ python scripts/reindex_search.py
      REDIS_URL: "redis://redis:6379/0"  # Use service name, not localhost
    ```
 
-### Issue 5: Upload Timeout After 10 Minutes
+### Issue 6: Upload Timeout After 10 Minutes
 
 **Symptom**: Upload request times out with no error before completion
 
@@ -527,7 +527,7 @@ curl -X POST http://localhost:8000/api/v1/upload/nano \
   --trace-time
 ```
 
-### Issue 6: Meilisearch Health Check Fails
+### Issue 7: Meilisearch Health Check Fails
 
 **Symptom**: `curl http://localhost:7700/health` returns error or times out
 
@@ -552,7 +552,7 @@ curl -X POST http://localhost:8000/api/v1/upload/nano \
    docker compose up -d
    ```
 
-### Issue 7: Tests Pass Locally But Fail in CI
+### Issue 8: Tests Pass Locally But Fail in CI
 
 **Common Causes**:
 
@@ -569,7 +569,7 @@ sleep 10  # Wait for health checks
 pytest tests/ -v --tb=short
 ```
 
-### Issue 8: PostgreSQL "Too Many Connections"
+### Issue 9: PostgreSQL "Too Many Connections"
 
 **Symptom**: Application can't connect, PostgreSQL logs show connection limit reached
 

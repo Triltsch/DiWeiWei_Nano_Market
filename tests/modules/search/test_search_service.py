@@ -21,9 +21,10 @@ class TestSearchNanosService:
         """Missing query falls back to browse mode and still hits Meilisearch."""
         mock_db = AsyncMock(spec=AsyncSession)
 
-        with patch("app.modules.search.service.get_redis") as mock_get_redis, patch(
-            "app.modules.search.service.MeilisearchClient"
-        ) as mock_client_class:
+        with (
+            patch("app.modules.search.service.get_redis") as mock_get_redis,
+            patch("app.modules.search.service.MeilisearchClient") as mock_client_class,
+        ):
             mock_redis = AsyncMock()
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
