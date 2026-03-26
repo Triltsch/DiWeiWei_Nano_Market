@@ -2139,23 +2139,17 @@ class TestFeedbackObservability:
 
     @staticmethod
     async def _create_user(db_session, email: str, username: str):
-        """Create and persist a user for observability tests."""
-        from app.models import User, UserRole, UserStatus
+        """
+        Create and persist a user for observability tests.
 
-        user = User(
-            id=uuid.uuid4(),
+        Delegates to the shared user-creation helper from TestNanoCommentsRoutes
+        to avoid duplicating setup logic across test classes.
+        """
+        return await TestNanoCommentsRoutes._create_user(
+            db_session=db_session,
             email=email,
             username=username,
-            password_hash="dummy_hash",
-            email_verified=True,
-            status=UserStatus.ACTIVE,
-            role=UserRole.CREATOR,
-            preferred_language="en",
-            login_attempts=0,
         )
-        db_session.add(user)
-        await db_session.flush()
-        return user
 
     @pytest.mark.asyncio
     async def test_feedback_metrics_are_exposed_for_success_error_and_moderation(

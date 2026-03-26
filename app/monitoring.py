@@ -1,7 +1,7 @@
 """Monitoring configuration for FastAPI Prometheus metrics."""
 
 from time import perf_counter
-from typing import Final
+from typing import Awaitable, Callable, Final
 
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -91,7 +91,7 @@ def _record_feedback_request(
 class FeedbackMetricsRoute(APIRoute):
     """Route wrapper that records feedback-specific Prometheus metrics."""
 
-    def get_route_handler(self):  # type: ignore[override]
+    def get_route_handler(self) -> Callable[[Request], Awaitable[Response]]:
         original_route_handler = super().get_route_handler()
         metric_config = _get_feedback_metric_config(self.path, self.methods)
 
