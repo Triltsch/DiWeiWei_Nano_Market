@@ -11,39 +11,36 @@ Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und 
 - ✅ Sprint 3: Nano Management & Landing Page
 - ✅ Sprint 4: Search Infrastruktur & Discovery
 - ✅ Sprint 5: Monitoring, Nano Detail, Creator Dashboard, QA/Operations Gate
+- ✅ Sprint 6: Feedback-System (Ratings, Comments, Moderation, Frontend-Integration, Observability, QA-Gate)
 
 **Aktueller Sprint:**
-- 🚧 Sprint 6 (in Arbeit): Feedback-System (Ratings, Comments, Moderation, Frontend-Integration, Observability, QA-Gate)
-
-**Aktuell verfügbar (Sprint 3-6):**
-Stories 1.1, 1.3–1.5, 7.2–7.5, 8.1–8.6, 2.2, 2.4, 2.5, 3.5 sowie Sprint-6-Bausteine #83, #84, #85
+- 🚧 Sprint 7 (geplant): Communication (Chat Sessions, Messages, TLS-Baseline, Chat UI, QA-Gate)
 
 Für detaillierte Feature-Liste siehe [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md).
 
 **Qualität:** Backend-Tests ✅ | Code Coverage >70% ✅ | Frontend Vitest aktiv ✅ | Black/isort ✅
 
-## 📌 Sprint 6 Status
+## 📌 Sprint 7 Planung
 
-**Sprintziel:** Feedback-System end-to-end liefern (Rating, Comments, Moderation) inkl. Frontend-Integration, Monitoring und QA-Abnahme.
-
-**Sprint 5 (abgeschlossen):**
-- ✅ [#70 Story 7.5](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/70) – Monitoring Baseline
-- ✅ [#71 Story 2.5](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/71) – Nano Detail View API
-- ✅ [#72 Story 8.6](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/72) – Creator Dashboard
-- ✅ [#73 Story 8.5](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/73) – Nano Detail Page
-- ✅ [#74 QA Gate](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/74) – Sprint-5-Abnahme
-
-**Sprint 6 (bereits erledigt):**
+**Abschluss Sprint 6:**
 - ✅ [#83](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/83) – Backend Star Rating
 - ✅ [#84](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/84) – Backend Comments/Reviews
 - ✅ [#85](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/85) – Moderationsworkflow
+- ✅ [#86](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/86) – Frontend-Integration Rating/Comments
+- ✅ [#87](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/87) – QA-Gate Feedback-System
+- ✅ [#88](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/88) – Observability Feedback-Endpunkte
 
-**Sprint 6 (offen/in Arbeit):**
-- 🚧 [#86](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/86) – Frontend-Integration Rating/Comments
-- 🚧 [#87](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/87) – QA-Gate Feedback-System
-- 🚧 [#88](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/88) – Observability Feedback-Endpunkte
+**Sprintziel (Sprint 7):**
+Direkte Kommunikation zwischen Lernenden und Creator als Ende-zu-Ende-Flow liefern (Session, Nachrichten, Polling-UI, Transport-Security-Baseline, QA-Gate).
 
-**Leitlinien (Sprint 5/6):**
+**Geplant für Sprint 7:**
+- 🚧 [#100](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/100) – Backend Chat Session API (Story 5.1)
+- 🚧 [#101](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/101) – Backend Message Persistence & Polling API (Story 5.2)
+- 🚧 [#102](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/102) – Chat Transport Security Baseline (TLS + Rate Limit) (Story 5.4)
+- 🚧 [#103](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/103) – Frontend Chat UI mit Polling (Story 5.3)
+- 🚧 [#104](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/104) – QA-Gate Communication
+
+**Leitlinien:**
 - Search-Stack: **Meilisearch** (MVP)
 - Performance DoD: **<500ms p95**
 - Security/Compliance: Pflichtbestandteil Story-Abnahme
@@ -74,7 +71,7 @@ Frontend: http://localhost:5173
 **Run Tests:**
 ```bash
 pytest tests/ -v                    # Backend tests
-cd frontend && npm test             # Frontend tests
+cd frontend && npx vitest run       # Frontend tests (CI-stabil)
 ```
 
 ## 🐳 Docker Services
@@ -150,10 +147,16 @@ Runbooks: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md) | [doc/FEEDBACK_OBS
 - `GET /api/v1/audit/logs` – Audit logs (admin)
 - `GET /api/v1/audit/suspicious` – Suspicious activity (admin)
 
-### Planned / In Progress (Sprint 6)
-- Feedback-Frontend Integration (Issue #86)
-- Feedback QA-Gate (Issue #87)
-- Feedback Observability Extension (Issue #88)
+### Chat (Sprint 7 – In Progress)
+- `POST /api/v1/chats` – Create or reuse chat session for a nano
+- `GET /api/v1/chats` – List chat sessions for current user (optional `nano_id` filter)
+
+### Planned / In Progress (Sprint 7)
+- Chat Session API ([#100](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/100))
+- Chat Message Persistence + Polling API ([#101](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/101))
+- Chat Transport Security Baseline ([#102](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/102))
+- Frontend Chat UI mit Polling ([#103](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/103))
+- QA-Gate Communication ([#104](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/104))
 
 ## 🛠️ Tech Stack
 
@@ -178,7 +181,7 @@ Runbooks: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md) | [doc/FEEDBACK_OBS
 - [doc/DATABASE_MIGRATIONS.md](./doc/DATABASE_MIGRATIONS.md) – Alembic workflow & best practices
 - Local DB recovery tip: if Alembic shows `head` but core tables are missing, use the recovery runbook in [doc/DEVELOPER_SETUP.md](./doc/DEVELOPER_SETUP.md#issue-5-alembic-shows-head-but-core-tables-are-missing)
 - [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) – Detailed feature status
-- [LEARNINGS.md](./LEARNINGS.md) – Architecture decisions & lessons learned
+- [LEARNINGS.md](./LEARNINGS.md) – Operational implementation and review ruleset
 
 ### Feature Docs
 - [doc/AUDIT_LOGGING.md](./doc/AUDIT_LOGGING.md) – AuditLogger framework (40+ event types)

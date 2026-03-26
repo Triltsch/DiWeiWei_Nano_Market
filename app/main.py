@@ -10,6 +10,7 @@ from fastapi.responses import RedirectResponse
 from app.config import get_settings
 from app.modules.audit.router import get_audit_router
 from app.modules.auth.router import get_auth_router
+from app.modules.chat.router import get_chat_router
 from app.modules.nanos.router import get_nanos_router
 from app.modules.search.router import get_search_router
 from app.modules.upload.router import get_upload_router
@@ -66,6 +67,7 @@ def create_app() -> FastAPI:
     app.include_router(get_upload_router())
     app.include_router(get_nanos_router())
     app.include_router(get_search_router())
+    app.include_router(get_chat_router())
     configure_monitoring(app)
 
     @app.get("/health")

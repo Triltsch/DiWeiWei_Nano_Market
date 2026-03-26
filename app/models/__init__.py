@@ -443,6 +443,75 @@ class Nano(Base):
         return f"<Nano(id={self.id}, title={self.title}, status={self.status})>"
 
 
+class ChatSession(Base):
+    """Direct chat session between a Nano creator and one participant."""
+
+    __tablename__ = "chat_sessions"
+    __table_args__ = (
+        UniqueConstraint(
+            "nano_id",
+            "creator_id",
+            "participant_user_id",
+            name="uq_chat_sessions_nano_creator_participant",
+        ),
+        CheckConstraint(
+            "creator_id <> participant_user_id",
+            name="ck_chat_sessions_distinct_participants",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    nano_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("nanos.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Referenced Nano for the chat context",
+    )
+    creator_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Nano creator participating in this chat",
+    )
+    participant_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Non-creator participant in this chat",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+        index=True,
+    )
+    last_message_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+        comment="Timestamp of last message in this session",
+    )
+
+    def __repr__(self) -> str:
+        """String representation of ChatSession."""
+        return (
+            f"<ChatSession(id={self.id}, nano_id={self.nano_id}, "
+            f"creator_id={self.creator_id}, participant_user_id={self.participant_user_id})>"
+        )
+
+
 class NanoRating(Base):
     """User star rating for a published Nano."""
 
