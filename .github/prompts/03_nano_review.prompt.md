@@ -1,7 +1,7 @@
 ---
 name: 03_nano_review
 description: Fetch and implement the reviewer suggestions from a pull request
-agent: agent
+agent: mcp-pr-review
 ---
 
 # Objective
@@ -19,18 +19,27 @@ Given a pull request, perform the necessary steps in the following order:
 - Check if the pull request is already closed. In this case, check if the reviewer suggestions were already implemented or are outdated. For the suggestions which are not implemented yet and not outdated, assume that they were added to the PR after the PR was closed and merged. Open a new branch, implement the suggestions and create a new PR in this case.
 - **REQUIRED: Use ONLY MCP GitHub tools (sequentially, NO parallels)** to fetch PR data. This ensures stable, reliable API communication. Never use fallback methods or manual GitHub CLI unless MCP is completely unavailable.
 - **Read through peer review related comments carefully**: Review comments may be returned in different API responses than general issue comments.
-- **Mandatory MCP-based comment discovery sequence (sequential calls only):**
-	1. Call `mcp_github_pull_request_read` with method `get` to fetch base PR metadata (state, title, head/base refs).
-	2. Call `mcp_github_pull_request_read` with method `get_reviews` to fetch all review summaries.
-	3. Call `mcp_github_pull_request_read` with method `get_review_comments` to fetch ALL inline review threads with full context (isResolved, isOutdated, isCollapsed, author, body, path, line).
-	4. Call `mcp_github_pull_request_read` with method `get_comments` to fetch general PR comments (non-review).
-	5. Filter results: keep only unresolved (`is_resolved=false`) and non-outdated (`is_outdated=false`) comments for implementation.
-	6. If not-yet-started after step 5: **this is normal**. Every GitHub PR may have zero unresolved comments. Document which MCP calls returned empty and proceed to branch check.
 - **NO fallback methods allowed** unless all 4 MCP calls above complete AND return no results. In that case, only then escalate to authenticated GitHub CLI or user-provided review links.
 - **Copilot AI review handling:** Treat Copilot AI review comments exactly like human inline review comments. They are required input and must be implemented unless outdated or explicitly declined by the user.
 - **Stopping rule:** Only conclude "no reviewer comments" AFTER completing all 4 MCP calls above. Document exact call sequence and result counts in final report.
 - Implement the suggested changes in the codebase following the project guidelines and best practices.
 - Analyze why the suggested changes were found in a pull request only and not during the initial implementation. Add appropriate learnings and tests if this can prevent similar issues in the future.
+
+### Mandatory MCP-based comment discovery sequence (sequential calls only)
+
+1. Call `mcp_github_get_pull_request(owner, repo, pullNumber)` to fetch base PR metadata (`state`, `title`, `head`, `base`).
+2. Call `mcp_github_get_pull_request_reviews(owner, repo, pullNumber)` to fetch all review summaries.
+3. Call `mcp_github_get_pull_request_review_comments(owner, repo, pullNumber)` to fetch all inline review threads with full context (`isResolved`, `isOutdated`, `author`, `body`, `path`, `line`).
+4. Call `mcp_github_get_pull_request_comments(owner, repo, pullNumber)` to fetch general PR comments (non-review comments).
+5. Filter results: keep only unresolved and non-outdated comments for implementation.
+6. If there are no actionable comments after step 5: this is normal. Document which calls returned empty and proceed to the branch check / final reporting.
+
+### Tool-availability rule (priority order)
+
+1. **Primary**: Use MCP GitHub tools (`mcp_github_get_pull_request`, `mcp_github_get_pull_request_reviews`, `mcp_github_get_pull_request_review_comments`, `mcp_github_get_pull_request_comments`).
+2. **Fallback 1**: If MCP tools are unavailable, use `github-pull-request_activePullRequest` from the VS Code GitHub PR extension.
+3. **Fallback 2**: If both are unavailable, use `gh pr view` CLI commands.
+4. Always report which method was used in the final response.
 
 ## Check and tests
 

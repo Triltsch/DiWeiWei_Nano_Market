@@ -1,250 +1,117 @@
-# LEARNINGS (kompakt, nur für Umsetzung)
+# LEARNINGS
 
-Ziel: Nur Regeln, die Umwege/Fehler in späteren Implementierungen vermeiden.  
-Kein Projektbericht, keine Historie, kein Story-Log.
+Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Review.
 
-## Frontend: React/UX
+## Frontend (UX, State, i18n)
 
-- `useEffect` mit Async-Call immer mit `try/catch` + sichtbarem Fehlerzustand.
-- Bei asynchronen Effekten immer Abbruchschutz (`isActive`/Cleanup) gegen Updates nach Unmount.
-- UX-relevante Magic Numbers (z. B. Debounce, Page Size) als Modulkonstanten definieren.
-- Bidirektionale URL-State-Synchronisation nur mit Write-Guard (`useRef`) gegen Feedback-Loops.
-- Alle sichtbaren Texte über `t()` (auch Helper-Labels/Fallbacks/Fehlermeldungen).
-- Komponenten, die mehrfach gerendert werden können, dürfen keine statische `id` nutzen → `useId()`.
-- Backend-Felder am Boundary ehrlich typisieren (z. B. `string | null`) und Fallback erst im Rendering lokalisieren.
+- Asynchrone `useEffect`-Flows immer mit `try/catch` und sichtbarem Fehlerzustand implementieren.
+- In asynchronen Effekten immer Abbruchschutz (`isActive` + Cleanup) gegen State-Updates nach Unmount nutzen.
+- UX-Magic-Numbers (Debounce, Page Size, Timeouts) als Modulkonstanten führen.
+- URL↔State-Sync nur mit Write-Guard (`useRef`) um Feedback-Loops zu vermeiden.
+- Alle sichtbaren Strings über `t()` lokalisieren (inkl. Fallbacks und Fehlermeldungen).
+- Keine statischen `id`-Werte in wiederverwendbaren Komponenten; `useId()` verwenden.
+- API-Boundary ehrlich typisieren (`string | null`, optionale Felder) und Fallbacks erst im Rendering anwenden.
+- Detail-/Action-UX auth- und statusbewusst bauen: bei `!isAuthenticated` früh redirecten, nur sinnvolle Aktionen anbieten.
 
-## Frontend: Tests & Typisierung
+## Frontend (Routing, RBAC, API-Clients)
 
-- Hook-Tests verhaltensbasiert schreiben (Lifecycle, `enabled`, `refetch`, Error-Path), nicht nur „existiert“.
+- Route-Guards rollenfähig umsetzen (`requiredRoles`), nicht nur auth-basiert.
+- Navigation strikt rollenbasiert rendern; sichtbare Links und API-Berechtigung müssen konsistent sein.
+- JWT-Claim `role` zentral in den User-State übernehmen und nach Refresh neu ableiten.
+- API-Clients pro Domäne kapseln (z. B. Feedback, Detail, Search) und HTTP-Status auf typisierte Fehlercodes mappen.
+- 401/403 im Frontend explizit trennen: 401 = Re-Login, 403 = Forbidden-State.
+- Redirect-Parameter nach Login zuerst gegen Open-Redirect-Regeln validieren, dann role-aware Fallback anwenden.
+
+## Frontend-Tests
+
+- Tests verhaltensbasiert schreiben (Lifecycle, Error-Path, Refetch, Redirect), nicht nur Existenzprüfungen.
 - In Tests kein `any`; konkrete Library-Typen verwenden.
-- Async-Interceptor/Handler in Tests immer mit `await`/`rejects` prüfen.
-- Wenn ein Testwert erfasst wird, muss er explizit asserted werden.
+- Asynchrone Assertions mit `waitFor`, `await` und `rejects` stabilisieren.
+- Debounced/async Mock-Assertions mit Call-Count + Last-Call kombinieren.
+- Für CI-nahe Frontend-Läufe `vitest run`/`npx vitest run` statt Watch-Mode nutzen.
+- Exakte Testanzahlen nicht in Doku festschreiben; CI ist die autoritative Quelle.
 
-## Backend/API: Architektur
+## Backend/API (Architektur, RBAC, Validierung)
 
-- Business-Regeln in den Service-Layer, Router nur HTTP/DI.
-- Ownership-/Autorisierungschecks im Service-Layer vor jeder Mutation.
-- Stateful Regeln (z. B. Status-Übergänge) als explizite State-Machine (Transition-Map) implementieren.
-- Idempotenz bevorzugen: No-op Updates früh erlauben und sauber zurückgeben.
-- Audit-Logging erst nach erfolgreichem Commit.
-- Zeitvergleiche defensiv: naive/aware Datetimes vor Berechnung normalisieren.
+- Business-Regeln in den Service-Layer, Router nur für HTTP/DI.
+- Autorisierung/Ownership immer vor Mutation und vor No-op-Short-Circuits prüfen.
+- Stateful Logik als explizite State-Machine/Transition-Allowlist modellieren.
+- Idempotente Updates zulassen, aber ohne Informationsleck für Unbefugte.
+- Query-/Enum-Parameter serverseitig validieren und bei ungültigen Werten sauber mit 4xx antworten.
+- Optional-Auth im Router verwenden, finale Zugriffsentscheidung zentral im Service treffen.
+- Öffentliche APIs nur freigegebene Inhalte zeigen; Moderations-/Pending-Reads separat modellieren.
+- Nach Content-Updates Moderationsstatus auf `pending` zurücksetzen und Moderationsmetadaten bereinigen.
 
-## Backend/API: Security & Konfiguration
+## Backend/API (Datenintegrität, Fehler, Security)
 
-- CORS: `allow_credentials=True` nur mit expliziten Origins (nie `*`).
-- Vite-Proxy ist nur Dev; Docker/Prod braucht echte CORS-fähige Backend-Konfiguration.
-- Infrastrukturfehler (z. B. DB down) am API-Rand gezielt auf stabile HTTP-Fehler mappen (nicht breit alles fangen).
-- Passwort-Hashing-Kompatibilität in CI beachten (passlib/bcrypt-Versionen reproduzierbar pinnen).
+- DB-Constraints und Service-Guards kombinieren (z. B. `UNIQUE` + 409-Precheck + `IntegrityError`-Handling).
+- `IntegrityError` bei konkurrenten Creates abfangen: nach `rollback()` die bereits existierende Zeile re-selecten und mit `reused=True` returnen (Race-Condition-Resilienz für idempotente Create-or-Get Semantik).
+- Für "create-or-reuse" Endpunkte HTTP-Semantik explizit halten (`201` bei Neuanlage, `200` bei Reuse).
+- Bei paarweiser Session-Identität Teilnehmerreihenfolge deterministisch normalisieren, damit Eindeutigkeit robust bleibt.
+- Denormalisierte Aggregatfelder zentral und konsistent neu berechnen.
+- Pagination stabil über deterministische Sortierung inkl. Tie-Breaker umsetzen.
+- User-Content serverseitig normalisieren/sanitizen und auf persistiertem Wert validieren.
+- API-Dependencies und Signaturen strikt typkonsistent halten.
+- CORS mit Credentials nur mit expliziten Origins konfigurieren (nie `*`).
+- Infrastrukturfehler am API-Rand gezielt auf stabile HTTP-Fehler mappen.
+- Passwort-Hashing-Abhängigkeiten reproduzierbar pinnen (CI-kompatibel).
 
-## Docker/Runtime
+## Search, Cache, Redis
 
-- Shell-Entrypoints im Image auf LF normalisieren (CRLF verursacht irreführende „file not found“-Fehler).
-- Bei Vite-Multistage-Build `frontend/public` explizit in den Build-Kontext kopieren.
-- Backend-Root-Redirect über Umgebungsvariable steuern (lokal vs. Docker nicht hart codieren).
+- Search-Cache-Keys vollständig und deterministisch aus allen Query-Parametern bilden.
+- Cache-Invalidierung zentral im Service-Layer bei relevanten Writes triggern.
+- Für Key-Löschung in produktionsnahen Pfaden `SCAN` statt `KEYS` verwenden.
+- Redis-Ausfälle dürfen Kernfunktionen nicht blockieren: degraded Fallback + Recovery-Strategie vorsehen.
+- Bei Redis-Recovery Read-Miss-Fälle mit best-effort Re-Sync behandeln.
+- In-Memory-TTL-Stores bei `set` prunen; `expires_in_seconds <= 0` als sofortiges Entfernen behandeln.
+- Cache-Logging ohne Roh-User-Queries (nur sichere Fingerprints).
+- Search-/Filter-Contracts gleichzeitig in Backend, Frontend und Tests aktualisieren.
 
-## Test-Infrastruktur
+## Observability & Monitoring
 
-- Test-App muss Router-Setup der Produktiv-App spiegeln, sonst entstehen falsche 404-Befunde.
-- Fixture-Abhängigkeiten explizit aufbauen (User → Auth/Token → Ressource), sonst FK-/State-Probleme.
-- Wiederverwendbare Auth-Token-Fixture zentral bereitstellen statt Login-Setup pro Test.
-- Performance-Tests CI-stabil halten (`perf_counter`, tolerante Schwellen, keine flakey Single-Run-Annahmen).
+- Generische HTTP-Metriken durch fachliche Flow-Metriken ergänzen (niedrige Label-Kardinalität).
+- FastAPI-Metriken robust über `APIRoute`-Wrapper inkl. Exception-Pfaden instrumentieren.
+- Moderationsentscheidungen als eigene Event-Metrik zählen.
+- Monitoring-Artefakte (Dashboards, Alerts) als versionierte Dateien verwalten.
+- "No data" in Grafana als erwartbar behandeln, bis gezielter Traffic erzeugt wurde.
+- Healthchecks auf robuste, image-native Probes stützen; keine fragilen Tool-Abhängigkeiten.
 
-## Doku-/Review-Disziplin
+## Docker, Runtime, Migrationen
 
-- Doku-Codeblöcke müssen mit echter Implementierung konsistent sein (keine „Beispiel“-Drift).
-- Änderungen an Fehlerverhalten/CORS/Auth immer auch in API-Doku/README nachziehen.
-- Bei PR-Automation: API kann Review-Kommentare unvollständig liefern → bei Unklarheit UI prüfen.
+- Line-Endings in Entrypoints auf LF normalisieren.
+- Vite-Multistage-Builds mit explizitem `frontend/public`-Copy absichern.
+- Service-URLs im Container-Kontext explizit setzen (kein `localhost`-Default im Container).
+- Runtime-Pfade (Root-Redirects, API-Bases) über Umgebungsvariablen steuern.
+- Alembic-Recovery bei inkonsistentem Local-State klar durchführen (`stamp base` → `upgrade head`).
+- Enum-Migrationen in PostgreSQL in korrekter Reihenfolge durchführen (Type anlegen/nutzen/droppen).
+- Jedes neue SQLAlchemy-Modell braucht eine Alembic-Migration. Tests mit `Base.metadata.create_all` maskieren fehlende Migrationen – deployed Umgebungen scheitern beim ersten API-Aufruf.
+- `nano_id`-Filter-Queryparameter und `meta.nano_filter_applied` in Tests explizit testen, nicht nur den Abwesenheits-Fall.
 
-## Schnell-Check vor Merge
+## MCP / Tooling
 
-- Sind neue User-Texte vollständig i18n-fähig?
-- Gibt es Async-Fehlerpfade mit sichtbarem UI-Feedback?
-- Ist URL↔State-Sync loop-sicher?
-- Sind Service-Regeln + Ownership + Audit vollständig abgedeckt?
-- Spiegelt Test-Setup die produktive Router-/Dependency-Struktur?
-- Sind Docker-/Env-Pfade (Origins, Frontend-URL, Assets, Line Endings) korrekt?
+- `mcp_github_pull_request_read` ist kein gültiger Tool-Name des offiziellen GitHub MCP Servers. Die korrekten Toolnamen des Servers `https://api.githubcopilot.com/mcp/` lauten z. B. `mcp_github_get_pull_request`, `mcp_github_get_pull_request_reviews`, `mcp_github_get_pull_request_review_comments`, `mcp_github_get_pull_request_comments`.
+- MCP-Tools müssen zur Laufzeit vom MCP-Server registriert werden. Ein Eintrag in `tools:` im Agent-Frontmatter erlaubt nur die Nutzung – er registriert das Tool nicht.
+- Wenn MCP-Tools nicht aufrufbar sind, `github-pull-request_activePullRequest` und `gh pr view/api` als Fallback verwenden, aber stets im Report ausweisen, welcher Pfad genutzt wurde.
 
-## Ergänzung Issue #62 (Redis Search Cache)
+## Tests, QA, Doku, Review
 
-- Search-Cache-Keys immer vollständig und deterministisch aus **allen** Query-Parametern bauen (`q`, `category`, `level`, `duration`, `page`, `limit`), sonst entstehen falsche Cache-Hits.
-- Cache-Invalidierung bei content-relevanten Writes (hier: Nano-Metadaten + Statuswechsel) zentral aus dem Service-Layer triggern.
-- Redis-Ausfälle dürfen Search nicht blockieren: Cache `get/set/invalidate` defensiv kapseln, Live-Search als Fallback (degraded mode).
-- Healthcheck sollte Degraded-Zustand sichtbar machen (`status: degraded`, `services.redis: down`) statt nur pauschal `ok`.
-- Tests für Search-Service immer Redis mocken, wenn Meilisearch-Aufrufe asserted werden; sonst werden Tests durch reale Cache-Hits flakey.
+- Test-App-Setup muss produktives Router-/Dependency-Verhalten spiegeln.
+- Fixture-Ketten explizit aufbauen (User → Auth → Ressource); Auth-Token-Fixtures zentralisieren.
+- Für idempotente API-Flows sowohl Erstaufruf als auch Wiederholaufruf separat testen (inkl. unterschiedlicher Statuscodes).
+- Performance-/Latenztests CI-stabil halten (tolerante Schwellen, stabile Metriken, keine Flakes).
+- QA-Gates mit reproduzierbaren Befehlen und evidenzbasierten Ergebnissen dokumentieren.
+- Ergebnisse immer aus frischen vollständigen Läufen ableiten, nicht aus gemischter Task-Historie.
+- Doku und Implementierung synchron halten (Codeblöcke, Contracts, Fehlerverhalten).
+- Keine nicht versionierten Workspace-Annahmen in Gate-/Ops-Dokumente aufnehmen.
+- Bei PR-Automation unvollständige Comment-Daten einkalkulieren und bei Unklarheit in der UI verifizieren.
+- Bei Doku-Änderungen Codefences explizit auf Balance prüfen.
 
-## Review-Nachtrag PR #67
+## Merge-Checkliste
 
-- Für Redis-Key-Löschung in produktionsnahen Pfaden nie `KEYS` verwenden; stattdessen `SCAN`/`scan_iter` mit Batch-Deletes, um Blocking-Latenzen zu vermeiden.
-- Cache-Logging darf keine Roh-Keys mit User-Query enthalten; stattdessen nur gehashte Key-Fingerprints loggen.
-- Health-Endpunkte dürfen bei Redis-Störung nicht hängen: `ping()` mit kurzem Timeout kapseln (z. B. `asyncio.wait_for`).
-- Pagination-Tests müssen mindestens erste, mittlere und letzte Seite abdecken, damit `has_next_page`/`has_prev_page` nicht regressieren.
-
-## Ergänzung Issue #63 (Search QA/NFR Gate)
-
-- Für das Python-Meilisearch-SDK `index.search(query, options)` verwenden; `q=...` als Keyword wie in REST führt zu Laufzeitfehlern.
-- Latenztests für Suchsysteme besser gegen Engine-Metriken (`processingTimeMs`) statt reiner End-to-End-HTTP-Zeit baselinen, damit CI-Streuung/Container-Overhead nicht zu falschen NFR-Fehlschlägen führt.
-- In Docker-Compose die App-internen Service-URLs explizit setzen (`MEILI_URL=http://meilisearch:7700`), da `localhost` im Container-Kontext auf den App-Container selbst zeigt.
-- PowerShell-Healthchecks in VSCode-Tasks sollten Exit-Codes statt String-Matches auf stdout prüfen; das macht Readiness-Loops stabiler und verhindert „false negative“ Timeouts.
-- Search-Contract-Änderungen (Filterparameter und `meta`-Struktur) immer synchron in Backend-Schemas, Frontend-Mapping und Tests aktualisieren, um Drift zwischen API und UI zu vermeiden.
-
-## Review-Nachtrag PR #68
-
-- Live-Integrationstests gegen externe Services dürfen keine produktiv/standardmäßig genutzten Ressourcen mutieren; immer isolierte, test-spezifische IDs/Namespaces verwenden.
-- Async-Tests dürfen keine blockierenden SDK-Calls in Schleifen ausführen; entweder native async Clients nutzen oder Sync-Aufrufe explizit in Worker-Threads auslagern.
-- Gemeinsame Query-Normalisierung (z. B. Level-Mapping) an einer zentralen Stelle halten und in UI + API-Client wiederverwenden, um Drift zwischen URL-State und Request-Parametern zu vermeiden.
-
-## Ergänzung Issue #64 (Search UI/API Integration)
-
-- Für Search-UX nicht nur Contract-Mapping testen, sondern explizit den UI-Error-Path (API-Fehler → lokalisierte Fehlermeldung) im Page-Test absichern.
-- Für CI-nahe Frontend-Validierung `vitest run` statt Watch-Mode verwenden; `npm test` kann lokal grün sein, aber ohne `run` nicht deterministisch terminieren.
-- **PR-Review (Issue #64):** Mock-Call-Assertions in asynchronen Tests immer in `waitFor` wrappen und `toHaveBeenLastCalledWith` + `toHaveBeenCalledTimes` kombinieren — einzelne naïve `expect(mock).toHaveBeenCalledWith(...)` ohne `waitFor` können bei debounced Effekten flaky sein (Race Condition zwischen DOM-Event und Timer-Auflösung).
-- **PR-Review (Issue #64):** Exakte Test-Zählungen (z. B. „295/296 Tests") in Dokumenten/README nicht hart kodieren — Zahlen driften bei jedem neuen Test und führen zu irreführendem Veraltungs-Overhead. Stattdessen CI-Status als autoritative Quelle referenzieren.
-
-## Ergänzung Issue #70 (Prometheus/Grafana Monitoring Baseline)
-
-- Prometheus-Instrumentierung für FastAPI zentral an der App-Fabrik verdrahten und im Test-App-Setup spiegeln, damit `/metrics` in Runtime **und** Tests konsistent verfügbar ist.
-- Für Exporter-Container keine Healthchecks verwenden, die auf nicht garantiert vorhandene Tools wie `wget`/`curl` angewiesen sind; lieber image-native Self-Checks oder stabile HTTP-Probes nutzen.
-- VSCode-Readiness-Tasks robuster über Docker-Health + expliziten App-Health-Endpunkt prüfen als über hostseitige Inline-Python-Probes mit indirekter Exit-Code-Auswertung.
-- Monitoring-Dashboards und Alert-Regeln als provisionierte Dateien versionieren; UI-only-Konfiguration driftet sonst schnell von Compose/Dokumentation weg.
-
-## Ergänzung Issue #71 (Nano Detail View API)
-
-- Für Endpunkte mit teils öffentlicher, teils eingeschränkter Sichtbarkeit (`published` vs. non-`published`) optionales Auth-Dependency (`get_optional_current_user`) im Router verwenden, die finalen RBAC-Entscheidungen aber im Service-Layer zentral halten.
-- Download-Zugriff als separaten Endpunkt modellieren und strikt authentifiziert halten; aktueller Contract: Der Detail-Endpunkt gibt die Download-Info als Capability-Hinweis (`can_download`) zurück und – falls `true` – zusätzlich den konkreten `download_path`, der mit dem aus `/nanos/{id}/download-info` übereinstimmen muss.
-- Einheitliches API-Envelope-Schema (`success/data/meta/timestamp`) für neue Read-Endpunkte früh in dedizierten Pydantic-Schemas modellieren, damit Router/Service/Tests denselben Contract erzwingen.
-- Für nicht veröffentlichte Inhalte 401 (kein Token) und 403 (Token ohne Berechtigung) explizit unterscheiden; das vereinfacht Frontend-Routing und verhindert unscharfe Error-States.
-- Service-Layer-Helfer für Zugriffslogik (z. B. `creator/admin/moderator`) kapseln, um RBAC-Regeln zwischen Detail- und Download-Flow ohne Drift wiederzuverwenden.
-
-## Ergänzung Issue #72 (Creator Dashboard + Moderation Workflow)
-
-- Bei Tailwind-Setups mit vollständigem `theme.colors`-Override funktionieren Default-Klassen wie `bg-blue-600`/`text-red-700` nicht; UI muss konsequent projektweite Tokens (`primary|error|warning|success|info|neutral`) verwenden, sonst entstehen unsichtbare Buttons/Badges.
-- Neue Workflow-Status (`pending_review`) sollten an drei Stellen synchron eingeführt werden: Backend-State-Machine, API-Contracts (Schemas/Clients) und Frontend-Filter/Badges, damit keine stillen Inkonsistenzen zwischen UI und API entstehen.
-- Rollenwechsel im Status-Endpoint (Creator vs. Moderator/Admin) am Service-Eingang klar trennen; so werden ungewollte Direkt-Publish-Pfade früh blockiert und Tests bleiben deterministisch.
-- Für neue statische Routen wie `/my-nanos` Routenreihenfolge explizit testen, damit sie nicht vom dynamischen `/{nano_id}`-Pfad überschattet werden.
-- Bestätigungsmodale für destructive/irreversible Aktionen (Submit/Withdraw/Delete) erhöhen Workflow-Sicherheit; Confirm-Button-Labels sollten den aktuellen Async-Zustand widerspiegeln (`Submitting...`, `Withdrawing...`, `Deleting...`).
-## Review-Nachtrag PR #77 (Creator Dashboard + Moderation Workflow - Nachbesserungen)
-
-- **RBAC immer vor No-op-Short-Circuit prüfen:** Wenn ein Service-Endpunkt vorzeitig mit "already-in-state" zurückkehrt, muss der Autorisierungscheck dennoch zuerst erfolgen - andernfalls können Unbefugte die Ressourcenexistenz durch den No-op-Pfad ableiten (Resource-Enumeration-Schwachstelle).
-- **Creator-mit-Moderatoren-Rolle darf eigene Nanos genehmigen:** Ein Nutzer mit beiden Rollen (Creator + Moderator/Admin) darf seinen eigenen Nano direkt auf `published` setzen; der Blocker `is_creator and new_status == "published"` muss daher durch `is_creator and not is_moderator_or_admin` eingeschränkt werden.
-- **Moderatoren-Übergänge auf Allowlist beschränken:** Moderator-seitige Status-Transitionen explizit auf `{published, draft}` begrenzen; ohne Allowlist können sie Nanos direkt auf `archived`, `deleted` o. ä. setzen.
-- **Deletierbarkeit nicht nur auf `published` prüfen:** Der Delete-Endpunkt darf nur `DRAFT` und `ARCHIVED` zulassen; `PENDING_REVIEW` war bisher nicht blockiert und hätte Moderations-Workflow-State korrumpiert.
-- **SQLAlchemy-Status-Mutations immer committen:** Eine Objekt-Mutation wie `nano.status = NanoStatus.DELETED` reicht nicht - ohne `await db.commit()` + `await db.refresh(nano)` danach wird die Änderung nicht persistiert.
-- **`invalidate_search_cache` nimmt `reason: str`, kein Session-Objekt:** Falsche Argument-Übergabe (`invalidate_search_cache(db)`) führt zu einem stillen Runtime-Fehler; korrekt ist `invalidate_search_cache(reason="...")`.
-- **`AuditLogger.log_action` Signatur: `session=db, metadata=dict`:** Falsche Keyword-Argumente (`event_data`, `db`) verursachen Runtime-Exceptions nach successivem Commit; korrekte Keys sind `session=db` und `metadata={...}`.
-- **API-Enum-Parameter im Service validieren:** Query-Parameter wie `status_filter` als rohe Strings direkt in SQL-Filter zu übergeben, ohne vorher gegen das Enum zu prüfen, erlaubt ungültige Werte; stattdessen immer `NanoStatus(value)` in try/except und HTTP 400 bei ungültigem Wert.
-- **Duplikate in API-Exporten vermeiden:** Wenn eine Funktion bereits in einem Feature-Modul (`creator.ts`) definiert und re-exportiert wird, darf sie nicht nochmal in einem anderen Utility-Modul (`upload.ts`) definiert werden - TypeScript meldet `TS2300 Duplicate identifier` bei doppelter Re-Export aus `index.ts`. Kanonischen Ort wählen und dort konsolidieren.
-- **Upload-Wizard-Endschritt muss `pending_review` senden, nicht `published`:** Creators erhalten sonst einen 403-Fehler vom Backend-RBAC-Guard. Der Wizard-Step repräsentiert "Submit for Review", nicht "Publish", und muss entsprechend beschriftet und verdrahtet sein.
-
-## Ergänzung Issue #73 (Nano Detail Page – Frontend)
-
-- **Auth-gated Actions: früh zurückspringen, nicht im Handler abfangen.** Wenn ein Button eine Authentifizierung voraussetzt, den `!isAuthenticated`-Kurzschluss-Redirect (z. B. `navigate('/login?redirect=...')`) direkt im Click-Handler auslösen, bevor irgendein API-Call stattfindet. Das vermeidet unnötige Backend-Trips und gibt dem Nutzer früh klares Feedback.
-- **Browser-Navigation sendet keine Axios-Bearer-Header mit.** Für authentifizierte Downloads nie per `window.location.assign('/api/...')` auf einen geschützten API-Endpunkt springen; stattdessen zuerst über den authentifizierten API-Client eine signierte Download-URL auflösen und erst dann auf diese URL navigieren. Das verhindert 401-Fehler und Cross-Origin-Fehlrouten bei gesetztem `VITE_API_BASE_URL`.
-- **`NanoDetailApiError` mit typisiertem `code`-Feld für distinct UI-States.** HTTP 401/403/404 auf benannte Fehlercodes (`"not-found"`, `"unauthorized"`, `"forbidden"`, `"request-failed"`, `"unknown"`) mappen; der Page-Code kann damit exakt unterscheiden, ob eine leere State-Message, ein Login-Redirect oder eine generische Fehleranzeige sinnvoller ist.
-- **Discovery → Detail-Verlinkung: Result-Titel in `<Link to={/nano/${id}}>` wrappen.** Ohne diesen Schritt existiert die `/nano/:id`-Route zwar, ist aber aus der Suchergebnisliste nicht erreichbar. Der Titel ist der natürlichste Klick-Hotspot – nicht ein separater Button.
-- **`formatTimestamp()` mit `Intl.DateTimeFormat` für lokalisierte Datumsanzeige.** Datumsfelder aus der API kommen als ISO-Strings; einen kleinen Helfer `formatTimestamp(value, locale)` schreiben, der Ungültiges sauber auf den Rohwert zurückfällt, anstatt per-Component ad-hoc `.toLocaleDateString()` zu streuen.
-- **`useEffect`-Abbruchschutz mit `isActive`-Flag.** Bei asynchronen Effekten (API-Fetch im `useEffect`) immer ein `let isActive = true` + Cleanup `return () => { isActive = false }` verwenden und State-Setter nur aufrufen wenn `isActive` noch `true` ist. Verhindert "Can't perform a React state update on an unmounted component"-Warnungen bei raschem Navigation.
-- **Lookup-Maps für API-Enum → i18n-Key.** Status-Werte und Kompetenzstufen als `Record<string, TranslationKey>` an einer Stelle modellieren (z. B. `NANO_STATUS_TRANSLATION_KEYS`, `COMPETENCY_TRANSLATION_KEYS`), nicht per switch-case im Render verteilen.
-- **API-Contract-Tests spiegeln das Mapping, nicht nur den Happy-Path.** Tests in `nanoDetail.test.ts` prüfen explizit: (1) Erfolgreiche Antwort → korrekte Feld-Benennung im Frontend-Typ, (2) HTTP 404 → typisierter `"not-found"`-Fehler mit `NanoDetailApiError`-Instanz, (3) Download-Info-Endpunkt. Das stellt sicher, dass das camelCase-Mapping der Snake-Case-Backend-Felder nicht leise kaputt geht.
-- **axios.isAxiosError() in Fehlerklassifizierung nutzen, kein rohes `instanceof`.** `axios.isAxiosError(err)` ist robust gegen verschiedene Axios-Bundle-Versionen; `instanceof AxiosError` kann in Monorepos/Test-Setups mit mehrfach gebundleten Axios-Versionen scheitern. Im Testmock `isAxiosError: true` explizit auf das Error-Objekt setzen.
-
-## Bugfix: Default-Rolle bei Registrierung (Consumer → Creator)
-
-- **Default-Rolle bei Neuregistrierung muss `creator` sein, nicht `consumer`.** In einem Nano-Marktplatz, wo alle Nutzer Inhalte hochladen und verwalten können sollen, führt `consumer` als Default-Rolle dazu, dass `/api/v1/nanos/my-nanos` (das `creator`-Rolle voraussetzt) mit 403 antwortet – obwohl der Dashboard-Nav-Link für alle eingeloggten User sichtbar ist. Fix: `UserRole.CREATOR` in `app/modules/auth/service.py` als Default setzen und `test_gdpr_compliance.py`-Assertion anpassen.
-- **Nav-Link-Sichtbarkeit und API-Berechtigung müssen konsistent sein.** Wenn ein Feature-Link im Nav global sichtbar ist, muss der zugehörige API-Endpunkt für alle eingeloggten Nutzer erreichbar sein – oder der Nav-Link muss rollenabhängig ausgeblendet werden.
-
-## Ergänzung Issue #79 (Role & Access Model)
-
-- RBAC-Regeln zentral als Dependencies kapseln (z. B. `require_any_role`) und in Routern wiederverwenden; keine ad-hoc Rollen-`if`s pro Endpoint.
-- Frontend-Route-Guards müssen rollenfähig sein (`requiredRoles`), nicht nur auth-fähig; fehlende Berechtigung führt auf eine dedizierte Forbidden-Route statt in unklare Fehlerzustände.
-- Rolle aus JWT-Claim `role` in den Frontend-User-State übernehmen und bei Token-Refresh neu ableiten, damit Rollenänderungen nach Refresh/Re-Login konsistent wirksam werden.
-- Navigation strikt rollenbasiert rendern (Creator-, Moderation-, Admin-Links nur für berechtigte Rollen), um UI/API-Drift zu vermeiden.
-- Für geschützte UI-Operations 401/403 im Frontend explizit und lokalisiert behandeln: 401 = erneute Anmeldung nötig, 403 = keine Berechtigung.
-- Für Development/Testing: Rolle-Wechsel ist aktuell nicht in der UI exponiert; für schnelle Tests direkt in PostgreSQL mutieren oder zukünftige Admin-API hinzufügen. JWT wird bei nächstem Login/Refresh mit neuer Rolle neu generiert.
-- PR-Review-Fixes zeitnah in Shared-Utilities überführen (z. B. axios-basierte RBAC-Error-Auflösung), statt gleiche Fehler-Mapping-Logik in mehreren Feature-Komponenten zu duplizieren.
-- Testdateien mit dokumentiertem Stil (JSDoc pro Testfall) konsequent fortführen; fehlende Test-Doku wird im Review regelmäßig als Wartbarkeitsmangel gefunden.
-
-## Ergänzung Issue #74 (Sprint 5 QA/Operations Gate)
-
-- QA-Gates für integrierte Stories nicht nur dokumentarisch schließen: immer reale Environment-Validierung (`docker compose pull`, Healthchecks, Monitoring-Endpunkte) mit DoD-/Fehlerpfad-Evidenz in einer versionierten Gate-Doku zusammenführen.
-- Für gezielte Frontend-Testläufe mit Vitest in diesem Repo `npx vitest run <datei>` bevorzugen; `npm test -- --run ...` kann wegen Script-Argument-Forwarding trotzdem im Watch-/Dev-Modus landen und liefert dann kein CI-stabiles Ende.
-- DoD-Checklisten in Doku nicht an potentiell nicht versionierte Workspace-Dateien koppeln (z. B. konkrete `.vscode/tasks.json`-Pfadangabe), sondern auf versionierte Projekt-Tooling-Definitionen abstrahieren, um PR-Drift zwischen lokalem Setup und Repo-Zustand zu vermeiden.
-- Neue Vitest-Fälle in bestehenden Testdateien immer mit kurzen per-Test-JSDoc-Blöcken ergänzen, wenn die Datei diesen Stil bereits nutzt; fehlende Header werden regelmäßig als Wartbarkeitsmangel im PR-Review markiert.
-
-## Ergänzung Issue #83 (Backend Star Rating)
-
-- Für per-User-Ratings DB-Constraint und Service-Guard kombinieren: `UNIQUE (nano_id, user_id)` schützt gegen Race Conditions, der vorgelagerte 409-Check liefert zugleich saubere API-Fehler.
-- Denormalisierte Rating-Felder auf dem Hauptmodell (`average_rating`, `rating_count`) nach jeder Mutation zentral im Service neu berechnen statt inkrementell zu patchen; das hält Durchschnitt, Median und Verteilung konsistent.
-- Published-only-Regeln für Feedback-Features in einem gemeinsamen Service-Guard kapseln, damit Create/Update/Read identisches Fehlerverhalten liefern.
-- Aggregations-Tests nicht nur auf Durchschnitt prüfen, sondern auch Median, Verteilung und Cache-Felder am `Nano`-Modell mitasserten; sonst bleiben Inkonsistenzen zwischen API-Response und Persistenz unentdeckt.
-- Bei Aggregationsendpunkten keine vollständigen Datensätze in Python laden, wenn die Berechnung in SQL möglich ist; stattdessen Count/Avg/Verteilung datenbankseitig berechnen und für Median gezielt nur die mittlere(n) Zeile(n) per sortiertem Offset abrufen.
-
-## Ergänzung Issue #84 (Backend Comments/Reviews)
-
-- Für Feature-Guards mit gleicher Business-Regel (`published`-only) pro Domäne eigene Validator-Helfer mit domänenspezifischer Fehlermeldung nutzen (z. B. Ratings vs. Comments), damit API-Fehlertexte konsistent und selbsterklärend bleiben.
-- Kommentare mit User-Content serverseitig immer normalisieren und sanitizen (`strip`, Zeilenenden normalisieren, HTML escapen), auch wenn Frontend-Validierung existiert.
-- Für stabile Pagination in zeitbasierten Listen immer sekundären Tie-Breaker hinzufügen (`ORDER BY updated_at DESC, id DESC`), um nicht-deterministische Reihenfolgen bei gleichen Timestamps zu vermeiden.
-- Cross-DB-kompatible SQL-Constraints bevorzugen: In shared Models/Migrations für SQLite+PostgreSQL `length(...)` statt `char_length(...)` verwenden, sonst scheitern SQLite-Testsetups bei `create_all`.
-- Bei Create-Flows mit zusätzlichem DB-Unique-Constraint immer Pre-Check **und** `IntegrityError`-Handling kombinieren (`flush/commit` + `rollback` + 409), damit Race-Conditions nicht als 500 enden.
-- Validierungen für User-Content müssen auf dem **persistierten** Wert basieren (z. B. nach Sanitization/Escaping), nicht nur auf dem Roh-Input; sonst entstehen Laufzeitfehler durch DB-Constraints statt saubere 4xx-Responses.
-- FastAPI-Dependencies typkonsistent deklarieren (`Annotated[AsyncSession, Depends(...)]` ohne `= None`), damit Runtime- und Static-Typing-Signatur übereinstimmen.
-
-## Ergänzung Issue #85 (Feedback Moderation)
-
-- Neues Feedback (Ratings + Kommentare) immer in `pending`-Zustand anlegen; öffentliche APIs nur `approved`-Content exponieren. Diese Filterregel als zentralen Service-Helper (`_approved_feedback_filter`) kapseln und in allen Aggregations- und Listen-Abfragen konsequent anwenden.
-- Nach einem Inhalt-Update (Rating-Wert oder Kommentar-Text ändern) Moderations-Status zurück auf `pending` setzen und zugehörige Moderationsfelder (`moderated_at`, `moderated_by_user_id`, `moderation_reason`) löschen; Moderation beginnt damit neu, ohne dass bereits geprüfte Inhalte automatisch sichtbar bleiben.
-- Moderations-Transitions auf zulässige Zielzustände beschränken: `FeedbackModerationRequest` sollte `"pending"` als Ziel ablehnen (Moderatoren können nur `"approved"` oder `"hidden"` setzen); der pending-Zustand wird ausschließlich durch Content-Updates ausgelöst.
-- Alembic-Migrationen für Enums in PostgreSQL mit `CREATE TYPE ... AS ENUM` vor den spaltenweisen `ADD COLUMN`-Statements ausführen; bei `downgrade` erst alle abhängigen Spalten entfernen, dann den Typ droppen.
-- SQLAlchemy JSON-Spalten-Filterung für Audit-Log-Queries erfordert `.as_string()` (oder `.as_integer()`) Type-Cast für Vergleichsoperatoren, z. B. `AuditLog.event_data["new_value"].as_string() == "hidden"`. Direktvergleiche ohne Type-Cast führen zu SQL-Fehlern oder falschen Ergebnissen.
-- Paginierungs-Tests für moderierten Content explizit mit verschiedenen Moderationsstatus-Kombinationen schreiben (ein Teil `approved`, ein Teil `hidden`/`pending`); sonst werden Fehlkonfigurationen der Filter erst in Produktion sichtbar.
-- VS-Code-Task-Output kann veraltete Ergebnisse aus früheren Läufen zeigen; für authoritative CI-Statuschecks direkte Terminal-Befehle statt gecachten Task-Outputs verwenden.
-- Öffentliche Response-Schemas dürfen keine moderationsinternen Notizen enthalten (`moderation_reason`); dafür gezielte API-Response-Assertions in Integrationstests ergänzen, um Contract-Leaks früh zu erkennen.
-- Bei Audit-pflichtigen Statusänderungen Commit-Grenze so setzen, dass Fachänderung und Audit-Log in **einer** Transaktion persistieren; kein Vorab-Commit vor `AuditLogger.log_action`.
-
-## Ergänzung Issue #86 (Frontend Feedback Integration)
-
-- Öffentliche Comment-Listen zeigen nur `approved` Inhalte; nach erfolgreichem Create/Update muss das Frontend deshalb einen lokalen Pending-Hinweis bzw. Preview für den eigenen Kommentar anzeigen, statt den Kommentar künstlich in die öffentliche Liste einzumischen.
-- Rating- und Comment-Clients als eigenes Boundary-Modul kapseln und HTTP-Status (`401/403/404/409/422`) in typisierte Error-Codes mappen; die Page kann dann Redirect, RBAC-Message und Validation-Feedback sauber unterscheiden.
-- Feedback-Fetches auf der Detailseite nur für `published` Nanos ausführen; bei nicht veröffentlichten Detailansichten stattdessen einen klaren Hinweis rendern, um vermeidbare 400er vom Backend zu umgehen.
-
-## Ergänzung Issue #86 (Search/Browse + Local Reindex)
-
-- Discovery-UI sollte bei leerem Suchbegriff nicht in einen Nichtstun-Zustand fallen: für `q=""` aktiv browse laden, damit veröffentlichte Nanos sofort sichtbar sind.
-- Search-API-Contract für lokale UX robuster gestalten: `q` optional behandeln und ohne Query in einen klaren Browse-Modus für `published` wechseln.
-- Lokale Reindex-Tools (`scripts/reindex_search.py`, QA-Seed) müssen dieselbe DB-Zielauflösung wie die Docker-Compose-Umgebung verwenden; harte Host-Defaults führen schnell zu inkonsistenter Datenbasis.
-- Bei Meilisearch-Rebuilds lokale Hilfs-Skripte ohne zusätzliche Runtime-Abhängigkeiten (z. B. `httpx`) implementieren, wenn diese nicht sicher im App-Container verfügbar sind.
-- Alembic kann lokal in inkonsistentem Zustand sein (`alembic_version` auf `head`, aber Kern-Tabellen fehlen); verlässliche Recovery ist `stamp base` + `upgrade head` gegen die konkrete Compose-DB.
-
-## Ergänzung PR #92 Review-Fixes
-
-- Für async Services keine blockierenden Netzwerk-Calls direkt im Event-Loop verwenden (`urlopen` etc.); wenn kein Async-Client genutzt wird, den Call per `asyncio.to_thread(...)` kapseln.
-- Response-Payloads externer Services vor `.get(...)` immer typvalidieren (`dict`-Guard), damit unerwartete/empty Antworten als kontrollierter 503 enden statt als `AttributeError`.
-
-## Ergänzung Issue #98 (Feedback Observability + .env Settings)
-
-- Für flow-spezifische Observability reichen generische HTTP-Metriken nicht aus; pro Fach-Flow eigene Counter/Histogramme mit niedrig-kardinalen Labels (`feedback_type`, `operation`, `outcome`) ergänzen.
-- Business-Metriken in FastAPI robust über `APIRoute`-Wrapper instrumentieren und Exception-Pfade (`HTTPException`, `RequestValidationError`, Fallback-500) explizit mitzählen, damit Error-Rates vollständig sind.
-- Moderationsentscheidungen als separate Event-Metrik zählen (`feedback_moderation_decisions_total`), statt sie nur aus Request-Metriken indirekt abzuleiten.
-- Grafana "No data" ist für neue Dashboards erwartbar, solange kein echter Traffic auf den instrumentierten Endpunkten erzeugt wurde; Validierung immer mit gezielten API-Requests + `/metrics`-Check durchführen.
-- Wenn `.env` auch Infrastruktur-Variablen enthält, `pydantic-settings` mit `extra="ignore"` konfigurieren, damit app-fremde Keys (z. B. Grafana-Variablen) keine Runtime-Validierungsfehler auslösen.
-- Bei Doku-Änderungen in bestehenden Markdown-Listen/Runbooks Codefence-Balance explizit prüfen; ein offener Fence kann ganze Abschnitte als Code rendern und Nummerierungsfehler verschleiern.
-
-## Review-Nachtrag PR #96 (Redis-Fallback-Konsistenz)
-
-- Degraded-Fallbacks müssen auch beim **Redis-Read-Miss nach Recovery** greifen, nicht nur im Exception-Pfad; sonst gehen während Outages geschriebene Refresh/Blacklist-Zustände nach Redis-Wiederkehr funktional verloren.
-- Für kurzlebige Fallback-States (Tokens/Blacklist) ist eine **best-effort Re-Synchronisation** zurück nach Redis bei erfolgreichem Read-Miss ein robuster Mittelweg zwischen Verfügbarkeit und Konsistenz.
-- In-Memory-TTL-Stores immer bei `set` vorab prunen und `expires_in_seconds <= 0` als sofortiges Entfernen behandeln, um unnötiges Wachstum und stale Einträge zu vermeiden.
-- QA-/Gate-Dokumente dürfen nur repo-reproduzierbare Fakten enthalten (z. B. keine nicht versionierten `.vscode/tasks.json`-Annahmen); solche Abweichungen werden typischerweise erst im PR-Review sichtbar.
-
-## Ergänzung Issue #87 (Sprint 6 QA Gate + Stabilisierung)
-
-- QA-Gate-Artefakte sollten nicht nur die Testmatrix, sondern auch reproduzierbare Ausführungsbefehle und konkrete Ergebnisnachweise (`Checks`, Full-`pytest`, Infrastruktur-Health) enthalten; das reduziert Review-Rückfragen und macht CI-Abweichungen schneller nachstellbar.
-- Frontend-API-Clients mit typisiertem Error-Mapping müssen negative Pfade explizit testen (`401`, `403`, `422`), damit UI-Fehlertexte und Redirect-Verhalten bei Auth/RBAC-/Validation-Fehlern stabil bleiben.
-- Für auth-kritische Komponenten darf Redis-Ausfall nicht automatisch zu Hard-Fails in Token-Flows führen; ein begrenzter In-Memory-Fallback mit TTL-Semantik hält Login/Refresh/Blacklist-Logik in degraded mode funktional und verbessert Test-/Dev-Robustheit.
-- Validierungsaussagen immer gegen frische, vollständige Läufe absichern (nicht gegen gemischte Task-Historie); bei Zweifel gezielt Full-Suite erneut ausführen und erst danach den Gate-Status dokumentieren.
-- Post-Login-Redirects müssen rollenbewusst designt sein: ein globaler Default auf eine rollenbeschränkte Route (z. B. `/dashboard`) erzeugt bei `consumer` sofortige Forbidden-Loops und sollte durch role-aware Fallbacks (z. B. `/search`) ersetzt werden.
-
-## Ergänzung Issues #93, #94, #95 (Moderator Queue + Login Redirect)
-
-- Moderations-Queues dürfen pending Feedback nicht nur implizit über Public-Listen ausschließen; sie brauchen einen expliziten Moderator-Read-Pfad für `pending` Ratings und Kommentare, sonst bleiben Inhalte faktisch unmoderierbar.
-- Wenn ein lokaler Preview-State mehrere Moderationsstatus anzeigen kann, muss auch die Überschrift statusbewusst sein; ein statischer "pending"-Titel erzeugt falsche UI-Semantik für bereits freigegebene oder ausgeblendete Inhalte.
-- Redirect-Parameter nach Login immer zuerst gegen Open-Redirect-Regeln validieren und erst danach mit einer rollenabhängigen Fallback-Route kombinieren; so werden sowohl Sicherheits- als auch RBAC-Fehlpfade sauber vermieden.
+- Sind alle neuen UI-Texte lokalisiert?
+- Gibt es für alle Async-Fehlerpfade sichtbares Nutzerfeedback?
+- Sind URL↔State-Sync, Auth-Redirects und RBAC-Guards loop-sicher?
+- Sind Service-Regeln, Ownership, Status-Transitionen und Audit vollständig?
+- Spiegelt das Test-Setup die produktive App-Struktur?
+- Sind Cache-/Search-Invalidierung und degraded Fallbacks abgedeckt?
+- Sind Docker-/Env-/CORS-/URL-Pfade korrekt?
