@@ -1,4 +1,4 @@
-"""Business logic for chat session endpoints."""
+"""Business logic for chat session and message endpoints."""
 
 from datetime import datetime, timezone
 from uuid import UUID
@@ -8,9 +8,14 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ChatSession, Nano, NanoStatus
+from app.models import ChatMessage, ChatSession, Nano, NanoStatus
 from app.modules.auth.tokens import TokenData
 from app.modules.chat.schemas import (
+    ChatMessageCreateRequest,
+    ChatMessageCreateResponse,
+    ChatMessageData,
+    ChatMessageListMeta,
+    ChatMessageListResponse,
     ChatSessionCreateRequest,
     ChatSessionCreateResponse,
     ChatSessionData,
@@ -146,6 +151,141 @@ async def list_chat_sessions(
         meta=ChatSessionListMeta(
             total_results=total_results,
             nano_filter_applied=nano_id is not None,
+            current_page=page,
+            page_size=limit,
+            total_pages=total_pages,
+            has_next_page=page < total_pages,
+            has_prev_page=page > 1,
+        ),
+        timestamp=now,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Chat Message service (Issue #101 – Sprint 7 Story 5.2)
+# ---------------------------------------------------------------------------
+
+
+def _to_message_data(message: ChatMessage) -> ChatMessageData:
+    """Convert ORM ChatMessage to API response schema."""
+    return ChatMessageData(
+        message_id=message.id,
+        session_id=message.session_id,
+        sender_id=message.sender_id,
+        content=message.content,
+        created_at=message.created_at,
+        updated_at=message.updated_at,
+    )
+
+
+async def _get_session_or_403(
+    *,
+    db: AsyncSession,
+    session_id: UUID,
+    current_user_id: UUID,
+) -> ChatSession:
+    """Load chat session and verify caller is a participant.
+
+    Raises 404 if the session does not exist, or 403 if the caller is not
+    one of the two participants.
+    """
+    session = (
+        await db.execute(select(ChatSession).where(ChatSession.id == session_id))
+    ).scalar_one_or_none()
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat session not found",
+        )
+    if current_user_id not in {session.creator_id, session.participant_user_id}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a participant in this chat session",
+        )
+    return session
+
+
+async def send_message(
+    *,
+    db: AsyncSession,
+    session_id: UUID,
+    payload: ChatMessageCreateRequest,
+    current_user: TokenData,
+) -> ChatMessageCreateResponse:
+    """Persist a new message in the given chat session and update last_message_at."""
+    session = await _get_session_or_403(
+        db=db,
+        session_id=session_id,
+        current_user_id=current_user.user_id,
+    )
+
+    now = datetime.now(timezone.utc)
+    message = ChatMessage(
+        session_id=session.id,
+        sender_id=current_user.user_id,
+        content=payload.content,
+    )
+    db.add(message)
+    # Keep session.last_message_at fresh so ordering in session list works.
+    session.last_message_at = now
+
+    await db.commit()
+    await db.refresh(message)
+
+    return ChatMessageCreateResponse(
+        success=True,
+        data=_to_message_data(message),
+        timestamp=now,
+    )
+
+
+async def list_messages(
+    *,
+    db: AsyncSession,
+    session_id: UUID,
+    current_user: TokenData,
+    since: datetime | None = None,
+    page: int = 1,
+    limit: int = 50,
+) -> ChatMessageListResponse:
+    """Return messages in a chat session in chronological order.
+
+    The ``since`` parameter enables polling: passing the ``created_at`` of the
+    last received message returns only newer messages.
+    """
+    await _get_session_or_403(
+        db=db,
+        session_id=session_id,
+        current_user_id=current_user.user_id,
+    )
+
+    filters = [ChatMessage.session_id == session_id]
+    if since is not None:
+        filters.append(ChatMessage.created_at > since)
+
+    count_query = select(func.count()).select_from(
+        select(ChatMessage.id).where(and_(*filters)).subquery()
+    )
+    total_results = (await db.execute(count_query)).scalar_one()
+
+    offset = (page - 1) * limit
+    query = (
+        select(ChatMessage)
+        .where(and_(*filters))
+        .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
+        .offset(offset)
+        .limit(limit)
+    )
+
+    rows = (await db.execute(query)).scalars().all()
+    total_pages = (total_results + limit - 1) // limit if limit > 0 else 1
+    now = datetime.now(timezone.utc)
+    return ChatMessageListResponse(
+        success=True,
+        data=[_to_message_data(msg) for msg in rows],
+        meta=ChatMessageListMeta(
+            total_results=total_results,
+            since_filter_applied=since is not None,
             current_page=page,
             page_size=limit,
             total_pages=total_pages,

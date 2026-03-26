@@ -1,5 +1,6 @@
-"""Router for chat session endpoints."""
+"""Router for chat session and message endpoints."""
 
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -16,15 +17,23 @@ from app.modules.auth.middleware import (
 )
 from app.modules.auth.tokens import TokenData
 from app.modules.chat.schemas import (
+    ChatMessageCreateRequest,
+    ChatMessageCreateResponse,
+    ChatMessageListResponse,
     ChatSessionCreateRequest,
     ChatSessionCreateResponse,
     ChatSessionListResponse,
 )
-from app.modules.chat.service import create_or_get_chat_session, list_chat_sessions
+from app.modules.chat.service import (
+    create_or_get_chat_session,
+    list_chat_sessions,
+    list_messages,
+    send_message,
+)
 
 
 def get_chat_router(prefix: str = "/api/v1/chats", tags: list[str] | None = None) -> APIRouter:
-    """Create and configure router for chat session endpoints."""
+    """Create and configure router for chat session and message endpoints."""
     if tags is None:
         tags = ["Chat"]
 
@@ -90,6 +99,80 @@ def get_chat_router(prefix: str = "/api/v1/chats", tags: list[str] | None = None
         """Return chat sessions where current user is creator or participant."""
         return await list_chat_sessions(
             db=db, current_user=token_data, nano_id=nano_id, page=page, limit=limit
+        )
+
+    # ------------------------------------------------------------------
+    # Message endpoints (Issue #101 – Sprint 7 Story 5.2)
+    # ------------------------------------------------------------------
+
+    @router.post(
+        "/{session_id}/messages",
+        response_model=ChatMessageCreateResponse,
+        status_code=status.HTTP_201_CREATED,
+        summary="Send a message in a chat session",
+        responses={
+            401: {"description": "Missing or invalid authentication token"},
+            403: {"description": "User is not a participant of this session"},
+            404: {"description": "Chat session not found"},
+            422: {"description": "Invalid message content (empty or exceeds 1000 chars)"},
+        },
+    )
+    async def create_message(
+        session_id: UUID,
+        payload: ChatMessageCreateRequest,
+        token_data: Annotated[TokenData, Depends(chat_access_dependency)],
+        db: AsyncSession = Depends(get_db),
+    ) -> ChatMessageCreateResponse:
+        """Send a new message to an existing chat session.
+
+        Only the two participants (creator and non-creator) may send messages.
+        """
+        return await send_message(
+            db=db,
+            session_id=session_id,
+            payload=payload,
+            current_user=token_data,
+        )
+
+    @router.get(
+        "/{session_id}/messages",
+        response_model=ChatMessageListResponse,
+        summary="Poll for messages in a chat session",
+        responses={
+            401: {"description": "Missing or invalid authentication token"},
+            403: {"description": "User is not a participant of this session"},
+            404: {"description": "Chat session not found"},
+        },
+    )
+    async def get_messages(
+        session_id: UUID,
+        token_data: Annotated[TokenData, Depends(chat_access_dependency)],
+        since: Annotated[
+            datetime | None,
+            Query(description="Return only messages created after this UTC timestamp (ISO-8601)"),
+        ] = None,
+        page: Annotated[
+            int,
+            Query(ge=1, description="Page number"),
+        ] = 1,
+        limit: Annotated[
+            int,
+            Query(ge=1, le=200, description="Maximum results per page"),
+        ] = 50,
+        db: AsyncSession = Depends(get_db),
+    ) -> ChatMessageListResponse:
+        """Retrieve messages in a chat session in chronological order.
+
+        Pass ``since`` (ISO-8601 timestamp) to implement polling: only messages
+        created strictly after that timestamp are returned.
+        """
+        return await list_messages(
+            db=db,
+            session_id=session_id,
+            current_user=token_data,
+            since=since,
+            page=page,
+            limit=limit,
         )
 
     return router

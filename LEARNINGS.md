@@ -98,6 +98,10 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - Test-App-Setup muss produktives Router-/Dependency-Verhalten spiegeln.
 - Fixture-Ketten explizit aufbauen (User → Auth → Ressource); Auth-Token-Fixtures zentralisieren.
 - Für idempotente API-Flows sowohl Erstaufruf als auch Wiederholaufruf separat testen (inkl. unterschiedlicher Statuscodes).
+- Bei Polling-Endpunkten für `?since=`-Timestamps httpx `params={"since": cursor}` statt F-String-Interpolation in der URL verwenden – ein `+` im ISO-8601-Timezone-Offset (`+00:00`) wird sonst als Leerzeichen dekodiert und löst 422 aus.
+- `expire_all()` auf SQLAlchemy `AsyncSession` ist eine synchrone Methode – kein `await` verwenden.
+- In Integrationstests, die Test- und App-Code dieselbe `AsyncSession` teilen, sind ORM-Objekte nach einem Service-Commit direkt aktualisiert (Identity-Map); expliziter Refresh oder `expire_all()` ist unnötig.
+- Beim Schreiben von Nachrichten `session.last_message_at` in derselben DB-Transaktion aktualisieren, damit das Session-Listing nach Aktivität sortiert werden kann.
 - Performance-/Latenztests CI-stabil halten (tolerante Schwellen, stabile Metriken, keine Flakes).
 - QA-Gates mit reproduzierbaren Befehlen und evidenzbasierten Ergebnissen dokumentieren.
 - Ergebnisse immer aus frischen vollständigen Läufen ableiten, nicht aus gemischter Task-Historie.
