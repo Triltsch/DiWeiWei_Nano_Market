@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     SECURITY_TLS_REDIRECT_INSECURE: bool = True
     SECURITY_TLS_PROTECTED_PATHS: str = "/api/v1/chats,/api/v1/auth/login"
     SECURITY_TRUSTED_PROXIES: str = "127.0.0.1,::1"
+    SECURITY_ALLOWED_HOSTS: str = ""
     RATE_LIMIT_LOGIN_MAX_REQUESTS: int = 10
     RATE_LIMIT_LOGIN_WINDOW_SECONDS: int = 60
     RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS: int = 30

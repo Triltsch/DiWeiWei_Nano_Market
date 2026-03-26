@@ -55,7 +55,8 @@ from app.schemas import (
     UserResponse,
     VerificationEmailResponse,
 )
-from app.security.rate_limit import FixedWindowRateLimiter
+from app.security.middleware import parse_csv_values
+from app.security.rate_limit import SlidingWindowRateLimiter
 
 router = APIRouter(
     prefix="/api/v1/auth",
@@ -64,20 +65,17 @@ router = APIRouter(
 
 settings = get_settings()
 
-LOGIN_RATE_LIMITER = FixedWindowRateLimiter(
+LOGIN_RATE_LIMITER = SlidingWindowRateLimiter(
     max_requests=settings.RATE_LIMIT_LOGIN_MAX_REQUESTS,
     window_seconds=settings.RATE_LIMIT_LOGIN_WINDOW_SECONDS,
 )
 
 
 # IP addresses of reverse proxies that are allowed to supply X-Forwarded-For
-# values that we trust for audit logging. When a request comes directly from
-# a client (i.e. not via one of these proxies), we ignore X-Forwarded-For and
-# instead use the immediate peer IP from request.client.host.
-TRUSTED_PROXIES: set[str] = {
-    "127.0.0.1",
-    "::1",
-}
+# values that we trust for rate limiting and audit logging. Loaded from
+# SECURITY_TRUSTED_PROXIES so that production deployments can configure the
+# actual proxy addresses without code changes.
+TRUSTED_PROXIES: set[str] = set(parse_csv_values(settings.SECURITY_TRUSTED_PROXIES))
 
 
 def _get_client_ip(request: Request) -> str:

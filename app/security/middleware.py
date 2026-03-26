@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from fastapi import Request
 from fastapi.responses import RedirectResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import Response
 from starlette.types import ASGIApp
 
 
@@ -38,20 +39,28 @@ class TLSRedirectMiddleware(BaseHTTPMiddleware):
         enabled: bool,
         protected_path_prefixes: tuple[str, ...],
         trusted_proxies: set[str],
+        allowed_hosts: frozenset[str] = frozenset(),
         redirect_status_code: int = 307,
     ) -> None:
         super().__init__(app)
         self._enabled = enabled
         self._protected_path_prefixes = protected_path_prefixes
         self._trusted_proxies = trusted_proxies
+        self._allowed_hosts = allowed_hosts
         self._redirect_status_code = redirect_status_code
 
-    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if not self._enabled or not self._is_protected_path(request.url.path):
             return await call_next(request)
 
         effective_scheme = get_effective_request_scheme(request, self._trusted_proxies)
         if effective_scheme == "https":
+            return await call_next(request)
+
+        # Guard against open redirect: only redirect when Host is in the configured
+        # allowlist.  If no allowlist is configured, allow all (backward-compatible
+        # behaviour for local development).
+        if self._allowed_hosts and request.url.hostname not in self._allowed_hosts:
             return await call_next(request)
 
         https_url = request.url.replace(scheme="https")

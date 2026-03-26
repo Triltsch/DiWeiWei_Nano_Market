@@ -41,7 +41,7 @@ server {
 
 ## Rate limiting
 
-Two endpoint-level fixed-window limits are active:
+Two endpoint-level sliding-window limits are active:
 
 - Login: `/api/v1/auth/login`
 - Chat message send: `POST /api/v1/chats/{session_id}/messages`

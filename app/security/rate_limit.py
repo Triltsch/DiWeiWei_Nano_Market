@@ -7,11 +7,13 @@ import time
 from collections import deque
 
 
-class FixedWindowRateLimiter:
-    """In-memory fixed-window rate limiter.
+class SlidingWindowRateLimiter:
+    """In-memory sliding-window rate limiter.
 
-    This limiter is intentionally simple and deterministic for MVP usage and
-    testability. Keys should be endpoint-scoped and identity-scoped.
+    Each key maintains a rolling deque of hit timestamps.  On every check the
+    deque is pruned to the current ``window_seconds`` interval so the visible
+    request count always reflects a true sliding window rather than a discrete
+    epoch boundary.  Keys should be endpoint-scoped and identity-scoped.
     """
 
     def __init__(self, max_requests: int, window_seconds: int) -> None:
@@ -41,10 +43,16 @@ class FixedWindowRateLimiter:
             while bucket and bucket[0] <= cutoff:
                 bucket.popleft()
 
+            # Evict the key when the bucket is empty to prevent the _hits dict
+            # from growing without bound across many distinct client keys.
+            if not bucket:
+                del self._hits[key]
+
             if len(bucket) >= self.max_requests:
                 retry_after_seconds = max(1, int(self.window_seconds - (now - bucket[0])))
                 return False, retry_after_seconds
 
+            bucket = self._hits.setdefault(key, deque())
             bucket.append(now)
             return True, 0
 

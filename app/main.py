@@ -69,6 +69,7 @@ def create_app() -> FastAPI:
             enabled=enforce_tls,
             protected_path_prefixes=parse_csv_values(settings.SECURITY_TLS_PROTECTED_PATHS),
             trusted_proxies=set(parse_csv_values(settings.SECURITY_TRUSTED_PROXIES)),
+            allowed_hosts=frozenset(parse_csv_values(settings.SECURITY_ALLOWED_HOSTS)),
         )
 
     # Include routers

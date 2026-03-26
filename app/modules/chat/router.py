@@ -31,12 +31,12 @@ from app.modules.chat.service import (
     list_messages,
     send_message,
 )
-from app.security.rate_limit import FixedWindowRateLimiter
+from app.security.rate_limit import SlidingWindowRateLimiter
 
 settings = get_settings()
 
 
-CHAT_MESSAGE_RATE_LIMITER = FixedWindowRateLimiter(
+CHAT_MESSAGE_RATE_LIMITER = SlidingWindowRateLimiter(
     max_requests=settings.RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS,
     window_seconds=settings.RATE_LIMIT_CHAT_MESSAGE_WINDOW_SECONDS,
 )
