@@ -512,6 +512,69 @@ class ChatSession(Base):
         )
 
 
+class ChatMessage(Base):
+    """A single message in a direct chat session.
+
+    Supports polling-based retrieval via the ``created_at`` index.
+    Content is validated at both the Pydantic and DB constraint level (1–1000 characters).
+    """
+
+    __tablename__ = "chat_messages"
+    __table_args__ = (
+        CheckConstraint(
+            "length(content) >= 1",
+            name="ck_chat_messages_content_non_empty",
+        ),
+        CheckConstraint(
+            "length(content) <= 1000",
+            name="ck_chat_messages_content_max_length",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Chat session this message belongs to",
+    )
+    sender_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="User who sent the message",
+    )
+    content: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Message text content (1–1000 characters)",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+        comment="When the message was sent; used as polling cursor",
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    def __repr__(self) -> str:
+        """String representation of ChatMessage."""
+        return (
+            f"<ChatMessage(id={self.id}, session_id={self.session_id}, "
+            f"sender_id={self.sender_id})>"
+        )
+
+
 class NanoRating(Base):
     """User star rating for a published Nano."""
 
