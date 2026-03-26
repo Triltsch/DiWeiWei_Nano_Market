@@ -62,6 +62,7 @@ from app.modules.nanos.service import (
     update_nano_rating,
     update_nano_status,
 )
+from app.monitoring import FeedbackMetricsRoute, record_feedback_moderation_decision
 
 
 def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = None) -> APIRouter:
@@ -78,7 +79,7 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
     if tags is None:
         tags = ["Nanos"]
 
-    router = APIRouter(prefix=prefix, tags=tags)
+    router = APIRouter(prefix=prefix, tags=tags, route_class=FeedbackMetricsRoute)
 
     @router.get(
         "/pending-moderation",
@@ -448,13 +449,15 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
         db: Annotated[AsyncSession, Depends(get_db)],
     ) -> NanoRatingModerationResponse:
         """Moderate one rating as moderator/admin."""
-        return await moderate_nano_rating(
+        response = await moderate_nano_rating(
             nano_id=nano_id,
             rating_id=rating_id,
             moderation=payload,
             current_user=current_user,
             db=db,
         )
+        record_feedback_moderation_decision(feedback_type="rating", decision=payload.status)
+        return response
 
     @router.get(
         "/{nano_id}/comments",
@@ -629,13 +632,15 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
         db: Annotated[AsyncSession, Depends(get_db)],
     ) -> NanoCommentModerationResponse:
         """Moderate one comment as moderator/admin."""
-        return await moderate_nano_comment(
+        response = await moderate_nano_comment(
             nano_id=nano_id,
             comment_id=comment_id,
             moderation=payload,
             current_user=current_user,
             db=db,
         )
+        record_feedback_moderation_decision(feedback_type="comment", decision=payload.status)
+        return response
 
     @router.get(
         "/{nano_id}/download-info",

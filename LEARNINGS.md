@@ -218,6 +218,14 @@ Kein Projektbericht, keine Historie, kein Story-Log.
 
 - Für async Services keine blockierenden Netzwerk-Calls direkt im Event-Loop verwenden (`urlopen` etc.); wenn kein Async-Client genutzt wird, den Call per `asyncio.to_thread(...)` kapseln.
 - Response-Payloads externer Services vor `.get(...)` immer typvalidieren (`dict`-Guard), damit unerwartete/empty Antworten als kontrollierter 503 enden statt als `AttributeError`.
+
+## Ergänzung Issue #98 (Feedback Observability + .env Settings)
+
+- Für flow-spezifische Observability reichen generische HTTP-Metriken nicht aus; pro Fach-Flow eigene Counter/Histogramme mit niedrig-kardinalen Labels (`feedback_type`, `operation`, `outcome`) ergänzen.
+- Business-Metriken in FastAPI robust über `APIRoute`-Wrapper instrumentieren und Exception-Pfade (`HTTPException`, `RequestValidationError`, Fallback-500) explizit mitzählen, damit Error-Rates vollständig sind.
+- Moderationsentscheidungen als separate Event-Metrik zählen (`feedback_moderation_decisions_total`), statt sie nur aus Request-Metriken indirekt abzuleiten.
+- Grafana "No data" ist für neue Dashboards erwartbar, solange kein echter Traffic auf den instrumentierten Endpunkten erzeugt wurde; Validierung immer mit gezielten API-Requests + `/metrics`-Check durchführen.
+- Wenn `.env` auch Infrastruktur-Variablen enthält, `pydantic-settings` mit `extra="ignore"` konfigurieren, damit app-fremde Keys (z. B. Grafana-Variablen) keine Runtime-Validierungsfehler auslösen.
 - Bei Doku-Änderungen in bestehenden Markdown-Listen/Runbooks Codefence-Balance explizit prüfen; ein offener Fence kann ganze Abschnitte als Code rendern und Nummerierungsfehler verschleiern.
 
 ## Review-Nachtrag PR #96 (Redis-Fallback-Konsistenz)

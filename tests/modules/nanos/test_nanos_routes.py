@@ -2132,3 +2132,112 @@ class TestNanoCommentsRoutes:
 
         assert rating_response.status_code == 403
         assert comment_response.status_code == 403
+
+
+class TestFeedbackObservability:
+    """Tests for feedback-specific Prometheus metrics exposure."""
+
+    @staticmethod
+    async def _create_user(db_session, email: str, username: str):
+        """Create and persist a user for observability tests."""
+        from app.models import User, UserRole, UserStatus
+
+        user = User(
+            id=uuid.uuid4(),
+            email=email,
+            username=username,
+            password_hash="dummy_hash",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            role=UserRole.CREATOR,
+            preferred_language="en",
+            login_attempts=0,
+        )
+        db_session.add(user)
+        await db_session.flush()
+        return user
+
+    @pytest.mark.asyncio
+    async def test_feedback_metrics_are_exposed_for_success_error_and_moderation(
+        self, async_client, db_session
+    ):
+        """Feedback requests and moderation decisions are exported via the Prometheus endpoint."""
+        from app.models import UserRole
+
+        creator = await self._create_user(
+            db_session, "metrics-creator@example.com", "metrics_creator"
+        )
+        commenter = await self._create_user(
+            db_session, "metrics-commenter@example.com", "metrics_commenter"
+        )
+        moderator = await self._create_user(
+            db_session, "metrics-moderator@example.com", "metrics_moderator"
+        )
+        moderator.role = UserRole.MODERATOR
+
+        nano = Nano(
+            id=uuid.uuid4(),
+            creator_id=creator.id,
+            title="Observable Feedback Nano",
+            duration_minutes=20,
+            competency_level=CompetencyLevel.BASIC,
+            language="en",
+            format=NanoFormat.TEXT,
+            status=NanoStatus.PUBLISHED,
+            version="1.0.0",
+            license=LicenseType.CC_BY,
+        )
+        db_session.add(nano)
+        await db_session.commit()
+
+        commenter_token, _ = create_access_token(commenter.id, commenter.email, role="creator")
+        moderator_token, _ = create_access_token(
+            moderator.id,
+            moderator.email,
+            role="moderator",
+        )
+
+        create_response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/comments",
+            headers={"Authorization": f"Bearer {commenter_token}"},
+            json={"content": "Metrics should see this comment."},
+        )
+        duplicate_response = await async_client.post(
+            f"/api/v1/nanos/{nano.id}/comments",
+            headers={"Authorization": f"Bearer {commenter_token}"},
+            json={"content": "Metrics should reject this duplicate."},
+        )
+
+        assert create_response.status_code == 201
+        assert duplicate_response.status_code == 409
+
+        comment_id = create_response.json()["comment"]["comment_id"]
+        moderation_response = await async_client.patch(
+            f"/api/v1/nanos/{nano.id}/comments/{comment_id}/moderation",
+            headers={"Authorization": f"Bearer {moderator_token}"},
+            json={"status": "approved", "reason": "Looks good"},
+        )
+
+        assert moderation_response.status_code == 200
+
+        metrics_response = await async_client.get("/metrics")
+
+        assert metrics_response.status_code == 200
+        assert "feedback_requests_total" in metrics_response.text
+        assert "feedback_request_duration_seconds" in metrics_response.text
+        assert (
+            'feedback_requests_total{feedback_type="comment",operation="create",outcome="success"}'
+            in metrics_response.text
+        )
+        assert (
+            'feedback_requests_total{feedback_type="comment",operation="create",outcome="client_error"}'
+            in metrics_response.text
+        )
+        assert (
+            'feedback_requests_total{feedback_type="comment",operation="moderate",outcome="success"}'
+            in metrics_response.text
+        )
+        assert (
+            'feedback_moderation_decisions_total{decision="approved",feedback_type="comment"}'
+            in metrics_response.text
+        )

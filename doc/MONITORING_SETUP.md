@@ -1,15 +1,18 @@
 # Monitoring Setup (Prometheus/Grafana Baseline)
 
-This document describes the reproducible local/staging-like monitoring baseline for Story 7.5.
+This document describes the reproducible local/staging-like monitoring baseline and the
+feedback-flow observability extension added in Sprint 6.
 
 ## Scope
 
 - Prometheus metrics collection
 - Grafana dashboard provisioning
 - FastAPI application metrics via `/metrics`
+- Feedback-flow business metrics via `/metrics`
 - PostgreSQL metrics via `postgres_exporter`
 - Redis metrics via `redis_exporter`
 - Baseline alert rules (`HighErrorRate`, `SlowAPI`)
+- Feedback alert rules (`FeedbackHighServerErrorRate`, `FeedbackSlowAPI`)
 
 ## Included Components
 
@@ -56,6 +59,7 @@ docker compose down
    - Verify dashboards exist in folder `DiWeiWei`:
      - `API Overview`
      - `DB Health`
+     - `Feedback Flows`
      - `Infrastructure Health`
 
 4. Alert rules:
@@ -63,6 +67,15 @@ docker compose down
    - Confirm rules:
      - `HighErrorRate`
      - `SlowAPI`
+     - `FeedbackHighServerErrorRate`
+     - `FeedbackSlowAPI`
+
+5. Feedback metrics visibility:
+   - Open `http://localhost:8000/metrics`
+   - Confirm feedback metrics are present:
+     - `feedback_requests_total`
+     - `feedback_request_duration_seconds`
+     - `feedback_moderation_decisions_total`
 
 ## Files and Configuration
 
@@ -75,6 +88,7 @@ docker compose down
 - Dashboards:
   - `monitoring/grafana/dashboards/api-overview.json`
   - `monitoring/grafana/dashboards/db-health.json`
+  - `monitoring/grafana/dashboards/feedback-flows.json`
   - `monitoring/grafana/dashboards/infrastructure-health.json`
 
 ## Credentials and Secrets
@@ -90,5 +104,7 @@ docker compose down
 
 - `HighErrorRate` triggers when the 5xx ratio exceeds 5% over a 5-minute rate window for 2 minutes.
 - `SlowAPI` triggers when p95 request latency exceeds 1 second over a 5-minute rate window for 2 minutes.
+- `FeedbackHighServerErrorRate` triggers when feedback endpoints exceed 5% server errors over a 10-minute window for 10 minutes.
+- `FeedbackSlowAPI` triggers when feedback endpoint p95 latency exceeds 750ms over a 10-minute window for 10 minutes.
 
-Both rules are designed as baseline operational signals for MVP and can be tightened in later hardening phases.
+Both rule sets are designed as baseline operational signals for MVP and can be tightened in later hardening phases.
