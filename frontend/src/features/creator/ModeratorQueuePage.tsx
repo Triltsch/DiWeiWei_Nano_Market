@@ -133,7 +133,7 @@ export function ModeratorQueuePage(): JSX.Element {
       await fetchQueue(queueState.page);
     } catch (err) {
       const message = resolveRbacErrorMessage(err, t);
-      setActionError(`${t("moderator_reject_error")}: ${message}`);
+      setActionError(`${t("moderator_hide_error")}: ${message}`);
     } finally {
       setRowAction((prev) => ({ ...prev, [actionKey]: null }));
     }
@@ -166,7 +166,7 @@ export function ModeratorQueuePage(): JSX.Element {
       await fetchQueue(queueState.page);
     } catch (err) {
       const message = resolveRbacErrorMessage(err, t);
-      setActionError(`${t("moderator_reject_error")}: ${message}`);
+      setActionError(`${t("moderator_hide_error")}: ${message}`);
     } finally {
       setRowAction((prev) => ({ ...prev, [actionKey]: null }));
     }
@@ -259,7 +259,7 @@ export function ModeratorQueuePage(): JSX.Element {
         <div className="flex flex-col gap-1">
           <span className="font-semibold text-neutral-900">{item.score}/5</span>
           <span className="text-sm text-neutral-500">
-            {t("moderator_queue_creator_label")}: <span className="font-medium text-neutral-700">{item.username ?? "—"}</span>
+            {t("moderator_queue_author_label")}: <span className="font-medium text-neutral-700">{item.username ?? "—"}</span>
           </span>
           <span className="text-sm text-neutral-500">
             {t("moderator_queue_submitted_label")}: <span className="font-medium text-neutral-700">{formatDate(item.created_at)}</span>
@@ -279,7 +279,7 @@ export function ModeratorQueuePage(): JSX.Element {
             disabled={isProcessing}
             className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-error-600 hover:bg-error-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {currentAction === "hiding" ? t("moderator_rejecting") : t("moderator_reject")}
+            {currentAction === "hiding" ? t("moderator_hiding") : t("moderator_hide")}
           </button>
         </div>
       </li>
@@ -299,7 +299,7 @@ export function ModeratorQueuePage(): JSX.Element {
         <div className="flex flex-col gap-1">
           <span className="font-semibold text-neutral-900">{item.content}</span>
           <span className="text-sm text-neutral-500">
-            {t("moderator_queue_creator_label")}: <span className="font-medium text-neutral-700">{item.username ?? "—"}</span>
+            {t("moderator_queue_feedback_author_label")}: <span className="font-medium text-neutral-700">{item.username ?? "—"}</span>
           </span>
           <span className="text-sm text-neutral-500">
             {t("moderator_queue_submitted_label")}: <span className="font-medium text-neutral-700">{formatDate(item.created_at)}</span>
@@ -319,7 +319,7 @@ export function ModeratorQueuePage(): JSX.Element {
             disabled={isProcessing}
             className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-error-600 hover:bg-error-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {currentAction === "hiding" ? t("moderator_rejecting") : t("moderator_reject")}
+            {currentAction === "hiding" ? t("moderator_hiding") : t("moderator_hide")}
           </button>
         </div>
       </li>
@@ -384,7 +384,7 @@ export function ModeratorQueuePage(): JSX.Element {
                 {t("moderator_queue_pending_ratings_title")}
               </h2>
               {queueState.data.pending_ratings.length === 0 ? (
-                <p className="text-neutral-500">{t("moderator_queue_empty")}</p>
+                <p className="text-neutral-500">{t("moderator_queue_pending_ratings_empty")}</p>
               ) : (
                 <ul className="space-y-3">{queueState.data.pending_ratings.map(renderPendingRating)}</ul>
               )}
@@ -395,7 +395,7 @@ export function ModeratorQueuePage(): JSX.Element {
                 {t("moderator_queue_pending_comments_title")}
               </h2>
               {queueState.data.pending_comments.length === 0 ? (
-                <p className="text-neutral-500">{t("moderator_queue_empty")}</p>
+                <p className="text-neutral-500">{t("moderator_queue_pending_comments_empty")}</p>
               ) : (
                 <ul className="space-y-3">{queueState.data.pending_comments.map(renderPendingComment)}</ul>
               )}

@@ -45,7 +45,7 @@ describe("UploadWizardPage", () => {
     expect(screen.getByRole("heading", { name: "Nano hochladen" })).toBeTruthy();
     expect(screen.getByText("1. ZIP")).toBeTruthy();
     expect(screen.getByText("2. Metadaten")).toBeTruthy();
-    expect(screen.getByText("3. Veröffentlichen")).toBeTruthy();
+    expect(screen.getByText("3. Einreichen")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Upload starten" })).toBeTruthy();
   });
 
