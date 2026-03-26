@@ -312,3 +312,31 @@ async def test_root_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch
 
     assert response.status_code == 307
     assert response.headers["location"] == "http://localhost:5173"
+
+
+@pytest.mark.asyncio
+async def test_login_endpoint_rate_limited(async_client):
+    """Test /auth/login returns 429 after exceeding configured request threshold."""
+    from app.modules.auth.router import LOGIN_RATE_LIMITER
+
+    original_max_requests = LOGIN_RATE_LIMITER.max_requests
+    original_window_seconds = LOGIN_RATE_LIMITER.window_seconds
+    LOGIN_RATE_LIMITER.max_requests = 2
+    LOGIN_RATE_LIMITER.window_seconds = 60
+    LOGIN_RATE_LIMITER.reset()
+
+    try:
+        payload = {"email": "missing@example.com", "password": "WrongPassword123!"}
+
+        first = await async_client.post("/api/v1/auth/login", json=payload)
+        second = await async_client.post("/api/v1/auth/login", json=payload)
+        third = await async_client.post("/api/v1/auth/login", json=payload)
+
+        assert first.status_code == 401
+        assert second.status_code == 401
+        assert third.status_code == 429
+        assert third.headers.get("retry-after") is not None
+    finally:
+        LOGIN_RATE_LIMITER.max_requests = original_max_requests
+        LOGIN_RATE_LIMITER.window_seconds = original_window_seconds
+        LOGIN_RATE_LIMITER.reset()

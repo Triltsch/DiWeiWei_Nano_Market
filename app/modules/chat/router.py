@@ -4,9 +4,10 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
 from app.modules.auth.middleware import (
     ROLE_ADMIN,
@@ -30,6 +31,29 @@ from app.modules.chat.service import (
     list_messages,
     send_message,
 )
+from app.security.rate_limit import FixedWindowRateLimiter
+
+settings = get_settings()
+
+
+CHAT_MESSAGE_RATE_LIMITER = FixedWindowRateLimiter(
+    max_requests=settings.RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS,
+    window_seconds=settings.RATE_LIMIT_CHAT_MESSAGE_WINDOW_SECONDS,
+)
+
+
+async def _enforce_chat_message_rate_limit(user_id: str) -> None:
+    """Apply per-user rate limiting for message submissions."""
+    key = f"chat_message:{user_id}"
+    allowed, retry_after_seconds = await CHAT_MESSAGE_RATE_LIMITER.check(key)
+    if allowed:
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail="Too many chat messages sent in a short period. Please retry later.",
+        headers={"Retry-After": str(retry_after_seconds)},
+    )
 
 
 def get_chat_router(prefix: str = "/api/v1/chats", tags: list[str] | None = None) -> APIRouter:
@@ -127,6 +151,8 @@ def get_chat_router(prefix: str = "/api/v1/chats", tags: list[str] | None = None
 
         Only the two participants (creator and non-creator) may send messages.
         """
+        await _enforce_chat_message_rate_limit(str(token_data.user_id))
+
         return await send_message(
             db=db,
             session_id=session_id,

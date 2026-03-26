@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
 from app.models import AuditAction
 from app.modules.audit.service import AuditLogger
@@ -54,10 +55,18 @@ from app.schemas import (
     UserResponse,
     VerificationEmailResponse,
 )
+from app.security.rate_limit import FixedWindowRateLimiter
 
 router = APIRouter(
     prefix="/api/v1/auth",
     tags=["auth"],
+)
+
+settings = get_settings()
+
+LOGIN_RATE_LIMITER = FixedWindowRateLimiter(
+    max_requests=settings.RATE_LIMIT_LOGIN_MAX_REQUESTS,
+    window_seconds=settings.RATE_LIMIT_LOGIN_WINDOW_SECONDS,
 )
 
 
@@ -92,6 +101,22 @@ def _get_client_ip(request: Request) -> str:
 def _get_user_agent(request: Request) -> str:
     """Extract user agent from request."""
     return request.headers.get("user-agent", "")
+
+
+async def _enforce_login_rate_limit(request: Request) -> None:
+    """Apply per-client login rate limiting."""
+    client_ip = _get_client_ip(request)
+    key = f"login:{client_ip}"
+
+    allowed, retry_after_seconds = await LOGIN_RATE_LIMITER.check(key)
+    if allowed:
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail="Too many login attempts. Please retry later.",
+        headers={"Retry-After": str(retry_after_seconds)},
+    )
 
 
 @router.post(
@@ -190,6 +215,8 @@ async def login(
     Returns access_token (15 min expiry) and refresh_token (7 days expiry).
     User must have verified email to login. Account locks after 3 failed attempts for 1 hour.
     """
+    await _enforce_login_rate_limit(request)
+
     try:  # NOTE: authenticate_user() commits internally (updates last_login, resets attempts)
         # before we log the audit entry. If audit logging fails, login state is already committed.
         # TODO: Refactor to single transaction boundary at router level

@@ -599,3 +599,58 @@ class TestChatMessageRoutes:
         assert p2["meta"]["current_page"] == 2
         assert p2["meta"]["has_next_page"] is True
         assert p2["meta"]["has_prev_page"] is True
+
+    @pytest.mark.asyncio
+    async def test_send_message_rate_limited_returns_429(self, async_client, db_session):
+        """Message POST is blocked with 429 after per-user threshold is exceeded."""
+        from app.modules.chat.router import CHAT_MESSAGE_RATE_LIMITER
+
+        original_max_requests = CHAT_MESSAGE_RATE_LIMITER.max_requests
+        original_window_seconds = CHAT_MESSAGE_RATE_LIMITER.window_seconds
+        CHAT_MESSAGE_RATE_LIMITER.max_requests = 2
+        CHAT_MESSAGE_RATE_LIMITER.window_seconds = 60
+        CHAT_MESSAGE_RATE_LIMITER.reset()
+
+        try:
+            creator = await self._create_user(
+                db_session, "msg-rate-creator@example.com", "msg_rate_creator", role="creator"
+            )
+            participant = await self._create_user(
+                db_session,
+                "msg-rate-participant@example.com",
+                "msg_rate_participant",
+                role="consumer",
+            )
+            nano = await self._create_published_nano(db_session, creator.id)
+            session = await self._create_session(db_session, nano.id, creator.id, participant.id)
+            await db_session.commit()
+
+            participant_token, _ = create_access_token(
+                participant.id, participant.email, role="consumer"
+            )
+            headers = {"Authorization": f"Bearer {participant_token}"}
+
+            first = await async_client.post(
+                f"/api/v1/chats/{session.id}/messages",
+                headers=headers,
+                json={"content": "Rate test #1"},
+            )
+            second = await async_client.post(
+                f"/api/v1/chats/{session.id}/messages",
+                headers=headers,
+                json={"content": "Rate test #2"},
+            )
+            third = await async_client.post(
+                f"/api/v1/chats/{session.id}/messages",
+                headers=headers,
+                json={"content": "Rate test #3"},
+            )
+
+            assert first.status_code == 201
+            assert second.status_code == 201
+            assert third.status_code == 429
+            assert third.headers.get("retry-after") is not None
+        finally:
+            CHAT_MESSAGE_RATE_LIMITER.max_requests = original_max_requests
+            CHAT_MESSAGE_RATE_LIMITER.window_seconds = original_window_seconds
+            CHAT_MESSAGE_RATE_LIMITER.reset()
