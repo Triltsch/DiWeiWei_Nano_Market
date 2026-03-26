@@ -219,19 +219,37 @@ async def send_message(
         current_user_id=current_user.user_id,
     )
 
-    now = datetime.now(timezone.utc)
     message = ChatMessage(
         session_id=session.id,
         sender_id=current_user.user_id,
         content=payload.content,
     )
     db.add(message)
-    # Keep session.last_message_at fresh so ordering in session list works.
-    session.last_message_at = now
 
+    try:
+        await db.commit()
+        await db.refresh(message)
+    except IntegrityError as exc:
+        # Roll back the failed transaction so the session can be reused safely.
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Could not send message due to a database integrity error.",
+        ) from exc
+    except Exception as exc:
+        # Ensure the session is rolled back on any unexpected error as well.
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not send message due to an unexpected error.",
+        ) from exc
+
+    # Use the DB-generated created_at so last_message_at is always in sync with
+    # the actual message timestamp (avoids clock skew / commit latency drift).
+    session.last_message_at = message.created_at
     await db.commit()
-    await db.refresh(message)
 
+    now = datetime.now(timezone.utc)
     return ChatMessageCreateResponse(
         success=True,
         data=_to_message_data(message),

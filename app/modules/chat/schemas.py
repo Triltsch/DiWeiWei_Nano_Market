@@ -1,4 +1,4 @@
-"""Pydantic schemas for chat session endpoints."""
+"""Pydantic schemas for chat session and message endpoints."""
 
 from datetime import datetime
 from uuid import UUID

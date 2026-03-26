@@ -535,3 +535,67 @@ class TestChatMessageRoutes:
         # The service updated session.last_message_at through the shared identity
         # map, so the change is reflected on the existing Python object directly.
         assert session.last_message_at is not None
+
+    @pytest.mark.asyncio
+    async def test_list_messages_pagination_limits_results_and_sets_meta(
+        self, async_client, db_session
+    ):
+        """
+        Pagination via limit=1/page=1 and limit=1/page=2 returns one message
+        each, and the meta correctly reflects has_next_page/has_prev_page.
+
+        Creates 3 messages, then queries page 1 (limit=1) and page 2 (limit=1).
+        Verifies: single-item results, page meta, and has_next/has_prev flags.
+        """
+        creator = await self._create_user(
+            db_session, "msg-pg-creator@example.com", "msg_pg_creator"
+        )
+        participant = await self._create_user(
+            db_session, "msg-pg-participant@example.com", "msg_pg_participant"
+        )
+        nano = await self._create_published_nano(db_session, creator.id)
+        session = await self._create_session(db_session, nano.id, creator.id, participant.id)
+
+        # Insert 3 messages with strictly ordered timestamps for stable sorting.
+        t_base = datetime(2026, 2, 1, 8, 0, 0, tzinfo=timezone.utc)
+        for i, content in enumerate(["Message A", "Message B", "Message C"]):
+            msg = ChatMessage(session_id=session.id, sender_id=participant.id, content=content)
+            db_session.add(msg)
+            await db_session.flush()
+            msg.created_at = t_base.replace(second=i)
+        await db_session.commit()
+
+        participant_token, _ = create_access_token(
+            participant.id, participant.email, role="consumer"
+        )
+
+        # Page 1 of 3 at limit=1 — first message only.
+        resp1 = await async_client.get(
+            f"/api/v1/chats/{session.id}/messages",
+            params={"page": 1, "limit": 1},
+            headers={"Authorization": f"Bearer {participant_token}"},
+        )
+        assert resp1.status_code == 200
+        p1 = resp1.json()
+        assert len(p1["data"]) == 1
+        assert p1["data"][0]["content"] == "Message A"
+        assert p1["meta"]["current_page"] == 1
+        assert p1["meta"]["page_size"] == 1
+        assert p1["meta"]["total_results"] == 3
+        assert p1["meta"]["total_pages"] == 3
+        assert p1["meta"]["has_next_page"] is True
+        assert p1["meta"]["has_prev_page"] is False
+
+        # Page 2 of 3 at limit=1 — middle message only.
+        resp2 = await async_client.get(
+            f"/api/v1/chats/{session.id}/messages",
+            params={"page": 2, "limit": 1},
+            headers={"Authorization": f"Bearer {participant_token}"},
+        )
+        assert resp2.status_code == 200
+        p2 = resp2.json()
+        assert len(p2["data"]) == 1
+        assert p2["data"][0]["content"] == "Message B"
+        assert p2["meta"]["current_page"] == 2
+        assert p2["meta"]["has_next_page"] is True
+        assert p2["meta"]["has_prev_page"] is True
