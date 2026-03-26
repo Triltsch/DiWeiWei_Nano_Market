@@ -1575,7 +1575,7 @@ async def get_pending_review_nanos(
 
     Returns:
         ModeratorQueueListResponse with paginated list of pending-review Nanos including
-        creator usernames for context.
+        creator usernames for context, plus pending feedback moderation items.
     """
     count_query = select(func.count(Nano.id)).where(Nano.status == NanoStatus.PENDING_REVIEW)
     count_result = await db.execute(count_query)
@@ -1612,6 +1612,54 @@ async def get_pending_review_nanos(
         for nano, creator_username in rows
     ]
 
+    pending_ratings_query = (
+        select(NanoRating, User.username)
+        .outerjoin(User, NanoRating.user_id == User.id)
+        .where(NanoRating.moderation_status == FeedbackModerationStatus.PENDING)
+        .order_by(NanoRating.created_at, NanoRating.id)
+    )
+    pending_ratings_result = await db.execute(pending_ratings_query)
+    pending_rating_rows = pending_ratings_result.all()
+
+    pending_ratings = [
+        NanoRatingModerationItem(
+            rating_id=rating.id,
+            nano_id=rating.nano_id,
+            user_id=rating.user_id,
+            username=username,
+            score=rating.score,
+            moderation_status=rating.moderation_status.value,
+            moderation_reason=rating.moderation_reason,
+            created_at=rating.created_at,
+            updated_at=rating.updated_at,
+        )
+        for rating, username in pending_rating_rows
+    ]
+
+    pending_comments_query = (
+        select(NanoComment, User.username)
+        .outerjoin(User, NanoComment.user_id == User.id)
+        .where(NanoComment.moderation_status == FeedbackModerationStatus.PENDING)
+        .order_by(NanoComment.created_at, NanoComment.id)
+    )
+    pending_comments_result = await db.execute(pending_comments_query)
+    pending_comment_rows = pending_comments_result.all()
+
+    pending_comments = [
+        NanoCommentItem(
+            comment_id=comment.id,
+            nano_id=comment.nano_id,
+            user_id=comment.user_id,
+            username=username,
+            content=comment.content,
+            moderation_status=comment.moderation_status.value,
+            created_at=comment.created_at,
+            updated_at=comment.updated_at,
+            is_edited=comment.updated_at > comment.created_at,
+        )
+        for comment, username in pending_comment_rows
+    ]
+
     pagination = PaginationMeta(
         current_page=page,
         page_size=limit,
@@ -1621,4 +1669,9 @@ async def get_pending_review_nanos(
         has_prev_page=page > 1,
     )
 
-    return ModeratorQueueListResponse(nanos=queue_items, pagination=pagination)
+    return ModeratorQueueListResponse(
+        nanos=queue_items,
+        pending_ratings=pending_ratings,
+        pending_comments=pending_comments,
+        pagination=pagination,
+    )

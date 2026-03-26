@@ -98,6 +98,7 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
 
         **Response:**
         - List of pending-review Nanos with creator info, ordered oldest-first (FIFO queue)
+        - Pending ratings and comments that require moderation decisions
 
         **Error Cases:**
         - 401: Not authenticated

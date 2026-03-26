@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
+import { getStoredUser } from "../../../shared/api/authSession";
 import { useTranslation } from "../../../shared/i18n";
 import { useAuth } from "../AuthContext";
 
@@ -45,8 +46,8 @@ export function LoginPage(): JSX.Element {
     return url.startsWith("/") && !url.startsWith("//");
   }
 
-  const rawRedirect = searchParams.get("redirect") ?? "/dashboard";
-  const redirectTarget = isValidRedirect(rawRedirect) ? rawRedirect : "/dashboard";
+  const rawRedirect = searchParams.get("redirect");
+  const redirectTarget = rawRedirect && isValidRedirect(rawRedirect) ? rawRedirect : null;
 
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
@@ -60,7 +61,9 @@ export function LoginPage(): JSX.Element {
         localStorage.removeItem(REMEMBERED_EMAIL_KEY);
       }
 
-      navigate(redirectTarget);
+      const authenticatedUser = getStoredUser();
+      const defaultRedirect = authenticatedUser?.role === "consumer" ? "/search" : "/dashboard";
+      navigate(redirectTarget ?? defaultRedirect);
     } catch (error) {
       const message = error instanceof Error ? error.message : t("login_error_default");
       setFormError(message);

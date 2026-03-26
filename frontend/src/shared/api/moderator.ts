@@ -50,8 +50,36 @@ export interface ModerationPaginationMeta {
  */
 export interface ModeratorQueueListResponse {
   nanos: ModeratorQueueItem[];
+  pending_ratings: ModeratorFeedbackRatingItem[];
+  pending_comments: ModeratorFeedbackCommentItem[];
   pagination: ModerationPaginationMeta;
 }
+
+export interface ModeratorFeedbackRatingItem {
+  rating_id: string;
+  nano_id: string;
+  user_id: string;
+  username: string | null;
+  score: number;
+  moderation_status: string;
+  moderation_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModeratorFeedbackCommentItem {
+  comment_id: string;
+  nano_id: string;
+  user_id: string;
+  username: string | null;
+  content: string;
+  moderation_status: string;
+  created_at: string;
+  updated_at: string;
+  is_edited: boolean;
+}
+
+export type FeedbackModerationStatus = "approved" | "hidden";
 
 /**
  * Query parameters for fetching the moderation queue.
@@ -128,4 +156,28 @@ export async function rejectNano(
     { status: "draft", reason: reason ?? undefined }
   );
   return response.data;
+}
+
+export async function moderateNanoRating(
+  nanoId: string,
+  ratingId: string,
+  status: FeedbackModerationStatus,
+  reason?: string
+): Promise<void> {
+  await httpClient.patch(`/api/v1/nanos/${nanoId}/ratings/${ratingId}/moderation`, {
+    status,
+    reason: reason ?? undefined,
+  });
+}
+
+export async function moderateNanoComment(
+  nanoId: string,
+  commentId: string,
+  status: FeedbackModerationStatus,
+  reason?: string
+): Promise<void> {
+  await httpClient.patch(`/api/v1/nanos/${nanoId}/comments/${commentId}/moderation`, {
+    status,
+    reason: reason ?? undefined,
+  });
 }

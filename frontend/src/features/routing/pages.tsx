@@ -251,6 +251,12 @@ const COMMENT_STATUS_MESSAGE_KEYS: Partial<Record<string, TranslationKey>> = {
   hidden: "nano_details_comment_status_hidden",
 };
 
+const COMMENT_PREVIEW_TITLE_KEYS: Partial<Record<string, TranslationKey>> = {
+  approved: "nano_details_comment_approved_preview_title",
+  pending: "nano_details_comment_pending_preview_title",
+  hidden: "nano_details_comment_hidden_preview_title",
+};
+
 function getFeedbackStatusLabel(status: string, t: (key: TranslationKey) => string): string {
   const translationKey = FEEDBACK_STATUS_TRANSLATION_KEYS[status];
   return translationKey ? t(translationKey) : status;
@@ -264,6 +270,11 @@ function getFeedbackStatusMessage(
   const translationKey =
     type === "rating" ? RATING_STATUS_MESSAGE_KEYS[status] : COMMENT_STATUS_MESSAGE_KEYS[status];
   return translationKey ? t(translationKey) : null;
+}
+
+function getCommentPreviewTitle(status: string, t: (key: TranslationKey) => string): string {
+  const translationKey = COMMENT_PREVIEW_TITLE_KEYS[status] ?? "nano_details_comment_pending_preview_title";
+  return t(translationKey);
 }
 
 function getFeedbackStatusClasses(status: string): string {
@@ -1345,7 +1356,9 @@ export function NanoDetailsPage(): JSX.Element {
               {latestPendingComment && (
                 <section className="rounded-md border border-warning-200 bg-warning-50 p-4 text-sm text-neutral-700">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="font-semibold text-neutral-900">{t("nano_details_comment_pending_preview_title")}</h3>
+                    <h3 className="font-semibold text-neutral-900">
+                      {getCommentPreviewTitle(latestPendingComment.moderationStatus, t)}
+                    </h3>
                     <span
                       className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${getFeedbackStatusClasses(latestPendingComment.moderationStatus)}`}
                     >

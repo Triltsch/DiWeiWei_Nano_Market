@@ -600,8 +600,18 @@ class ModeratorQueueListResponse(BaseModel):
 
     Attributes:
         nanos: List of Nano items pending review
+        pending_ratings: List of rating items pending feedback moderation
+        pending_comments: List of comment items pending feedback moderation
         pagination: Pagination metadata
     """
 
     nanos: list[ModeratorQueueItem] = Field(..., description="List of Nano items pending review")
+    pending_ratings: list[NanoRatingModerationItem] = Field(
+        default_factory=list,
+        description="List of pending rating moderation items",
+    )
+    pending_comments: list[NanoCommentItem] = Field(
+        default_factory=list,
+        description="List of pending comment moderation items",
+    )
     pagination: PaginationMeta = Field(..., description="Pagination metadata")

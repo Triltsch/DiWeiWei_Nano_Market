@@ -22,9 +22,12 @@ from sqlalchemy import select
 
 from app.models import (
     CompetencyLevel,
+    FeedbackModerationStatus,
     LicenseType,
     Nano,
+    NanoComment,
     NanoFormat,
+    NanoRating,
     NanoStatus,
     User,
     UserRole,
@@ -288,6 +291,50 @@ class TestModerationQueueContent:
         matching = [n for n in nanos if n["nano_id"] == str(nano.id)]
         assert len(matching) == 1
         assert matching[0]["creator_username"]
+
+    @pytest.mark.asyncio
+    async def test_queue_includes_pending_feedback_items(
+        self, async_client, db_session, verified_user_id, moderator_token
+    ):
+        """
+        Pending ratings and comments are included in moderation queue response.
+
+        Validates:
+        - 'pending_ratings' contains pending entries
+        - 'pending_comments' contains pending entries
+        """
+        nano = _make_pending_nano(verified_user_id, title="Feedback Queue Nano")
+        db_session.add(nano)
+        await db_session.flush()
+
+        pending_rating = NanoRating(
+            id=uuid.uuid4(),
+            nano_id=nano.id,
+            user_id=verified_user_id,
+            score=4,
+            moderation_status=FeedbackModerationStatus.PENDING,
+        )
+        pending_comment = NanoComment(
+            id=uuid.uuid4(),
+            nano_id=nano.id,
+            user_id=verified_user_id,
+            content="Queue me for moderation.",
+            moderation_status=FeedbackModerationStatus.PENDING,
+        )
+        db_session.add_all([pending_rating, pending_comment])
+        await db_session.commit()
+
+        response = await async_client.get(
+            "/api/v1/nanos/pending-moderation",
+            headers={"Authorization": f"Bearer {moderator_token}"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        rating_ids = [rating["rating_id"] for rating in data["pending_ratings"]]
+        comment_ids = [comment["comment_id"] for comment in data["pending_comments"]]
+        assert str(pending_rating.id) in rating_ids
+        assert str(pending_comment.id) in comment_ids
 
 
 # ---------------------------------------------------------------------------
