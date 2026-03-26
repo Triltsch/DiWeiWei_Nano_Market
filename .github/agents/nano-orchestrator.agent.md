@@ -72,9 +72,35 @@ Orchestrate the following stages in order:
 
 - Follow `04_nano_merge.prompt.md` intent:
   - read PR details/comments via MCP/tooling
-  - merge PR into `main`
+  - **Pre-merge conflict check** (before attempting merge):
+    - Query `mergeable` and `mergeStateStatus` on the PR via `gh pr view <N> --json mergeable,mergeStateStatus`.
+    - If the PR is `CONFLICTED`:
+      1. `git fetch origin main`
+      2. `git checkout <branch>`
+      3. `git merge origin/main`
+      4. Inspect conflicting files, resolve them (edit to keep correct changes), stage and commit the resolution.
+      5. Push the resolved branch and re-verify PR is now `MERGEABLE`.
+      6. If the conflict cannot be resolved automatically (e.g., conflicting semantic changes), stop and report exact conflicting files and a recovery hint.
+    - Only proceed with merge once PR status is `MERGEABLE`.
+  - merge PR into `main` (squash)
   - delete remote development branch
   - switch local to `main` and sync
+
+### Stage 5 — Post-merge CI verification
+
+- After the merge commit reaches `main`, poll CI status:
+  - Use `gh run list --branch main --limit 1 --json status,conclusion,databaseId` every 30 seconds.
+  - Wait until the run is no longer `in_progress` / `queued`, or until a 10-minute timeout.
+- If CI passes: report success and finish.
+- If CI fails:
+  1. Retrieve failure details: `gh run view <id> --log-failed`
+  2. Diagnose the root cause (test failure, import error, type error, etc.).
+  3. Fix the failing code directly on `main` (small targeted hotfix commits only).
+  4. Push the fix and wait for the next CI run to verify.
+  5. Repeat up to 2 attempts. If still failing after 2 fix attempts, stop with status `blocked` and report:
+     - exact failing tests / error messages
+     - files that may need manual review
+     - recovery action for the user
 
 ## Input parsing
 
@@ -89,4 +115,5 @@ Always include:
 - Stage-by-stage status (completed/skipped/blocked)
 - Branch + commit/PR references created or used
 - Validation summary (`Checks`, `Test: Verified`)
+- Post-merge CI status on `main`
 - Any manual actions required from the user

@@ -24,7 +24,13 @@ Execute the following stages in sequence:
    - Condition: new review/comments from Copilot reviewer are available
    - Timeout: 30 minutes (then stop as blocked with recovery hint)
 4. Address PR review comments (equivalent to `03_nano_review`)
-5. Merge and clean up branch (equivalent to `04_nano_merge`)
+5. Merge and clean up branch (equivalent to `04_nano_merge`), with two sub-steps:
+   a. **Conflict check**: Before merging, verify PR `mergeable` status. If `CONFLICTED`, resolve via `git merge origin/main`, fix conflicting files, commit and push. Abort and report if non-resolvable.
+   b. Merge once `MERGEABLE`, delete remote branch, sync local `main`.
+6. Post-merge CI verification:
+   - Poll CI status on `main` every 30 seconds (timeout: 10 minutes).
+   - If CI fails: diagnose via `gh run view --log-failed`, apply targeted hotfix commits, re-verify.
+   - If still failing after 2 fix attempts: stop as `blocked` and report exact failures and recovery action.
 
 # Approval gates
 
@@ -35,4 +41,5 @@ Execute the following stages in sequence:
 
 - Show stage status and key artifacts (branch, commits, PR number)
 - Show checks/tests outcomes (`Checks`, `Test: Verified`)
+- Show post-merge CI status on `main`
 - Show blockers and exact next step if workflow cannot continue
