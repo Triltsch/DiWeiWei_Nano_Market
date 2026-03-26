@@ -152,7 +152,6 @@ Runbooks: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md) | [doc/FEEDBACK_OBS
 - `GET /api/v1/chats` – List chat sessions for current user (optional `nano_id` filter)
 
 ### Planned / In Progress (Sprint 7)
-- Chat Session API ([#100](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/100))
 - Chat Message Persistence + Polling API ([#101](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/101))
 - Chat Transport Security Baseline ([#102](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/102))
 - Frontend Chat UI mit Polling ([#103](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/103))

@@ -77,9 +77,19 @@ def get_chat_router(prefix: str = "/api/v1/chats", tags: list[str] | None = None
             UUID | None,
             Query(description="Optional Nano filter for sessions"),
         ] = None,
+        page: Annotated[
+            int,
+            Query(ge=1, description="Page number"),
+        ] = 1,
+        limit: Annotated[
+            int,
+            Query(ge=1, le=200, description="Maximum results per page"),
+        ] = 50,
         db: AsyncSession = Depends(get_db),
     ) -> ChatSessionListResponse:
         """Return chat sessions where current user is creator or participant."""
-        return await list_chat_sessions(db=db, current_user=token_data, nano_id=nano_id)
+        return await list_chat_sessions(
+            db=db, current_user=token_data, nano_id=nano_id, page=page, limit=limit
+        )
 
     return router

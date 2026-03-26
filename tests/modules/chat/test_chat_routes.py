@@ -197,6 +197,63 @@ class TestChatSessionRoutes:
         assert response.status_code == 200
         payload = response.json()
         assert payload["success"] is True
-        assert payload["meta"]["total"] == 1
+        assert payload["meta"]["total_results"] == 1
         assert payload["data"][0]["session_id"] == str(session_for_participant.id)
         assert payload["data"][0]["counterpart_user_id"] == str(creator.id)
+
+    @pytest.mark.asyncio
+    async def test_list_chat_sessions_filters_by_nano_id(self, async_client, db_session):
+        """
+        GET /api/v1/chats?nano_id=... returns only sessions for the given Nano.
+
+        Creates two sessions for the same participant across two different Nanos, then
+        queries with nano_id filter.  Expects exactly one result and meta.nano_filter_applied=True.
+        """
+        creator = await self._create_user(
+            db_session,
+            "chat-nanofilter-creator@example.com",
+            "chat_nanofilter_creator",
+            role="creator",
+        )
+        participant = await self._create_user(
+            db_session,
+            "chat-nanofilter-participant@example.com",
+            "chat_nanofilter_participant",
+            role="creator",
+        )
+
+        nano_a = await self._create_published_nano(db_session, creator.id)
+        nano_b = await self._create_published_nano(db_session, creator.id)
+
+        session_a = ChatSession(
+            nano_id=nano_a.id,
+            creator_id=creator.id,
+            participant_user_id=participant.id,
+        )
+        session_b = ChatSession(
+            nano_id=nano_b.id,
+            creator_id=creator.id,
+            participant_user_id=participant.id,
+        )
+        db_session.add(session_a)
+        db_session.add(session_b)
+        await db_session.commit()
+
+        participant_token, _ = create_access_token(
+            participant.id,
+            participant.email,
+            role="creator",
+        )
+
+        # Query with nano_id filter — should return only session_a.
+        response = await async_client.get(
+            f"/api/v1/chats?nano_id={nano_a.id}",
+            headers={"Authorization": f"Bearer {participant_token}"},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["success"] is True
+        assert payload["meta"]["total_results"] == 1
+        assert payload["meta"]["nano_filter_applied"] is True
+        assert payload["data"][0]["session_id"] == str(session_a.id)

@@ -35,10 +35,15 @@ class ChatSessionCreateResponse(BaseModel):
 
 
 class ChatSessionListMeta(BaseModel):
-    """Metadata for session listing."""
+    """Metadata for session listing with pagination info."""
 
-    total: int = Field(ge=0, description="Number of sessions returned")
+    total_results: int = Field(ge=0, description="Total number of matching sessions")
     nano_filter_applied: bool = Field(description="Whether nano_id filter was applied")
+    current_page: int = Field(ge=1, description="Current page number")
+    page_size: int = Field(ge=1, description="Maximum results per page")
+    total_pages: int = Field(ge=0, description="Total number of pages")
+    has_next_page: bool = Field(description="Whether a next page exists")
+    has_prev_page: bool = Field(description="Whether a previous page exists")
 
 
 class ChatSessionListResponse(BaseModel):

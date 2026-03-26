@@ -45,6 +45,7 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 ## Backend/API (Datenintegrität, Fehler, Security)
 
 - DB-Constraints und Service-Guards kombinieren (z. B. `UNIQUE` + 409-Precheck + `IntegrityError`-Handling).
+- `IntegrityError` bei konkurrenten Creates abfangen: nach `rollback()` die bereits existierende Zeile re-selecten und mit `reused=True` returnen (Race-Condition-Resilienz für idempotente Create-or-Get Semantik).
 - Für "create-or-reuse" Endpunkte HTTP-Semantik explizit halten (`201` bei Neuanlage, `200` bei Reuse).
 - Bei paarweiser Session-Identität Teilnehmerreihenfolge deterministisch normalisieren, damit Eindeutigkeit robust bleibt.
 - Denormalisierte Aggregatfelder zentral und konsistent neu berechnen.
@@ -83,6 +84,14 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - Runtime-Pfade (Root-Redirects, API-Bases) über Umgebungsvariablen steuern.
 - Alembic-Recovery bei inkonsistentem Local-State klar durchführen (`stamp base` → `upgrade head`).
 - Enum-Migrationen in PostgreSQL in korrekter Reihenfolge durchführen (Type anlegen/nutzen/droppen).
+- Jedes neue SQLAlchemy-Modell braucht eine Alembic-Migration. Tests mit `Base.metadata.create_all` maskieren fehlende Migrationen – deployed Umgebungen scheitern beim ersten API-Aufruf.
+- `nano_id`-Filter-Queryparameter und `meta.nano_filter_applied` in Tests explizit testen, nicht nur den Abwesenheits-Fall.
+
+## MCP / Tooling
+
+- `mcp_github_pull_request_read` ist kein gültiger Tool-Name des offiziellen GitHub MCP Servers. Die korrekten Toolnamen des Servers `https://api.githubcopilot.com/mcp/` lauten z. B. `mcp_github_get_pull_request`, `mcp_github_get_pull_request_reviews`, `mcp_github_get_pull_request_review_comments`, `mcp_github_get_pull_request_comments`.
+- MCP-Tools müssen zur Laufzeit vom MCP-Server registriert werden. Ein Eintrag in `tools:` im Agent-Frontmatter erlaubt nur die Nutzung – er registriert das Tool nicht.
+- Wenn MCP-Tools nicht aufrufbar sind, `github-pull-request_activePullRequest` und `gh pr view/api` als Fallback verwenden, aber stets im Report ausweisen, welcher Pfad genutzt wurde.
 
 ## Tests, QA, Doku, Review
 

@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ChatSession, Nano, NanoStatus
@@ -82,8 +83,19 @@ async def create_or_get_chat_session(
         participant_user_id=current_user.user_id,
     )
     db.add(new_session)
-    await db.commit()
-    await db.refresh(new_session)
+    try:
+        await db.commit()
+        await db.refresh(new_session)
+    except IntegrityError:
+        # Concurrent request already created the session; rollback and return the existing one.
+        await db.rollback()
+        race_session = (await db.execute(session_query)).scalar_one()
+        return ChatSessionCreateResponse(
+            success=True,
+            data=_to_session_data(race_session, current_user.user_id),
+            meta={"reused": True},
+            timestamp=now,
+        )
 
     return ChatSessionCreateResponse(
         success=True,
@@ -98,8 +110,10 @@ async def list_chat_sessions(
     db: AsyncSession,
     current_user: TokenData,
     nano_id: UUID | None = None,
+    page: int = 1,
+    limit: int = 50,
 ) -> ChatSessionListResponse:
-    """List chat sessions where current user is one of the participants."""
+    """List chat sessions where current user is one of the participants (paginated)."""
     filters = [
         or_(
             ChatSession.creator_id == current_user.user_id,
@@ -109,17 +123,34 @@ async def list_chat_sessions(
     if nano_id is not None:
         filters.append(ChatSession.nano_id == nano_id)
 
+    count_query = select(func.count()).select_from(
+        select(ChatSession.id).where(and_(*filters)).subquery()
+    )
+    total_results = (await db.execute(count_query)).scalar_one()
+
+    offset = (page - 1) * limit
     query = (
         select(ChatSession)
         .where(and_(*filters))
         .order_by(ChatSession.updated_at.desc(), ChatSession.created_at.desc())
+        .offset(offset)
+        .limit(limit)
     )
 
     rows = (await db.execute(query)).scalars().all()
+    total_pages = (total_results + limit - 1) // limit if limit > 0 else 1
     now = datetime.now(timezone.utc)
     return ChatSessionListResponse(
         success=True,
         data=[_to_session_data(session, current_user.user_id) for session in rows],
-        meta=ChatSessionListMeta(total=len(rows), nano_filter_applied=nano_id is not None),
+        meta=ChatSessionListMeta(
+            total_results=total_results,
+            nano_filter_applied=nano_id is not None,
+            current_page=page,
+            page_size=limit,
+            total_pages=total_pages,
+            has_next_page=page < total_pages,
+            has_prev_page=page > 1,
+        ),
         timestamp=now,
     )
