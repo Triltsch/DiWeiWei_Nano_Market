@@ -18,6 +18,7 @@ from app.main import create_app
 from app.models import Base, User
 from app.modules.auth.service import verify_user_email
 from app.redis_client import close_redis, get_redis
+from app.security.middleware import TLSRedirectMiddleware, parse_csv_values
 
 
 def pytest_configure(config):
@@ -188,6 +189,15 @@ def app(db_session, mock_redis, mock_minio_storage):
         allow_headers=["*"],
     )
 
+    enforce_tls = settings.SECURITY_ENFORCE_TLS or settings.ENV == "production"
+    if settings.SECURITY_TLS_REDIRECT_INSECURE:
+        app.add_middleware(
+            TLSRedirectMiddleware,
+            enabled=enforce_tls,
+            protected_path_prefixes=parse_csv_values(settings.SECURITY_TLS_PROTECTED_PATHS),
+            trusted_proxies=set(parse_csv_values(settings.SECURITY_TRUSTED_PROXIES)),
+        )
+
     # Include routers
     app.include_router(get_auth_router())
     app.include_router(get_audit_router())
@@ -213,6 +223,19 @@ def app(db_session, mock_redis, mock_minio_storage):
     app.dependency_overrides[get_db] = override_get_db
     yield app
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiters():
+    """Reset endpoint rate limiters between tests to avoid cross-test leakage."""
+    from app.modules.auth.router import LOGIN_RATE_LIMITER
+    from app.modules.chat.router import CHAT_MESSAGE_RATE_LIMITER
+
+    LOGIN_RATE_LIMITER.reset()
+    CHAT_MESSAGE_RATE_LIMITER.reset()
+    yield
+    LOGIN_RATE_LIMITER.reset()
+    CHAT_MESSAGE_RATE_LIMITER.reset()
 
 
 @pytest.fixture(autouse=True)

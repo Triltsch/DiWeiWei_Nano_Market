@@ -51,6 +51,17 @@ class Settings(BaseSettings):
     # Session settings
     SESSION_TIMEOUT_MINUTES: int = 30
 
+    # Transport security and endpoint abuse protection
+    SECURITY_ENFORCE_TLS: bool = False
+    SECURITY_TLS_REDIRECT_INSECURE: bool = True
+    SECURITY_TLS_PROTECTED_PATHS: str = "/api/v1/chats,/api/v1/auth/login"
+    SECURITY_TRUSTED_PROXIES: str = "127.0.0.1,::1"
+    SECURITY_ALLOWED_HOSTS: str = ""
+    RATE_LIMIT_LOGIN_MAX_REQUESTS: int = 10
+    RATE_LIMIT_LOGIN_WINDOW_SECONDS: int = 60
+    RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS: int = 30
+    RATE_LIMIT_CHAT_MESSAGE_WINDOW_SECONDS: int = 60
+
     # MinIO settings
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"

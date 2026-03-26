@@ -16,6 +16,7 @@ from app.modules.search.router import get_search_router
 from app.modules.upload.router import get_upload_router
 from app.monitoring import configure_monitoring
 from app.redis_client import check_redis_health, close_redis, get_redis
+from app.security.middleware import TLSRedirectMiddleware, parse_csv_values
 
 settings = get_settings()
 
@@ -60,6 +61,16 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    enforce_tls = settings.SECURITY_ENFORCE_TLS or settings.ENV == "production"
+    if settings.SECURITY_TLS_REDIRECT_INSECURE:
+        app.add_middleware(
+            TLSRedirectMiddleware,
+            enabled=enforce_tls,
+            protected_path_prefixes=parse_csv_values(settings.SECURITY_TLS_PROTECTED_PATHS),
+            trusted_proxies=set(parse_csv_values(settings.SECURITY_TRUSTED_PROXIES)),
+            allowed_hosts=frozenset(parse_csv_values(settings.SECURITY_ALLOWED_HOSTS)),
+        )
 
     # Include routers
     app.include_router(get_auth_router())
