@@ -75,16 +75,8 @@ interface RawChatSession {
   last_message_at?: unknown;
 }
 
-interface RawChatSessionData {
-  session_id?: unknown;
-  nano_id?: unknown;
-  creator_id?: unknown;
-  participant_user_id?: unknown;
-  counterpart_user_id?: unknown;
-  created_at?: unknown;
-  updated_at?: unknown;
-  last_message_at?: unknown;
-}
+/** @deprecated Use RawChatSession directly; kept as alias for backward source compatibility. */
+type RawChatSessionData = RawChatSession;
 
 interface RawChatSessionResponse {
   data?: unknown;
@@ -118,14 +110,8 @@ interface RawChatMessage {
   updated_at?: unknown;
 }
 
-interface RawChatMessageData {
-  message_id?: unknown;
-  session_id?: unknown;
-  sender_id?: unknown;
-  content?: unknown;
-  created_at?: unknown;
-  updated_at?: unknown;
-}
+/** @deprecated Use RawChatMessage directly; kept as alias for backward source compatibility. */
+type RawChatMessageData = RawChatMessage;
 
 interface RawChatMessageResponse {
   data?: unknown;

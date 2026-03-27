@@ -62,12 +62,20 @@ async def create_or_get_chat_session(
     # For participants: find where they are the participant
     # For creators: find where they are the creator
     if nano.creator_id == current_user.user_id:
-        # Creator: look for sessions where they are the creator of this nano
-        session_query = select(ChatSession).where(
-            and_(
-                ChatSession.nano_id == nano.id,
-                ChatSession.creator_id == current_user.user_id,
+        # Creator: look for sessions where they are the creator of this nano.
+        # A creator can have multiple sessions for the same nano (unique constraint
+        # is per nano + creator + participant). Use order_by + limit(1) to ensure
+        # a deterministic single-row result and avoid MultipleResultsFound.
+        session_query = (
+            select(ChatSession)
+            .where(
+                and_(
+                    ChatSession.nano_id == nano.id,
+                    ChatSession.creator_id == current_user.user_id,
+                )
             )
+            .order_by(ChatSession.updated_at.desc())
+            .limit(1)
         )
     else:
         # Participant: look for sessions where they are the participant
@@ -78,7 +86,7 @@ async def create_or_get_chat_session(
                 ChatSession.participant_user_id == current_user.user_id,
             )
         )
-    
+
     existing_session = (await db.execute(session_query)).scalar_one_or_none()
 
     # If no session exists and user is the creator, they cannot create a new one

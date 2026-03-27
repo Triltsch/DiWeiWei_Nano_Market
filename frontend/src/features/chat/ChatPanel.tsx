@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import {
   createChatSession,
@@ -62,6 +62,53 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
 
   const [messageDraft, setMessageDraft] = useState("");
   const [retryVersion, setRetryVersion] = useState(0);
+
+  /**
+   * Loads messages for a session, deduplicates against existing messages, and
+   * advances the polling cursor (lastMessageTimeRef). Wrapped in useCallback so
+   * that effects referencing it receive a stable identity when their deps hold.
+   */
+  const loadMessages = useCallback(async (sessionId: string, since: string | null): Promise<void> => {
+    try {
+      const response = await getChatMessages(sessionId, since || undefined, 1, MESSAGE_PAGE_SIZE);
+
+      if (!isActiveMountRef.current) {
+        return;
+      }
+
+      if (response.messages.length > 0) {
+        setState((prev) => {
+          const knownIds = new Set(prev.messages.map((message) => message.messageId));
+          const newMessages = response.messages.filter((message) => !knownIds.has(message.messageId));
+          const mergedMessages = newMessages.length > 0 ? [...prev.messages, ...newMessages] : prev.messages;
+          const nextLastMessageTime = mergedMessages[mergedMessages.length - 1]?.createdAt ?? prev.lastMessageTime;
+
+          lastMessageTimeRef.current = nextLastMessageTime;
+
+          return {
+            ...prev,
+            messages: mergedMessages,
+            lastMessageTime: nextLastMessageTime,
+            error: null,
+          };
+        });
+      }
+    } catch (error) {
+      if (!isActiveMountRef.current) {
+        return;
+      }
+
+      // Don't show error for polling failures - just log silently
+      if (error instanceof ChatApiError && error.code === "unauthorized") {
+        if (onUnauthorized) {
+          onUnauthorized();
+          return;
+        }
+
+        setState((prev) => ({ ...prev, error: t("auth_error_unauthorized") }));
+      }
+    }
+  }, [onUnauthorized, t]);
 
   // Initialize session on mount
   useEffect(() => {
@@ -164,7 +211,7 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
         pollIntervalRef.current = null;
       }
     };
-  }, [nanoId, onUnauthorized, retryVersion, t]);
+  }, [nanoId, onUnauthorized, retryVersion, t, loadMessages]);
 
   // Polling effect
   useEffect(() => {
@@ -198,7 +245,7 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
         pollIntervalRef.current = null;
       }
     };
-  }, [state.loading, state.session]);
+  }, [state.loading, state.session, loadMessages]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -206,48 +253,6 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   }, [state.messages]);
-
-  const loadMessages = async (sessionId: string, since: string | null): Promise<void> => {
-    try {
-      const response = await getChatMessages(sessionId, since || undefined, 1, MESSAGE_PAGE_SIZE);
-
-      if (!isActiveMountRef.current) {
-        return;
-      }
-
-      if (response.messages.length > 0) {
-        setState((prev) => {
-          const knownIds = new Set(prev.messages.map((message) => message.messageId));
-          const newMessages = response.messages.filter((message) => !knownIds.has(message.messageId));
-          const mergedMessages = newMessages.length > 0 ? [...prev.messages, ...newMessages] : prev.messages;
-          const nextLastMessageTime = mergedMessages[mergedMessages.length - 1]?.createdAt ?? prev.lastMessageTime;
-
-          lastMessageTimeRef.current = nextLastMessageTime;
-
-          return {
-            ...prev,
-            messages: mergedMessages,
-            lastMessageTime: nextLastMessageTime,
-            error: null,
-          };
-        });
-      }
-    } catch (error) {
-      if (!isActiveMountRef.current) {
-        return;
-      }
-
-      // Don't show error for polling failures - just log silently
-      if (error instanceof ChatApiError && error.code === "unauthorized") {
-        if (onUnauthorized) {
-          onUnauthorized();
-          return;
-        }
-
-        setState((prev) => ({ ...prev, error: t("auth_error_unauthorized") }));
-      }
-    }
-  };
 
   const handleSendMessage = async (): Promise<void> => {
     if (!state.session) {
@@ -275,12 +280,18 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
         return;
       }
 
-      setState((prev) => ({
-        ...prev,
-        messages: [...prev.messages, response.message],
-        lastMessageTime: response.message.createdAt,
-        isSubmitting: false,
-      }));
+      setState((prev) => {
+        // Keep the polling cursor ref in sync with the latest sent message so
+        // the next poll only fetches messages after this one.
+        lastMessageTimeRef.current = response.message.createdAt;
+
+        return {
+          ...prev,
+          messages: [...prev.messages, response.message],
+          lastMessageTime: response.message.createdAt,
+          isSubmitting: false,
+        };
+      });
 
       setMessageDraft("");
     } catch (error) {
@@ -455,16 +466,20 @@ function getErrorMessage(error: ChatApiError, t: (key: TranslationKey) => string
 }
 
 function formatMessageTime(timestamp: string): string {
-  try {
-    const date = new Date(timestamp);
-    return date.toLocaleString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-  } catch {
+  const date = new Date(timestamp);
+
+  // Guard against invalid date inputs: new Date() does not throw, but produces
+  // an invalid Date whose time value is NaN. Return an empty string to avoid
+  // showing "Invalid Date" to users.
+  if (Number.isNaN(date.getTime())) {
     return "";
   }
+
+  return date.toLocaleString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 }
