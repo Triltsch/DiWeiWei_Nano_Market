@@ -1,5 +1,5 @@
 ---
-name: 00_nano_sprint_planning
+name: 10_nano_sprint_planning
 description: Plane den nächsten Sprint auf Basis von Backlog und Architektur und lege dafür GitHub-Issues an
 agent: agent
 ---

@@ -118,4 +118,10 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - Sind Service-Regeln, Ownership, Status-Transitionen und Audit vollständig?
 - Spiegelt das Test-Setup die produktive App-Struktur?
 - Sind Cache-/Search-Invalidierung und degraded Fallbacks abgedeckt?
+
+## Chat UI (Frontend)
+
+- Absender-Labels in Chat-Nachrichten rollenbasiert auflösen: `senderId === user?.id` → „Ich", `senderId === session.creatorId` → Verkäufer-Label, sonst → Käufer-Label. Niemals ein einzelnes Fallback-Label für alle Absender hardcoden.
+- Wenn ein Creator `POST /chats` aufruft, liefert das Backend 403, da Creator keine neue Session initiieren kann. Das Frontend muss in diesem Fall auf `GET /chats?nano_id=...` (listChatSessions) zurückfallen, um eine vorhandene Session zu finden. Ist keine vorhanden, „Warte auf ersten Teilnehmer"-State anzeigen statt Fehler.
+- Chat-Session-Abfragen im Backend müssen rollenbasiert sein: Creator → `WHERE creator_id = current_user.id`, Teilnehmer → `WHERE participant_user_id = current_user.id AND creator_id = nano.creator_id`.
 - Sind Docker-/Env-/CORS-/URL-Pfade korrekt?

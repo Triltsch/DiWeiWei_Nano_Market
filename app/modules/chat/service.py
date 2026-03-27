@@ -58,20 +58,35 @@ async def create_or_get_chat_session(
             detail="Published Nano not found",
         )
 
+    # Try to find an existing session for this nano
+    # For participants: find where they are the participant
+    # For creators: find where they are the creator
     if nano.creator_id == current_user.user_id:
+        # Creator: look for sessions where they are the creator of this nano
+        session_query = select(ChatSession).where(
+            and_(
+                ChatSession.nano_id == nano.id,
+                ChatSession.creator_id == current_user.user_id,
+            )
+        )
+    else:
+        # Participant: look for sessions where they are the participant
+        session_query = select(ChatSession).where(
+            and_(
+                ChatSession.nano_id == nano.id,
+                ChatSession.creator_id == nano.creator_id,
+                ChatSession.participant_user_id == current_user.user_id,
+            )
+        )
+    
+    existing_session = (await db.execute(session_query)).scalar_one_or_none()
+
+    # If no session exists and user is the creator, they cannot create a new one
+    if existing_session is None and nano.creator_id == current_user.user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Creators cannot open a chat with themselves",
+            detail="Creators cannot initiate a chat session with themselves",
         )
-
-    session_query = select(ChatSession).where(
-        and_(
-            ChatSession.nano_id == nano.id,
-            ChatSession.creator_id == nano.creator_id,
-            ChatSession.participant_user_id == current_user.user_id,
-        )
-    )
-    existing_session = (await db.execute(session_query)).scalar_one_or_none()
 
     now = datetime.now(timezone.utc)
     if existing_session is not None:
