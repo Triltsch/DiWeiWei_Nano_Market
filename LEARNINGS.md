@@ -41,6 +41,7 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - Optional-Auth im Router verwenden, finale Zugriffsentscheidung zentral im Service treffen.
 - Öffentliche APIs nur freigegebene Inhalte zeigen; Moderations-/Pending-Reads separat modellieren.
 - Nach Content-Updates Moderationsstatus auf `pending` zurücksetzen und Moderationsmetadaten bereinigen.
+- Bei Self-Service-Profilupdates muss das Response-Schema alle updatebaren Felder enthalten (z. B. `company`, `job_title`, `phone`), sonst brechen API-Vertrag und Integrationstests trotz erfolgreichem Write.
 
 ## Backend/API (Datenintegrität, Fehler, Security)
 
