@@ -46,6 +46,7 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 ## Backend/API (Datenintegrität, Fehler, Security)
 
 - DB-Constraints und Service-Guards kombinieren (z. B. `UNIQUE` + 409-Precheck + `IntegrityError`-Handling).
+- Für Admin-Takedown-Flows eine dedizierte Admin-Endpoint-Semantik statt generischer Status-Updates nutzen: idempotente Wiederholung (`already_removed`), strukturierte Audit-Metadaten (`operation`, Grund, Actor, Zeitstempel) und explizite Cache-Invalidierung sichern Nachvollziehbarkeit und konsistente öffentliche Unsichtbarkeit.
 - `IntegrityError` bei konkurrenten Creates abfangen: nach `rollback()` die bereits existierende Zeile re-selecten und mit `reused=True` returnen (Race-Condition-Resilienz für idempotente Create-or-Get Semantik).
 - Für "create-or-reuse" Endpunkte HTTP-Semantik explizit halten (`201` bei Neuanlage, `200` bei Reuse).
 - Bei paarweiser Session-Identität Teilnehmerreihenfolge deterministisch normalisieren, damit Eindeutigkeit robust bleibt.

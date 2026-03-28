@@ -497,6 +497,37 @@ class StatusUpdateResponse(BaseModel):
     archived_at: Optional[datetime] = Field(None, description="Archive timestamp")
 
 
+class AdminTakedownRequest(BaseModel):
+    """Request payload for an admin-only takedown action."""
+
+    reason: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="Required takedown reason stored for auditability",
+    )
+    note: Optional[str] = Field(
+        None,
+        max_length=1000,
+        description="Optional operator note for internal follow-up",
+    )
+
+
+class AdminTakedownResponse(BaseModel):
+    """Response payload for an admin takedown action."""
+
+    nano_id: UUID = Field(..., description="Unique identifier of the affected Nano")
+    old_status: str = Field(..., description="Status before the takedown action")
+    new_status: str = Field(..., description="Status after the takedown action")
+    already_removed: bool = Field(
+        ...,
+        description="True when the Nano was already out of public visibility before this request",
+    )
+    takedown_reason: str = Field(..., description="Normalized takedown reason captured for audit")
+    taken_down_at: datetime = Field(..., description="Timestamp of the processed takedown action")
+    message: str = Field(..., description="Human-readable result message")
+
+
 class CreatorNanoListItem(BaseModel):
     """
     Response schema for a Nano item in creator's dashboard list.
