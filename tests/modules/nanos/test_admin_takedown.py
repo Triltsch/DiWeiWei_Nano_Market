@@ -22,7 +22,9 @@ from app.models import (
     Nano,
     NanoFormat,
     NanoStatus,
+    User,
 )
+from app.modules.auth.service import verify_user_email
 
 
 def _make_nano(*, creator_id: UUID, status: NanoStatus, title: str) -> Nano:
@@ -41,6 +43,34 @@ def _make_nano(*, creator_id: UUID, status: NanoStatus, title: str) -> Nano:
         license=LicenseType.CC_BY,
         file_storage_path="nanos/takedown-test.zip",
     )
+
+
+async def _create_verified_user_with_token(async_client, db_session) -> tuple[User, str]:
+    """Create a unique verified non-admin user and return (user, access_token)."""
+    register_payload = {
+        "email": f"takedown_{uuid.uuid4().hex[:8]}@example.com",
+        "username": f"takedown_{uuid.uuid4().hex[:8]}",
+        "password": "SecurePassword123!",
+        "accept_terms": True,
+        "accept_privacy": True,
+    }
+
+    register_response = await async_client.post("/api/v1/auth/register", json=register_payload)
+    assert register_response.status_code == 201
+    user_id = UUID(register_response.json()["id"])
+
+    await verify_user_email(db_session, user_id)
+
+    user_stmt = select(User).where(User.id == user_id)
+    user = (await db_session.execute(user_stmt)).scalar_one()
+
+    login_response = await async_client.post(
+        "/api/v1/auth/login",
+        json={"email": register_payload["email"], "password": register_payload["password"]},
+    )
+    assert login_response.status_code == 200
+
+    return user, login_response.json()["access_token"]
 
 
 @pytest.mark.asyncio
@@ -64,9 +94,12 @@ async def test_admin_takedown_requires_authentication(async_client, db_session, 
 
 @pytest.mark.asyncio
 async def test_admin_takedown_forbids_non_admin(
-    async_client, db_session, verified_user, access_token
+    async_client,
+    db_session,
 ):
     """Authenticated non-admin users must receive 403 Forbidden."""
+    verified_user, access_token = await _create_verified_user_with_token(async_client, db_session)
+
     nano = _make_nano(
         creator_id=verified_user.id,
         status=NanoStatus.PUBLISHED,
@@ -88,11 +121,12 @@ async def test_admin_takedown_forbids_non_admin(
 async def test_admin_takedown_archives_published_nano_blocks_public_and_logs_audit(
     async_client,
     db_session,
-    verified_user,
     admin_user,
     admin_token,
 ):
     """Published content must be removed from public flow and recorded in audit logs."""
+    verified_user, _ = await _create_verified_user_with_token(async_client, db_session)
+
     nano = _make_nano(
         creator_id=verified_user.id,
         status=NanoStatus.PUBLISHED,
@@ -147,10 +181,11 @@ async def test_admin_takedown_archives_published_nano_blocks_public_and_logs_aud
 async def test_admin_takedown_is_deterministic_for_already_removed_content(
     async_client,
     db_session,
-    verified_user,
     admin_token,
 ):
     """Repeated takedowns on non-public content should return a stable no-op result."""
+    verified_user, _ = await _create_verified_user_with_token(async_client, db_session)
+
     nano = _make_nano(
         creator_id=verified_user.id,
         status=NanoStatus.ARCHIVED,
@@ -190,10 +225,11 @@ async def test_admin_takedown_is_deterministic_for_already_removed_content(
 async def test_admin_takedown_rejects_whitespace_only_reason(
     async_client,
     db_session,
-    verified_user,
     admin_token,
 ):
     """Whitespace-only takedown reasons must be rejected with validation error."""
+    verified_user, _ = await _create_verified_user_with_token(async_client, db_session)
+
     nano = _make_nano(
         creator_id=verified_user.id,
         status=NanoStatus.PUBLISHED,

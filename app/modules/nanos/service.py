@@ -1341,6 +1341,9 @@ async def admin_takedown_nano(
             nano.archived_at = datetime.now(timezone.utc)
         taken_down_at = nano.archived_at
 
+    if taken_down_at.tzinfo is None:
+        taken_down_at = taken_down_at.replace(tzinfo=timezone.utc)
+
     await AuditLogger.log_action(
         session=db,
         action=AuditAction.DATA_MODIFIED,
