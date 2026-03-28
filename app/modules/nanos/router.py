@@ -21,9 +21,12 @@ from app.modules.auth.middleware import (
     get_current_user_id,
     get_optional_current_user,
     require_any_role,
+    require_role,
 )
 from app.modules.auth.tokens import TokenData
 from app.modules.nanos.schemas import (
+    AdminTakedownRequest,
+    AdminTakedownResponse,
     CreatorNanoListResponse,
     FeedbackModerationRequest,
     MetadataUpdateRequest,
@@ -45,6 +48,7 @@ from app.modules.nanos.schemas import (
     StatusUpdateResponse,
 )
 from app.modules.nanos.service import (
+    admin_takedown_nano,
     create_nano_comment,
     create_nano_rating,
     delete_nano,
@@ -887,6 +891,50 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
             message=f"Status updated from '{old_status}' to '{new_status}'",
             published_at=nano.published_at,
             archived_at=nano.archived_at,
+        )
+
+    @router.post(
+        "/{nano_id}/takedown",
+        response_model=AdminTakedownResponse,
+        status_code=status.HTTP_200_OK,
+        summary="Admin takedown for public Nano content",
+        description="""
+        Execute an admin-only takedown for a Nano.
+
+        **Requirements:**
+        - Authentication required
+        - Caller must have `admin` role
+        - `reason` is required and stored for audit trail purposes
+
+        **Behavior:**
+        - Published Nanos are moved to `archived` to remove them from public views
+        - Non-public Nanos remain unchanged and return deterministic `already_removed=true`
+        - Every request writes a structured audit event
+
+        **Error Cases:**
+        - 401: Not authenticated
+        - 403: Caller is not an admin
+        - 404: Nano not found
+        """,
+        responses={
+            200: {"description": "Takedown processed successfully"},
+            401: {"description": "Not authenticated"},
+            403: {"description": "Admin role required"},
+            404: {"description": "Nano not found"},
+        },
+    )
+    async def takedown_nano(
+        nano_id: UUID,
+        takedown_request: AdminTakedownRequest,
+        current_user: Annotated[TokenData, Depends(require_role(ROLE_ADMIN))],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> AdminTakedownResponse:
+        """Perform an admin takedown and return the action result."""
+        return await admin_takedown_nano(
+            nano_id=nano_id,
+            takedown_request=takedown_request,
+            current_user=current_user,
+            db=db,
         )
 
     @router.delete(

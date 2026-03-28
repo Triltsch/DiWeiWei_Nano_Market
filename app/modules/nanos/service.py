@@ -36,6 +36,8 @@ from app.modules.audit.service import AuditLogger
 from app.modules.auth.tokens import TokenData
 from app.modules.moderation.service import upsert_moderation_case
 from app.modules.nanos.schemas import (
+    AdminTakedownRequest,
+    AdminTakedownResponse,
     CreatorNanoListItem,
     CreatorNanoListResponse,
     FeedbackModerationRequest,
@@ -1300,6 +1302,86 @@ async def update_nano_status(
     await invalidate_search_cache(reason="nano_status_updated")
 
     return nano, old_status, new_status
+
+
+async def admin_takedown_nano(
+    nano_id: UUID,
+    takedown_request: AdminTakedownRequest,
+    current_user: TokenData,
+    db: AsyncSession,
+) -> AdminTakedownResponse:
+    """Execute an admin-only takedown for a Nano.
+
+    A takedown guarantees that the Nano is not publicly visible afterwards.
+    Repeated requests are handled deterministically and return ``already_removed=True``
+    when the Nano was already non-public.
+    """
+    stmt = select(Nano).where(Nano.id == nano_id)
+    result = await db.execute(stmt)
+    nano = result.scalar_one_or_none()
+
+    if not nano:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Nano with ID {nano_id} not found",
+        )
+
+    old_status = nano.status.value
+    already_removed = old_status != NanoStatus.PUBLISHED.value
+    new_status = old_status
+
+    if not already_removed:
+        taken_down_at = datetime.now(timezone.utc)
+        nano.status = NanoStatus.ARCHIVED
+        if nano.archived_at is None:
+            nano.archived_at = taken_down_at
+        new_status = NanoStatus.ARCHIVED.value
+    else:
+        if nano.archived_at is None:
+            nano.archived_at = datetime.now(timezone.utc)
+        taken_down_at = nano.archived_at
+
+    if taken_down_at.tzinfo is None:
+        taken_down_at = taken_down_at.replace(tzinfo=timezone.utc)
+
+    await AuditLogger.log_action(
+        session=db,
+        action=AuditAction.DATA_MODIFIED,
+        user_id=current_user.user_id,
+        resource_type="nano",
+        resource_id=str(nano_id),
+        metadata={
+            "operation": "admin_takedown",
+            "takedown_reason": takedown_request.reason,
+            "operator_note": takedown_request.note,
+            "actor_user_id": str(current_user.user_id),
+            "actor_role": current_user.role,
+            "requested_at": taken_down_at.isoformat(),
+            "old_status": old_status,
+            "new_status": new_status,
+            "already_removed": already_removed,
+        },
+    )
+
+    await db.commit()
+    await db.refresh(nano)
+    await invalidate_search_cache(reason="nano_admin_takedown")
+
+    message = (
+        "Nano was already out of public visibility; takedown action recorded"
+        if already_removed
+        else "Nano taken down and removed from public visibility"
+    )
+
+    return AdminTakedownResponse(
+        nano_id=nano.id,
+        old_status=old_status,
+        new_status=nano.status.value,
+        already_removed=already_removed,
+        takedown_reason=takedown_request.reason,
+        taken_down_at=taken_down_at,
+        message=message,
+    )
 
 
 def _validate_status_transition(nano: Nano, old_status: str, new_status: str) -> None:
