@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models import UserRole, UserStatus
 
@@ -247,6 +247,14 @@ class UserProfileUpdate(BaseModel):
     preferred_language: Optional[str] = Field(
         None, max_length=5, description="ISO 639-1 language code (e.g. 'de', 'en')"
     )
+
+    @field_validator("preferred_language")
+    @classmethod
+    def validate_preferred_language_not_null(cls, value: Optional[str]) -> Optional[str]:
+        """Allow omission, but reject an explicit null value for this non-nullable DB field."""
+        if value is None:
+            raise ValueError("preferred_language cannot be null")
+        return value
 
 
 class PasswordChangeRequest(BaseModel):

@@ -28,7 +28,7 @@ from app.redis_client import (
     is_token_blacklisted,
     store_refresh_token,
 )
-from app.schemas import TokenResponse, UserRegister, UserResponse
+from app.schemas import TokenResponse, UserProfileUpdate, UserRegister, UserResponse
 
 settings = get_settings()
 
@@ -475,7 +475,7 @@ async def get_user_profile(db_session: AsyncSession, user_id: UUID) -> UserRespo
 async def update_user_profile(
     db_session: AsyncSession,
     user_id: UUID,
-    update_data: "UserProfileUpdate",
+    update_data: UserProfileUpdate,
 ) -> UserResponse:
     """Partially update the authenticated user's profile fields.
 
@@ -494,8 +494,6 @@ async def update_user_profile(
     Raises:
         ProfileUpdateError: If the user is not found.
     """
-    from app.schemas import UserProfileUpdate  # local import to avoid circular dependency
-
     user = await get_user_by_id(db_session, user_id)
 
     if user is None:
@@ -503,13 +501,16 @@ async def update_user_profile(
 
     # Apply only those fields that were explicitly set in the request payload.
     changed_fields: list[str] = []
+    non_nullable_fields: set[str] = {"preferred_language"}
     for field_name, value in update_data.model_dump(exclude_unset=True).items():
+        if field_name in non_nullable_fields and value is None:
+            raise ProfileUpdateError(f"Field '{field_name}' cannot be null")
         setattr(user, field_name, value)
         changed_fields.append(field_name)
 
     if changed_fields:
         db_session.add(user)
-        await db_session.commit()
+        await db_session.flush()
         await db_session.refresh(user)
 
     return UserResponse.model_validate(user)
@@ -555,7 +556,7 @@ async def change_user_password(
     # Hash and persist the new password.
     user.password_hash = hash_password(new_password)
     db_session.add(user)
-    await db_session.commit()
+    await db_session.flush()
 
 
 async def logout_user(

@@ -523,17 +523,6 @@ async def resend_verification_email_endpoint(
             detail="Service temporarily unavailable. Please try again later.",
         )
 
-    except AuthenticationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
-        )
-    except OperationalError:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable. Please try again later.",
-        )
-
 
 @router.get(
     "/me",
@@ -616,19 +605,21 @@ async def update_my_profile(
     Requires authentication via Bearer token.
     """
     try:
+        updated_fields = list(update_data.model_dump(exclude_unset=True).keys())
         updated_user = await update_user_profile(db, user_id, update_data)
 
-        await AuditLogger.log_action(
-            db,
-            action=AuditAction.USER_UPDATED,
-            user_id=user_id,
-            resource_type="user",
-            resource_id=str(user_id),
-            metadata={"updated_fields": list(update_data.model_dump(exclude_unset=True).keys())},
-            ip_address=_get_client_ip(request),
-            user_agent=_get_user_agent(request),
-        )
-        await db.commit()
+        if updated_fields:
+            await AuditLogger.log_action(
+                db,
+                action=AuditAction.USER_UPDATED,
+                user_id=user_id,
+                resource_type="user",
+                resource_id=str(user_id),
+                metadata={"updated_fields": updated_fields},
+                ip_address=_get_client_ip(request),
+                user_agent=_get_user_agent(request),
+            )
+            await db.commit()
 
         return updated_user
     except ProfileUpdateError as e:
@@ -703,6 +694,11 @@ async def change_my_password(
             detail=str(e),
         )
     except AuthenticationError as e:
+        if str(e) == "User not found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e),
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),

@@ -16,8 +16,12 @@ defined in ``tests/conftest.py``.  Infrastructure (PostgreSQL, Redis) is
 provided by the ``Test: Verified`` task or via SQLite in-memory for unit runs.
 """
 
-import pytest
+from uuid import UUID
 
+import pytest
+from sqlalchemy import select
+
+from app.models import AuditAction, AuditLog
 from app.modules.auth.service import register_user, verify_user_email
 from app.schemas import UserRegister
 
@@ -440,3 +444,21 @@ class TestChangePassword:
         )
 
         assert response.status_code == 200
+
+        profile_response = client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert profile_response.status_code == 200
+        user_id = UUID(profile_response.json()["id"])
+
+        query = (
+            select(AuditLog)
+            .where(AuditLog.user_id == user_id)
+            .where(AuditLog.action == AuditAction.PASSWORD_CHANGED)
+            .order_by(AuditLog.created_at.desc())
+        )
+        result = await db_session.execute(query)
+        password_change_log = result.scalars().first()
+
+        assert password_change_log is not None
