@@ -222,6 +222,12 @@ class AuditAction(str, enum.Enum):
     DELETION_REQUESTED = "deletion_requested"
     DELETION_CONFIRMED = "deletion_confirmed"
 
+    # Moderation events (Story 6.2 — Content Review Workflow)
+    MODERATION_APPROVED = "moderation_approved"
+    MODERATION_REJECTED = "moderation_rejected"
+    MODERATION_DEFERRED = "moderation_deferred"
+    MODERATION_ESCALATED = "moderation_escalated"
+
 
 class FeedbackModerationStatus(str, enum.Enum):
     """Moderation lifecycle for ratings and comments."""
@@ -835,3 +841,150 @@ class NanoCategoryAssignment(Base):
     def __repr__(self) -> str:
         """String representation of NanoCategoryAssignment"""
         return f"<NanoCategoryAssignment(nano_id={self.nano_id}, category_id={self.category_id})>"
+
+
+# ================================
+# Moderation Domain Models (Sprint 8 — Story 6.2)
+# ================================
+
+
+class ModerationCaseStatus(str, enum.Enum):
+    """Lifecycle status of a moderation review case.
+
+    PENDING   - awaiting a moderator decision
+    APPROVED  - content was approved (made visible / published)
+    REJECTED  - content was rejected (hidden / reverted to draft)
+    DEFERRED  - decision postponed until a later date
+    ESCALATED - routed to a senior moderator or admin for further review
+    """
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    DEFERRED = "deferred"
+    ESCALATED = "escalated"
+
+
+class ModerationContentType(str, enum.Enum):
+    """Type of content tracked by a moderation case.
+
+    NANO         - a learning-content Nano in pending_review status
+    NANO_RATING  - a user star-rating awaiting feedback moderation
+    NANO_COMMENT - a user comment awaiting feedback moderation
+    FLAG         - reserved for Story 6.3 (user-reported flags); not yet in use
+    """
+
+    NANO = "nano"
+    NANO_RATING = "nano_rating"
+    NANO_COMMENT = "nano_comment"
+    FLAG = "flag"  # reserved: Story 6.3
+
+
+class ModerationCase(Base):
+    """Moderation review case for auditable content decisions.
+
+    One case exists per reviewable content item (Nano, rating, or comment).
+    When content re-enters review (e.g., an updated rating) the existing case
+    is reset to PENDING so its full decision history is preserved via the
+    audit_logs table while the case reflects the current active state.
+
+    The ``reporter_id`` column is intentionally nullable and reserved for
+    Story 6.3, where user-submitted flags will populate it. All flag-driven
+    cases will share the same decision flow as internally generated cases.
+    """
+
+    __tablename__ = "moderation_cases"
+    __table_args__ = (
+        UniqueConstraint(
+            "content_type",
+            "content_id",
+            name="uq_moderation_cases_content",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+
+    # Content reference - polymorphic pointer to the reviewed item
+    content_type: Mapped[ModerationContentType] = mapped_column(
+        SQLEnum(ModerationContentType),
+        nullable=False,
+        index=True,
+        comment="Type of content being reviewed (nano, nano_rating, nano_comment, flag)",
+    )
+    content_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=False,
+        index=True,
+        comment="Primary key of the reviewed content record",
+    )
+
+    # Optional reporter - NULL for admin/system-initiated cases; populated by Story 6.3 flags
+    reporter_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="User who reported the content (NULL for internally generated cases)",
+    )
+
+    # Decision state
+    status: Mapped[ModerationCaseStatus] = mapped_column(
+        SQLEnum(ModerationCaseStatus),
+        default=ModerationCaseStatus.PENDING,
+        nullable=False,
+        index=True,
+        comment="Current review status of this case",
+    )
+    reason: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Moderator-provided reason for the decision (max 500 chars)",
+    )
+    decided_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Moderator/admin who made the most recent decision",
+    )
+    decided_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Timestamp of the most recent decision",
+    )
+
+    # Defer / escalate metadata
+    deferred_until: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Re-review date for DEFERRED cases",
+    )
+    escalation_note: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Reason provided when escalating to a senior moderator",
+    )
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+        comment="When this case was opened",
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+        comment="When this case was last modified",
+    )
+
+    def __repr__(self) -> str:
+        """String representation of ModerationCase."""
+        return (
+            f"<ModerationCase(id={self.id}, content_type={self.content_type}, "
+            f"content_id={self.content_id}, status={self.status})>"
+        )

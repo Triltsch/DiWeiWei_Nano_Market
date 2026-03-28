@@ -56,6 +56,8 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - CORS mit Credentials nur mit expliziten Origins konfigurieren (nie `*`).
 - Infrastrukturfehler am API-Rand gezielt auf stabile HTTP-Fehler mappen.
 - Passwort-Hashing-Abhängigkeiten reproduzierbar pinnen (CI-kompatibel).
+- In Async-SQLAlchemy-Services nach `commit()` bei Rückgabe von Feldern mit `onupdate`/serverseitiger Aktualisierung (z. B. `updated_at`) das ORM-Objekt per `await session.refresh(obj)` laden, sonst kann beim Attributzugriff `MissingGreenlet` auftreten.
+- Neue SQLAlchemy-Modelle/Enums immer auf Top-Level einfügen (nicht versehentlich in bestehende Klassen eingerückt), da verschachtelte Definitionen erst zur Importzeit mit schwerer nachvollziehbaren `NameError`/Typauflösungsfehlern auffallen.
 
 ## Search, Cache, Redis
 
