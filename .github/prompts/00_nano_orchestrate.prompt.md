@@ -23,6 +23,7 @@ Execute the following stages in sequence:
    - Poll interval: 60 seconds
    - Condition: new review/comments from Copilot reviewer are available
    - Timeout: 30 minutes (then stop as blocked with recovery hint)
+   - PowerShell note: use Windows-safe null redirection (`2>$null`), never `/dev/null`
 4. Address PR review comments (equivalent to `03_nano_review`)
 5. Merge and clean up branch (equivalent to `04_nano_merge`), with two sub-steps:
    a. **Conflict check**: Before merging, verify PR `mergeable` status. If `CONFLICTED`, resolve via `git merge origin/main`, fix conflicting files, commit and push. Abort and report if non-resolvable.
@@ -36,6 +37,15 @@ Execute the following stages in sequence:
 
 - Stop after implementation and ask for approval to continue with commit/push.
 - Stop after review-fix stage and ask for approval to continue with merge.
+- **Hard gate**: Never execute any merge command unless the user has explicitly approved merge in this chat turn (for example: "approve merge", "merge freigeben", "ja, merge").
+- If approval is missing, stop with status `blocked` and print: `Waiting for explicit merge approval.`
+
+# Guard rails (must not be bypassed)
+
+- CI green is not a substitute for reviewer readiness.
+- "No comments found" is valid only after completing the full review discovery flow (reviews + inline comments + PR comments).
+- If review polling times out, do not merge. Report `blocked` with exact next action.
+- Before merge, emit a checkpoint that includes: PR number, mergeable state, latest check conclusions, and explicit approval evidence text.
 
 # Required reporting
 
