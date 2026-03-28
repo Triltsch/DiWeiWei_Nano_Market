@@ -1327,15 +1327,19 @@ async def admin_takedown_nano(
         )
 
     old_status = nano.status.value
-    taken_down_at = datetime.now(timezone.utc)
     already_removed = old_status != NanoStatus.PUBLISHED.value
     new_status = old_status
 
     if not already_removed:
+        taken_down_at = datetime.now(timezone.utc)
         nano.status = NanoStatus.ARCHIVED
         if nano.archived_at is None:
             nano.archived_at = taken_down_at
         new_status = NanoStatus.ARCHIVED.value
+    else:
+        if nano.archived_at is None:
+            nano.archived_at = datetime.now(timezone.utc)
+        taken_down_at = nano.archived_at
 
     await AuditLogger.log_action(
         session=db,

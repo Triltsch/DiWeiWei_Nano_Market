@@ -512,6 +512,15 @@ class AdminTakedownRequest(BaseModel):
         description="Optional operator note for internal follow-up",
     )
 
+    @field_validator("reason")
+    @classmethod
+    def validate_reason_not_blank(cls, value: str) -> str:
+        """Ensure reason is not empty after trimming surrounding whitespace."""
+        normalized_reason = value.strip()
+        if not normalized_reason:
+            raise ValueError("reason must not be empty")
+        return normalized_reason
+
 
 class AdminTakedownResponse(BaseModel):
     """Response payload for an admin takedown action."""

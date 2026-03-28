@@ -183,3 +183,29 @@ async def test_admin_takedown_is_deterministic_for_already_removed_content(
     assert second_payload["old_status"] == "archived"
     assert second_payload["new_status"] == "archived"
     assert second_payload["already_removed"] is True
+    assert first_payload["taken_down_at"] == second_payload["taken_down_at"]
+
+
+@pytest.mark.asyncio
+async def test_admin_takedown_rejects_whitespace_only_reason(
+    async_client,
+    db_session,
+    verified_user,
+    admin_token,
+):
+    """Whitespace-only takedown reasons must be rejected with validation error."""
+    nano = _make_nano(
+        creator_id=verified_user.id,
+        status=NanoStatus.PUBLISHED,
+        title="Whitespace Reason Validation Target",
+    )
+    db_session.add(nano)
+    await db_session.commit()
+
+    response = await async_client.post(
+        f"/api/v1/nanos/{nano.id}/takedown",
+        json={"reason": "   "},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    assert response.status_code == 422
