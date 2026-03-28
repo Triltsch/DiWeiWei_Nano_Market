@@ -455,27 +455,24 @@ class TestChatE2EQAGate:
 
         max_requests = get_settings().RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS
 
-        # Send messages up to the configured limit; one additional request should fail.
-        success_count = 0
-        rate_limited = False
-        retry_after = None
-
-        for i in range(max_requests + 5):
+        # The configured limit must allow exactly max_requests successful sends,
+        # then reject the next request with 429.
+        for i in range(max_requests):
             response = await async_client.post(
                 f"/api/v1/chats/{session.id}/messages",
                 headers={"Authorization": f"Bearer {token}"},
                 json={"content": f"Message {i + 1}"},
             )
-            if response.status_code == 201:
-                success_count += 1
-            elif response.status_code == 429:
-                rate_limited = True
-                retry_after = response.headers.get("Retry-After")
-                break
+            assert response.status_code == 201
 
-        # Assert: At least one message succeeded, eventually hit rate limit
-        assert success_count >= 1, "Should allow at least some messages"
-        assert rate_limited, "Should eventually hit rate limit after repeated messages"
+        rate_limited_response = await async_client.post(
+            f"/api/v1/chats/{session.id}/messages",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"content": f"Message {max_requests + 1}"},
+        )
+
+        assert rate_limited_response.status_code == 429
+        retry_after = rate_limited_response.headers.get("Retry-After")
         assert retry_after is not None, "Should include Retry-After header on 429"
 
     # ------------------------------------------------------------------
