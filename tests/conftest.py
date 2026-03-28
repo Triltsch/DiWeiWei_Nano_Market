@@ -102,7 +102,8 @@ async def test_db_engine():
                     BEGIN
                         FOR r IN (SELECT typname FROM pg_type WHERE typname IN 
                             ('userstatus', 'userrole', 'auditaction', 'consenttype', 
-                             'nanostatus', 'nanoformat', 'competencylevel', 'licensetype')) 
+                             'nanostatus', 'nanoformat', 'competencylevel', 'licensetype',
+                             'moderationcasestatus', 'moderationcontenttype')) 
                         LOOP
                             EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(r.typname) || ' CASCADE';
                         END LOOP;
@@ -122,7 +123,8 @@ async def test_db_engine():
                     BEGIN
                         FOR r IN (SELECT typname FROM pg_type WHERE typname IN 
                             ('userstatus', 'userrole', 'auditaction', 'consenttype', 
-                             'nanostatus', 'nanoformat', 'competencylevel', 'licensetype')) 
+                             'nanostatus', 'nanoformat', 'competencylevel', 'licensetype',
+                             'moderationcasestatus', 'moderationcontenttype')) 
                         LOOP
                             EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(r.typname) || ' CASCADE';
                         END LOOP;
@@ -161,6 +163,7 @@ def app(db_session, mock_redis, mock_minio_storage):
     from app.modules.audit.router import get_audit_router
     from app.modules.auth.router import get_auth_router
     from app.modules.chat.router import get_chat_router
+    from app.modules.moderation.router import get_moderation_router
     from app.modules.nanos.router import get_nanos_router
     from app.modules.search.router import get_search_router
     from app.modules.upload.router import get_upload_router
@@ -205,6 +208,7 @@ def app(db_session, mock_redis, mock_minio_storage):
     app.include_router(get_nanos_router())
     app.include_router(get_search_router())
     app.include_router(get_chat_router())
+    app.include_router(get_moderation_router())
     configure_monitoring(app)
 
     # Add endpoints

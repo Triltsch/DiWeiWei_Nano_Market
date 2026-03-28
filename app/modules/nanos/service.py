@@ -22,6 +22,7 @@ from app.models import (
     CompetencyLevel,
     FeedbackModerationStatus,
     LicenseType,
+    ModerationContentType,
     Nano,
     NanoCategoryAssignment,
     NanoComment,
@@ -33,6 +34,7 @@ from app.models import (
 )
 from app.modules.audit.service import AuditLogger
 from app.modules.auth.tokens import TokenData
+from app.modules.moderation.service import upsert_moderation_case
 from app.modules.nanos.schemas import (
     CreatorNanoListItem,
     CreatorNanoListResponse,
@@ -546,6 +548,7 @@ async def create_nano_rating(
     try:
         await db.flush()
         aggregation = await _sync_nano_rating_cache(nano=nano, db=db)
+        await upsert_moderation_case(db, ModerationContentType.NANO_RATING, rating.id)
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -600,6 +603,7 @@ async def update_nano_rating(
     await db.flush()
 
     aggregation = await _sync_nano_rating_cache(nano=nano, db=db)
+    await upsert_moderation_case(db, ModerationContentType.NANO_RATING, rating.id)
     await db.commit()
     await db.refresh(rating)
 
@@ -820,6 +824,7 @@ async def create_nano_comment(
 
     try:
         await db.flush()
+        await upsert_moderation_case(db, ModerationContentType.NANO_COMMENT, comment.id)
         await db.commit()
         await db.refresh(comment)
     except IntegrityError as exc:
@@ -870,6 +875,9 @@ async def update_nano_comment(
     comment.moderated_at = None
     comment.moderated_by_user_id = None
     comment.moderation_reason = None
+
+    # Reset the moderation case to PENDING so the updated comment re-enters review.
+    await upsert_moderation_case(db, ModerationContentType.NANO_COMMENT, comment.id)
     await db.commit()
     await db.refresh(comment)
 
@@ -1261,7 +1269,12 @@ async def update_nano_status(
     if new_status == "archived" and nano.archived_at is None:
         nano.archived_at = datetime.now(timezone.utc)
 
-    # Commit changes
+    # Open a moderation case when the Nano enters the review queue so that the
+    # moderation queue endpoint can track it. The flush is absorbed by the
+    # commit below.
+    if new_status == "pending_review":
+        await upsert_moderation_case(db, ModerationContentType.NANO, nano.id)
+
     await db.commit()
     await db.refresh(nano)
 
