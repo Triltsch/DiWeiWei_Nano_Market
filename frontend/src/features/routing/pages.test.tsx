@@ -862,6 +862,7 @@ describe("NanoDetailsPage", () => {
     expect(screen.getByText("Frontend")).toBeTruthy();
     expect(screen.getByText("CC-BY")).toBeTruthy();
     expect(screen.getByText("Sehr hilfreich und klar strukturiert.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Anmelden, um den Chat zu öffnen" })).toBeTruthy();
   });
 
   it("redirects unauthenticated users to login when download is clicked", async () => {

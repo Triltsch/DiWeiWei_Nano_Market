@@ -14,6 +14,7 @@ import {
   ModeratorQueuePage as ModeratorQueuePageComponent,
   UploadWizardPage as UploadWizardPageComponent,
 } from "../creator";
+import { ChatPanel } from "../chat/ChatPanel";
 import {
   createNanoComment,
   createNanoRating,
@@ -711,6 +712,7 @@ export function NanoDetailsPage(): JSX.Element {
   const [commentMessage, setCommentMessage] = useState<string | null>(null);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [latestPendingComment, setLatestPendingComment] = useState<NanoComment | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const locale = language === "de" ? "de-DE" : "en-US";
   const loginRedirectPath = `/login?redirect=${encodeURIComponent(`/nano/${nanoId}`)}`;
@@ -1064,7 +1066,7 @@ export function NanoDetailsPage(): JSX.Element {
       return;
     }
 
-    navigate("/profile");
+    setIsChatOpen(true);
   };
 
   if (isLoading) {
@@ -1137,7 +1139,8 @@ export function NanoDetailsPage(): JSX.Element {
   const isPublished = detail.metadata.status === "published";
 
   return (
-    <PageLayout>
+    <>
+      <PageLayout>
       <section className="space-y-6">
         <article className="card-elevated space-y-4">
           <header className="space-y-2">
@@ -1447,7 +1450,19 @@ export function NanoDetailsPage(): JSX.Element {
           </Link>
         </div>
       </section>
-    </PageLayout>
+      </PageLayout>
+
+      {isChatOpen && detail && isAuthenticated && (
+        <ChatPanel
+          nanoId={nanoId}
+          onClose={() => setIsChatOpen(false)}
+          onUnauthorized={() => {
+            setIsChatOpen(false);
+            navigate(loginRedirectPath);
+          }}
+        />
+      )}
+    </>
   );
 }
 

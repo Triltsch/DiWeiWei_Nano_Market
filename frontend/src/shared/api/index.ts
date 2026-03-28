@@ -32,6 +32,13 @@ export {
   updateMyNanoRating,
 } from "./nanoFeedback";
 export {
+  createChatSession,
+  getChatMessages,
+  listChatSessions,
+  sendChatMessage,
+  ChatApiError,
+} from "./chat";
+export {
   clearAuthSession,
   getAccessToken,
   getRefreshToken,
@@ -64,3 +71,13 @@ export type {
   NanoRatingsResponse,
   NanoUserRating,
 } from "./nanoFeedback";
+export type {
+  ChatMessage,
+  ChatMessageCreateRequest,
+  ChatMessageCreateResponse,
+  ChatMessageListResponse,
+  ChatSession,
+  ChatSessionCreateRequest,
+  ChatSessionCreateResponse,
+  ChatSessionListResponse,
+} from "./chat";
