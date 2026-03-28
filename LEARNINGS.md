@@ -125,3 +125,13 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - Wenn ein Creator `POST /chats` aufruft, liefert das Backend 403, da Creator keine neue Session initiieren kann. Das Frontend muss in diesem Fall auf `GET /chats?nano_id=...` (listChatSessions) zurückfallen, um eine vorhandene Session zu finden. Ist keine vorhanden, „Warte auf ersten Teilnehmer"-State anzeigen statt Fehler.
 - Chat-Session-Abfragen im Backend müssen rollenbasiert sein: Creator → `WHERE creator_id = current_user.id`, Teilnehmer → `WHERE participant_user_id = current_user.id AND creator_id = nano.creator_id`.
 - Sind Docker-/Env-/CORS-/URL-Pfade korrekt?
+
+## QA-Gates & E2E Tests
+
+- QA-Gate Tests müssen echte User-Journeys abbilden, nicht nur einzelne Features.
+- Test-Fixtures systematisch aufbauen: Creator + Published Nano als Basis für Chat-Tests.
+- Rate-Limiting konfigurierbar testen; Config.py definiert RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS=30 und _WINDOW_SECONDS=60.
+- Polling-Tests: ?since=timestamp Filter-Semantik prüfen mit created_at > since (strikt nach).
+- QA-Gate Befunde dokumentieren: Was funktioniert, was ist offen, welche Risiken bestehen.
+- Chat-Session Determinismus: Paarweise Identität braucht konsistente Teilnehmerreihenfolge, sonst UNIQUE schlägt fehl.
+- Message-Ordering: order_by(created_at.asc(), id.asc()) mit id als Tie-Breaker für Clock-Skew-Resilienz.
