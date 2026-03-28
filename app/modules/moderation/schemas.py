@@ -13,7 +13,7 @@ Design goals:
 """
 
 from datetime import datetime
-from typing import Annotated, Any, Optional
+from typing import Annotated, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -99,6 +99,9 @@ class CommentContentDetail(BaseModel):
     created_at: Optional[datetime] = None
 
 
+ContentDetail = NanoContentDetail | RatingContentDetail | CommentContentDetail
+
+
 # ---------------------------------------------------------------------------
 # Queue response schemas
 # ---------------------------------------------------------------------------
@@ -129,7 +132,7 @@ class ModerationQueueItem(BaseModel):
     escalation_note: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-    content_detail: Optional[Any] = None
+    content_detail: Optional[ContentDetail] = None
 
 
 class PaginationMeta(BaseModel):

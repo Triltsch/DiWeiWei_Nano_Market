@@ -548,6 +548,7 @@ async def create_nano_rating(
     try:
         await db.flush()
         aggregation = await _sync_nano_rating_cache(nano=nano, db=db)
+        await upsert_moderation_case(db, ModerationContentType.NANO_RATING, rating.id)
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -558,11 +559,6 @@ async def create_nano_rating(
 
     await db.refresh(rating)
     await invalidate_search_cache(reason="nano_rating_created")
-    # Open a moderation case so the rating appears in the moderation queue.
-    # Done after commit to guarantee the rating ID is persistent before the
-    # case record references it.
-    await upsert_moderation_case(db, ModerationContentType.NANO_RATING, rating.id)
-    await db.commit()
 
     return NanoRatingMutationResponse(
         nano_id=nano_id,
@@ -607,14 +603,11 @@ async def update_nano_rating(
     await db.flush()
 
     aggregation = await _sync_nano_rating_cache(nano=nano, db=db)
+    await upsert_moderation_case(db, ModerationContentType.NANO_RATING, rating.id)
     await db.commit()
     await db.refresh(rating)
 
     await invalidate_search_cache(reason="nano_rating_updated")
-    # Reset the moderation case to PENDING so the updated rating re-enters the
-    # review queue.
-    await upsert_moderation_case(db, ModerationContentType.NANO_RATING, rating.id)
-    await db.commit()
 
     return NanoRatingMutationResponse(
         nano_id=nano_id,
@@ -831,6 +824,7 @@ async def create_nano_comment(
 
     try:
         await db.flush()
+        await upsert_moderation_case(db, ModerationContentType.NANO_COMMENT, comment.id)
         await db.commit()
         await db.refresh(comment)
     except IntegrityError as exc:
@@ -839,10 +833,6 @@ async def create_nano_comment(
             status_code=status.HTTP_409_CONFLICT,
             detail="A comment for this Nano by the current user already exists",
         ) from exc
-
-    # Open a moderation case so the comment appears in the moderation queue.
-    await upsert_moderation_case(db, ModerationContentType.NANO_COMMENT, comment.id)
-    await db.commit()
 
     return NanoCommentMutationResponse(comment=await _build_comment_item(comment=comment, db=db))
 
@@ -1279,12 +1269,11 @@ async def update_nano_status(
     if new_status == "archived" and nano.archived_at is None:
         nano.archived_at = datetime.now(timezone.utc)
 
-        # Commit changes
-        # Open a moderation case when the Nano enters the review queue so that the
-        # moderation queue endpoint can track it.  The flush is absorbed by the
-        # commit below.
-        if new_status == "pending_review":
-            await upsert_moderation_case(db, ModerationContentType.NANO, nano.id)
+    # Open a moderation case when the Nano enters the review queue so that the
+    # moderation queue endpoint can track it. The flush is absorbed by the
+    # commit below.
+    if new_status == "pending_review":
+        await upsert_moderation_case(db, ModerationContentType.NANO, nano.id)
 
     await db.commit()
     await db.refresh(nano)

@@ -103,7 +103,7 @@ async def test_db_engine():
                         FOR r IN (SELECT typname FROM pg_type WHERE typname IN 
                             ('userstatus', 'userrole', 'auditaction', 'consenttype', 
                              'nanostatus', 'nanoformat', 'competencylevel', 'licensetype',
-                             'moderationcasestatus', 'moderationcontenttype'))) 
+                             'moderationcasestatus', 'moderationcontenttype')) 
                         LOOP
                             EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(r.typname) || ' CASCADE';
                         END LOOP;
@@ -124,7 +124,7 @@ async def test_db_engine():
                         FOR r IN (SELECT typname FROM pg_type WHERE typname IN 
                             ('userstatus', 'userrole', 'auditaction', 'consenttype', 
                              'nanostatus', 'nanoformat', 'competencylevel', 'licensetype',
-                             'moderationcasestatus', 'moderationcontenttype'))) 
+                             'moderationcasestatus', 'moderationcontenttype')) 
                         LOOP
                             EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(r.typname) || ' CASCADE';
                         END LOOP;

@@ -50,6 +50,7 @@ from app.modules.auth.tokens import TokenData
 from app.modules.moderation.schemas import (
     VALID_DECISIONS,
     CommentContentDetail,
+    ContentDetail,
     ModerationQueueItem,
     ModerationQueueResponse,
     ModerationReviewRequest,
@@ -57,6 +58,7 @@ from app.modules.moderation.schemas import (
     PaginationMeta,
     RatingContentDetail,
 )
+from app.modules.search.service import invalidate_search_cache
 
 # Decision → ModerationCaseStatus mapping
 _DECISION_TO_CASE_STATUS: dict[str, ModerationCaseStatus] = {
@@ -182,9 +184,10 @@ async def get_moderation_queue(
     total_pages = (total_results + limit - 1) // limit if limit > 0 else 1
 
     # --- Enrich each case with content details ------------------------------
+    detail_map = await _load_content_details_for_cases(db, cases)
+
     items = []
     for case in cases:
-        detail = await _get_content_detail(db, case.content_type, case.content_id)
         items.append(
             ModerationQueueItem(
                 case_id=case.id,
@@ -199,7 +202,7 @@ async def get_moderation_queue(
                 escalation_note=case.escalation_note,
                 created_at=case.created_at,
                 updated_at=case.updated_at,
-                content_detail=detail,
+                content_detail=detail_map.get((case.content_type, case.content_id)),
             )
         )
 
@@ -337,7 +340,7 @@ async def review_moderation_case(
     case.deferred_until = request.deferred_until if request.decision == "defer" else None
 
     # --- Apply decision to underlying content --------------------------------
-    await _apply_decision_to_content(
+    nano_visibility_changed = await _apply_decision_to_content(
         db=db,
         case=case,
         decided_by=decided_by,
@@ -364,6 +367,11 @@ async def review_moderation_case(
 
     # --- Single atomic commit for case + content + audit --------------------
     await db.commit()
+
+    # Keep search results consistent when moderation changes Nano visibility.
+    if nano_visibility_changed:
+        await invalidate_search_cache(reason="moderation_nano_status_reviewed")
+
     await db.refresh(case)
 
     # --- Return enriched item -----------------------------------------------
@@ -398,7 +406,7 @@ async def _apply_decision_to_content(
     decided_by: TokenData,
     request: ModerationReviewRequest,
     now: datetime,
-) -> None:
+) -> bool:
     """Update the underlying content record based on the moderation decision.
 
     Modifications are flushed to the session but NOT committed here; the
@@ -407,7 +415,7 @@ async def _apply_decision_to_content(
     decision = request.decision
 
     if case.content_type == ModerationContentType.NANO:
-        await _apply_nano_decision(db=db, case=case, decision=decision, now=now)
+        return await _apply_nano_decision(db=db, case=case, decision=decision, now=now)
 
     elif case.content_type == ModerationContentType.NANO_RATING:
         await _apply_rating_decision(
@@ -420,6 +428,7 @@ async def _apply_decision_to_content(
         )
 
     # ModerationContentType.FLAG — reserved for Story 6.3; no action yet.
+    return False
 
 
 async def _apply_nano_decision(
@@ -428,7 +437,7 @@ async def _apply_nano_decision(
     case: ModerationCase,
     decision: str,
     now: datetime,
-) -> None:
+) -> bool:
     """Apply an approve/reject/defer/escalate decision to a Nano."""
     stmt = select(Nano).where(Nano.id == case.content_id)
     result = await db.execute(stmt)
@@ -436,7 +445,7 @@ async def _apply_nano_decision(
 
     if not nano:
         # Content was deleted before the case was decided — nothing to update.
-        return
+        return False
 
     if decision == "approve":
         # Validate that the Nano has all required metadata before publishing.
@@ -450,6 +459,7 @@ async def _apply_nano_decision(
 
     # defer / escalate: leave nano in pending_review; no status change.
     await db.flush()
+    return decision in {"approve", "reject"}
 
 
 def _validate_nano_publishable(nano: Nano) -> None:
@@ -458,17 +468,25 @@ def _validate_nano_publishable(nano: Nano) -> None:
     Mirrors the ``_validate_metadata_completeness`` check in the nanos service
     so that the moderation decision endpoint enforces the same invariant.
     """
-    missing: list[str] = []
-    if not nano.description:
-        missing.append("description")
-    if not nano.file_storage_path:
-        missing.append("file_storage_path (uploaded content)")
-    if missing:
+    missing_fields: list[str] = []
+
+    if not nano.title or nano.title.strip() == "":
+        missing_fields.append("title")
+
+    if not nano.description or nano.description.strip() == "":
+        missing_fields.append("description")
+
+    if nano.duration_minutes is None or nano.duration_minutes <= 0:
+        missing_fields.append("duration_minutes")
+
+    if not nano.language:
+        missing_fields.append("language")
+
+    if missing_fields:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                "Cannot approve Nano: missing required fields for publication: "
-                + ", ".join(missing)
+                "Cannot publish: missing required metadata fields: " + ", ".join(missing_fields)
             ),
         )
 
@@ -650,3 +668,80 @@ async def _get_content_detail(
         )
 
     return None
+
+
+async def _load_content_details_for_cases(
+    db: AsyncSession,
+    cases: list[ModerationCase],
+) -> dict[tuple[ModerationContentType, UUID], Optional[ContentDetail]]:
+    """Batch-load content details for a queue page to avoid N+1 queries."""
+    detail_map: dict[tuple[ModerationContentType, UUID], Optional[ContentDetail]] = {}
+
+    if not cases:
+        return detail_map
+
+    nano_ids = [
+        case.content_id for case in cases if case.content_type == ModerationContentType.NANO
+    ]
+    rating_ids = [
+        case.content_id for case in cases if case.content_type == ModerationContentType.NANO_RATING
+    ]
+    comment_ids = [
+        case.content_id for case in cases if case.content_type == ModerationContentType.NANO_COMMENT
+    ]
+
+    if nano_ids:
+        rows = (
+            await db.execute(
+                select(Nano, User.username)
+                .outerjoin(User, Nano.creator_id == User.id)
+                .where(Nano.id.in_(nano_ids))
+            )
+        ).all()
+        for nano, creator_username in rows:
+            detail_map[(ModerationContentType.NANO, nano.id)] = NanoContentDetail(
+                title=nano.title,
+                creator_username=creator_username,
+                status=nano.status.value,
+                description=nano.description,
+                uploaded_at=nano.uploaded_at,
+            )
+
+    if rating_ids:
+        rows = (
+            await db.execute(
+                select(NanoRating, User.username)
+                .outerjoin(User, NanoRating.user_id == User.id)
+                .where(NanoRating.id.in_(rating_ids))
+            )
+        ).all()
+        for rating, username in rows:
+            detail_map[(ModerationContentType.NANO_RATING, rating.id)] = RatingContentDetail(
+                nano_id=rating.nano_id,
+                score=rating.score,
+                author_username=username,
+                moderation_status=rating.moderation_status.value,
+                created_at=rating.created_at,
+            )
+
+    if comment_ids:
+        rows = (
+            await db.execute(
+                select(NanoComment, User.username)
+                .outerjoin(User, NanoComment.user_id == User.id)
+                .where(NanoComment.id.in_(comment_ids))
+            )
+        ).all()
+        for comment, username in rows:
+            detail_map[(ModerationContentType.NANO_COMMENT, comment.id)] = CommentContentDetail(
+                nano_id=comment.nano_id,
+                content=comment.content,
+                author_username=username,
+                moderation_status=comment.moderation_status.value,
+                created_at=comment.created_at,
+            )
+
+    for case in cases:
+        detail_map.setdefault((case.content_type, case.content_id), None)
+
+    return detail_map

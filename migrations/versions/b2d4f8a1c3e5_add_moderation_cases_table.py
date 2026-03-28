@@ -38,18 +38,18 @@ def upgrade() -> None:
     """Create the moderation_cases table and its supporting enum types."""
     # Create enum types first (PostgreSQL requires explicit creation before use)
     moderation_content_type = sa.Enum(
-        "nano",
-        "nano_rating",
-        "nano_comment",
-        "flag",
+        "NANO",
+        "NANO_RATING",
+        "NANO_COMMENT",
+        "FLAG",
         name=_ENUM_MODERATION_CONTENT_TYPE,
     )
     moderation_case_status = sa.Enum(
-        "pending",
-        "approved",
-        "rejected",
-        "deferred",
-        "escalated",
+        "PENDING",
+        "APPROVED",
+        "REJECTED",
+        "DEFERRED",
+        "ESCALATED",
         name=_ENUM_MODERATION_CASE_STATUS,
     )
     moderation_content_type.create(op.get_bind(), checkfirst=True)
@@ -61,10 +61,10 @@ def upgrade() -> None:
         sa.Column(
             "content_type",
             sa.Enum(
-                "nano",
-                "nano_rating",
-                "nano_comment",
-                "flag",
+                "NANO",
+                "NANO_RATING",
+                "NANO_COMMENT",
+                "FLAG",
                 name=_ENUM_MODERATION_CONTENT_TYPE,
                 create_type=False,
             ),
@@ -86,11 +86,11 @@ def upgrade() -> None:
         sa.Column(
             "status",
             sa.Enum(
-                "pending",
-                "approved",
-                "rejected",
-                "deferred",
-                "escalated",
+                "PENDING",
+                "APPROVED",
+                "REJECTED",
+                "DEFERRED",
+                "ESCALATED",
                 name=_ENUM_MODERATION_CASE_STATUS,
                 create_type=False,
             ),

@@ -87,6 +87,8 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - Runtime-Pfade (Root-Redirects, API-Bases) über Umgebungsvariablen steuern.
 - Alembic-Recovery bei inkonsistentem Local-State klar durchführen (`stamp base` → `upgrade head`).
 - Enum-Migrationen in PostgreSQL in korrekter Reihenfolge durchführen (Type anlegen/nutzen/droppen).
+- SQLAlchemy `Enum(MyEnum)` persistiert standardmäßig Enum-Namen (z. B. `PENDING`), nicht `.value` (z. B. `pending`). PostgreSQL-Enum-Werte in Migrationen müssen dazu passen oder das Model muss explizit auf `.value` konfiguriert werden.
+- Neue Enum-Mitglieder in produktiven PostgreSQL-Types (z. B. `auditaction`) brauchen eine dedizierte Alembic-Migration mit `ALTER TYPE ... ADD VALUE`, sonst scheitern Inserts erst zur Laufzeit.
 - Jedes neue SQLAlchemy-Modell braucht eine Alembic-Migration. Tests mit `Base.metadata.create_all` maskieren fehlende Migrationen – deployed Umgebungen scheitern beim ersten API-Aufruf.
 - `nano_id`-Filter-Queryparameter und `meta.nano_filter_applied` in Tests explizit testen, nicht nur den Abwesenheits-Fall.
 
