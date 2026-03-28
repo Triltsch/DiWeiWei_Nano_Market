@@ -25,13 +25,18 @@ from app.modules.auth.service import (
     AccountNotVerifiedError,
     AuthenticationError,
     InvalidCredentialsError,
+    PasswordChangeError,
+    ProfileUpdateError,
     UserAlreadyExistsError,
     authenticate_user,
+    change_user_password,
+    get_user_profile,
     logout_user,
     record_failed_login,
     refresh_access_token,
     register_user,
     resend_email_verification_token,
+    update_user_profile,
     verify_email_with_token,
 )
 from app.modules.auth.tokens import verify_token
@@ -43,6 +48,7 @@ from app.schemas import (
     EmailVerificationRequest,
     LogoutRequest,
     MessageResponse,
+    PasswordChangeRequest,
     PasswordStrengthRequest,
     PasswordStrengthResponse,
     RefreshTokenRequest,
@@ -51,6 +57,7 @@ from app.schemas import (
     TokenResponse,
     UserDataExport,
     UserLogin,
+    UserProfileUpdate,
     UserRegister,
     UserResponse,
     VerificationEmailResponse,
@@ -508,6 +515,192 @@ async def resend_verification_email_endpoint(
     except AuthenticationError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        )
+    except OperationalError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable. Please try again later.",
+        )
+
+
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    responses={
+        401: {
+            "model": SimpleErrorResponse,
+            "description": "Unauthorized - invalid or missing token",
+        },
+        404: {"model": SimpleErrorResponse, "description": "User not found"},
+        503: {
+            "model": SimpleErrorResponse,
+            "description": "Service unavailable - database dependency unreachable",
+        },
+    },
+)
+async def get_my_profile(
+    user_id: Annotated[UUID, Depends(get_current_user_id)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> UserResponse:
+    """Return the authenticated user's own profile.
+
+    Requires authentication via Bearer token.
+
+    Returns the full profile including personal information, account status,
+    and GDPR-related timestamps.
+    """
+    try:
+        return await get_user_profile(db, user_id)
+    except AuthenticationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except OperationalError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable. Please try again later.",
+        )
+
+
+@router.patch(
+    "/me",
+    response_model=UserResponse,
+    responses={
+        401: {
+            "model": SimpleErrorResponse,
+            "description": "Unauthorized - invalid or missing token",
+        },
+        404: {"model": SimpleErrorResponse, "description": "User not found"},
+        422: {
+            "model": SimpleErrorResponse,
+            "description": "Unprocessable entity - validation error",
+        },
+        503: {
+            "model": SimpleErrorResponse,
+            "description": "Service unavailable - database dependency unreachable",
+        },
+    },
+)
+async def update_my_profile(
+    update_data: UserProfileUpdate,
+    user_id: Annotated[UUID, Depends(get_current_user_id)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    request: Request,
+) -> UserResponse:
+    """Partially update the authenticated user's profile.
+
+    Only the fields that are explicitly present in the request body are written;
+    absent fields are left unchanged.  Email and username cannot be changed via
+    this endpoint.
+
+    Updatable fields:
+    - **first_name**, **last_name** — personal name
+    - **bio** — short biography (max 500 chars)
+    - **company**, **job_title** — professional information
+    - **phone** — phone number (max 20 chars)
+    - **preferred_language** — ISO 639-1 language code (e.g. ``"de"``, ``"en"``)
+
+    Requires authentication via Bearer token.
+    """
+    try:
+        updated_fields = list(update_data.model_dump(exclude_unset=True).keys())
+        updated_user = await update_user_profile(db, user_id, update_data)
+
+        if updated_fields:
+            await AuditLogger.log_action(
+                db,
+                action=AuditAction.USER_UPDATED,
+                user_id=user_id,
+                resource_type="user",
+                resource_id=str(user_id),
+                metadata={"updated_fields": updated_fields},
+                ip_address=_get_client_ip(request),
+                user_agent=_get_user_agent(request),
+            )
+            await db.commit()
+
+        return updated_user
+    except ProfileUpdateError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except OperationalError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable. Please try again later.",
+        )
+
+
+@router.post(
+    "/me/change-password",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        401: {
+            "model": SimpleErrorResponse,
+            "description": "Unauthorized - invalid or missing token, or wrong current password",
+        },
+        400: {
+            "model": SimpleErrorResponse,
+            "description": "Bad request - new password does not meet policy",
+        },
+        404: {"model": SimpleErrorResponse, "description": "User not found"},
+        503: {
+            "model": SimpleErrorResponse,
+            "description": "Service unavailable - database dependency unreachable",
+        },
+    },
+)
+async def change_my_password(
+    body: PasswordChangeRequest,
+    user_id: Annotated[UUID, Depends(get_current_user_id)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    request: Request,
+) -> MessageResponse:
+    """Change the authenticated user's own password (self-service).
+
+    The caller must supply their current password for re-authentication.
+    The new password must satisfy the same strength policy as registration:
+    at least 8 characters, one uppercase letter, one digit, one special
+    character.
+
+    Request body:
+    - **current_password**: Existing password (used for re-authentication)
+    - **new_password**: Desired new password (min 8 characters)
+
+    Requires authentication via Bearer token.
+    """
+    try:
+        await change_user_password(db, user_id, body.current_password, body.new_password)
+
+        await AuditLogger.log_action(
+            db,
+            action=AuditAction.PASSWORD_CHANGED,
+            user_id=user_id,
+            resource_type="user",
+            resource_id=str(user_id),
+            ip_address=_get_client_ip(request),
+            user_agent=_get_user_agent(request),
+        )
+        await db.commit()
+
+        return MessageResponse(message="Password changed successfully")
+    except PasswordChangeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        )
+    except AuthenticationError as e:
+        if str(e) == "User not found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e),
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
     except OperationalError:

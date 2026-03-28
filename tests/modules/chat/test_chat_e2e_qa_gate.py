@@ -33,7 +33,15 @@ import pytest
 from sqlalchemy import update
 
 from app.config import get_settings
-from app.models import ChatMessage, ChatSession, CompetencyLevel, LicenseType, Nano, NanoFormat, NanoStatus
+from app.models import (
+    ChatMessage,
+    ChatSession,
+    CompetencyLevel,
+    LicenseType,
+    Nano,
+    NanoFormat,
+    NanoStatus,
+)
 from app.modules.auth.tokens import create_access_token
 
 

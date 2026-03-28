@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models import UserRole, UserStatus
 
@@ -49,6 +49,9 @@ class UserResponse(UserBase):
     updated_at: datetime
     last_login: Optional[datetime] = None
     profile_avatar: Optional[str] = None
+    company: Optional[str] = None
+    job_title: Optional[str] = None
+    phone: Optional[str] = None
     accepted_terms: Optional[datetime] = None
     accepted_privacy: Optional[datetime] = None
     deletion_requested_at: Optional[datetime] = None
@@ -225,3 +228,42 @@ class SuspiciousActivityResponse(BaseModel):
     activity_count: int
     logs: list[AuditLogResponse]
     message: str
+
+
+class UserProfileUpdate(BaseModel):
+    """Schema for partial user profile update (PATCH /me).
+
+    All fields are optional—only provided fields are applied.
+    Email and username are not updatable via this endpoint; they require
+    dedicated verification flows.
+    """
+
+    first_name: Optional[str] = Field(None, max_length=100, description="Given name")
+    last_name: Optional[str] = Field(None, max_length=100, description="Family name")
+    bio: Optional[str] = Field(None, max_length=500, description="Short biography (max 500 chars)")
+    company: Optional[str] = Field(None, max_length=255, description="Company or organisation")
+    job_title: Optional[str] = Field(None, max_length=100, description="Job title or role")
+    phone: Optional[str] = Field(None, max_length=20, description="Phone number")
+    preferred_language: Optional[str] = Field(
+        None, max_length=5, description="ISO 639-1 language code (e.g. 'de', 'en')"
+    )
+
+    @field_validator("preferred_language")
+    @classmethod
+    def validate_preferred_language_not_null(cls, value: Optional[str]) -> Optional[str]:
+        """Allow omission, but reject an explicit null value for this non-nullable DB field."""
+        if value is None:
+            raise ValueError("preferred_language cannot be null")
+        return value
+
+
+class PasswordChangeRequest(BaseModel):
+    """Schema for the authenticated password-change self-service flow (POST /me/change-password).
+
+    The caller must supply their current password for re-authentication before the
+    new password is accepted.  The new password must satisfy the same strength policy
+    as registration.
+    """
+
+    current_password: str = Field(..., description="Current account password for re-authentication")
+    new_password: str = Field(..., min_length=8, description="New password (min 8 characters)")

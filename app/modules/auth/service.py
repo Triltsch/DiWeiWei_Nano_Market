@@ -28,7 +28,7 @@ from app.redis_client import (
     is_token_blacklisted,
     store_refresh_token,
 )
-from app.schemas import TokenResponse, UserRegister, UserResponse
+from app.schemas import TokenResponse, UserProfileUpdate, UserRegister, UserResponse
 
 settings = get_settings()
 
@@ -437,6 +437,126 @@ async def refresh_access_token(db_session: AsyncSession, refresh_token: str) -> 
         refresh_token=new_refresh_token,
         expires_in=access_expires_in,
     )
+
+
+class ProfileUpdateError(AuthenticationError):
+    """Raised when a profile update operation cannot be completed."""
+
+    pass
+
+
+class PasswordChangeError(AuthenticationError):
+    """Raised when a password change operation fails (e.g. wrong current password)."""
+
+    pass
+
+
+async def get_user_profile(db_session: AsyncSession, user_id: UUID) -> UserResponse:
+    """Return the profile of the authenticated user.
+
+    Args:
+        db_session: Active database session.
+        user_id: ID of the authenticated user.
+
+    Returns:
+        UserResponse containing the current profile data.
+
+    Raises:
+        AuthenticationError: If the user is not found.
+    """
+    user = await get_user_by_id(db_session, user_id)
+
+    if user is None:
+        raise AuthenticationError("User not found")
+
+    return UserResponse.model_validate(user)
+
+
+async def update_user_profile(
+    db_session: AsyncSession,
+    user_id: UUID,
+    update_data: UserProfileUpdate,
+) -> UserResponse:
+    """Partially update the authenticated user's profile fields.
+
+    Only the fields explicitly included in *update_data* (i.e. those that are not
+    ``None``) are written.  Email and username are intentionally excluded from this
+    flow—they require dedicated verification steps.
+
+    Args:
+        db_session: Active database session.
+        user_id: ID of the authenticated user.
+        update_data: Pydantic model carrying the field values to update.
+
+    Returns:
+        Updated UserResponse.
+
+    Raises:
+        ProfileUpdateError: If the user is not found.
+    """
+    user = await get_user_by_id(db_session, user_id)
+
+    if user is None:
+        raise ProfileUpdateError("User not found")
+
+    # Apply only those fields that were explicitly set in the request payload.
+    changed_fields: list[str] = []
+    non_nullable_fields: set[str] = {"preferred_language"}
+    for field_name, value in update_data.model_dump(exclude_unset=True).items():
+        if field_name in non_nullable_fields and value is None:
+            raise ProfileUpdateError(f"Field '{field_name}' cannot be null")
+        setattr(user, field_name, value)
+        changed_fields.append(field_name)
+
+    if changed_fields:
+        db_session.add(user)
+        await db_session.flush()
+        await db_session.refresh(user)
+
+    return UserResponse.model_validate(user)
+
+
+async def change_user_password(
+    db_session: AsyncSession,
+    user_id: UUID,
+    current_password: str,
+    new_password: str,
+) -> None:
+    """Secure self-service password-change flow with re-authentication.
+
+    Verifies the caller's current password before accepting the new one.  The
+    new password must satisfy the same strength policy that is enforced at
+    registration.
+
+    Args:
+        db_session: Active database session.
+        user_id: ID of the authenticated user.
+        current_password: The user's existing password (for re-authentication).
+        new_password: The desired new password.
+
+    Raises:
+        PasswordChangeError: If the current password is wrong.
+        AuthenticationError: If the new password does not meet policy, or if
+            the user is not found.
+    """
+    user = await get_user_by_id(db_session, user_id)
+
+    if user is None:
+        raise AuthenticationError("User not found")
+
+    # Re-authenticate: verify the current password.
+    if not verify_password(current_password, user.password_hash):
+        raise PasswordChangeError("Current password is incorrect")
+
+    # Validate new password strength.
+    is_valid, error_msg = validate_password_strength(new_password)
+    if not is_valid:
+        raise AuthenticationError(f"New password does not meet requirements: {error_msg}")
+
+    # Hash and persist the new password.
+    user.password_hash = hash_password(new_password)
+    db_session.add(user)
+    await db_session.flush()
 
 
 async def logout_user(
