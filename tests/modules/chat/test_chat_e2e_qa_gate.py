@@ -26,13 +26,14 @@ Acceptance Criteria:
   - [x] All tests are reproducible and do not depend on external state
 """
 
-import asyncio
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import update
 
 from app.config import get_settings
-from app.models import ChatSession, CompetencyLevel, LicenseType, Nano, NanoFormat, NanoStatus
+from app.models import ChatMessage, ChatSession, CompetencyLevel, LicenseType, Nano, NanoFormat, NanoStatus
 from app.modules.auth.tokens import create_access_token
 
 
@@ -98,6 +99,16 @@ class TestChatE2EQAGate:
         await db_session.flush()
         return session
 
+    @staticmethod
+    async def _set_message_created_at(db_session, message_id: str, created_at: datetime) -> None:
+        """Force a deterministic created_at timestamp for polling cursor tests."""
+        await db_session.execute(
+            update(ChatMessage)
+            .where(ChatMessage.id == uuid.UUID(message_id))
+            .values(created_at=created_at)
+        )
+        await db_session.commit()
+
     # ------------------------------------------------------------------
     # QA-Gate Core Flow Tests
     # ------------------------------------------------------------------
@@ -152,10 +163,8 @@ class TestChatE2EQAGate:
         msg1_data = msg1_response.json()["data"]
         assert msg1_data["sender_id"] == str(participant.id)
         assert msg1_data["content"] == "Hello, I would like to discuss this Nano content."
-        msg1_timestamp = msg1_data["created_at"]
-
-        # Ensure second message has a strictly later timestamp for since-cursor checks.
-        await asyncio.sleep(1.1)
+        msg1_timestamp = datetime.now(timezone.utc) - timedelta(seconds=5)
+        await self._set_message_created_at(db_session, msg1_data["message_id"], msg1_timestamp)
 
         # Step 3: Creator polls and receives participant message
         poll1_response = await async_client.get(
@@ -182,7 +191,7 @@ class TestChatE2EQAGate:
         poll2_response = await async_client.get(
             f"/api/v1/chats/{session_id}/messages",
             headers={"Authorization": f"Bearer {participant_token}"},
-            params={"since": msg1_timestamp},
+            params={"since": msg1_timestamp.isoformat()},
         )
         assert poll2_response.status_code == 200
         poll2_data = poll2_response.json()["data"]
@@ -507,10 +516,9 @@ class TestChatE2EQAGate:
             json={"content": "First message"},
         )
         assert msg1_response.status_code == 201
-        msg1_timestamp = msg1_response.json()["data"]["created_at"]
-
-        # Ensure a strictly newer timestamp for the next message.
-        await asyncio.sleep(1.1)
+        msg1_data = msg1_response.json()["data"]
+        msg1_timestamp = datetime.now(timezone.utc) - timedelta(seconds=5)
+        await self._set_message_created_at(db_session, msg1_data["message_id"], msg1_timestamp)
 
         # Participant sends second message
         msg2_response = await async_client.post(
@@ -524,7 +532,7 @@ class TestChatE2EQAGate:
         poll_response = await async_client.get(
             f"/api/v1/chats/{session.id}/messages",
             headers={"Authorization": f"Bearer {creator_token}"},
-            params={"since": msg1_timestamp},
+            params={"since": msg1_timestamp.isoformat()},
         )
 
         assert poll_response.status_code == 200
