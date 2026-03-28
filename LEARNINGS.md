@@ -133,5 +133,5 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - Rate-Limiting konfigurierbar testen; Config.py definiert RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS=30 und _WINDOW_SECONDS=60.
 - Polling-Tests: ?since=timestamp Filter-Semantik prüfen mit created_at > since (strikt nach).
 - QA-Gate Befunde dokumentieren: Was funktioniert, was ist offen, welche Risiken bestehen.
-- Chat-Session Determinismus: Paarweise Identität braucht konsistente Teilnehmerreihenfolge, sonst UNIQUE schlägt fehl.
+- Chat-Session Determinismus: Eindeutigkeit basiert auf (nano_id, creator_id, participant_user_id); creator_id muss nano.creator_id sein, participant_user_id ist der initiierende User.
 - Message-Ordering: order_by(created_at.asc(), id.asc()) mit id als Tie-Breaker für Clock-Skew-Resilienz.

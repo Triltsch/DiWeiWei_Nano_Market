@@ -26,11 +26,12 @@ Acceptance Criteria:
   - [x] All tests are reproducible and do not depend on external state
 """
 
+import asyncio
 import uuid
-from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from app.config import get_settings
 from app.models import ChatSession, CompetencyLevel, LicenseType, Nano, NanoFormat, NanoStatus
 from app.modules.auth.tokens import create_access_token
 
@@ -153,6 +154,9 @@ class TestChatE2EQAGate:
         assert msg1_data["content"] == "Hello, I would like to discuss this Nano content."
         msg1_timestamp = msg1_data["created_at"]
 
+        # Ensure second message has a strictly later timestamp for since-cursor checks.
+        await asyncio.sleep(1.1)
+
         # Step 3: Creator polls and receives participant message
         poll1_response = await async_client.get(
             f"/api/v1/chats/{session_id}/messages",
@@ -173,22 +177,20 @@ class TestChatE2EQAGate:
         assert msg2_response.status_code == 201
         msg2_data = msg2_response.json()["data"]
         assert msg2_data["sender_id"] == str(creator.id)
-        msg2_timestamp = msg2_data["created_at"]
 
-        # Step 5: Participant polls to see all messages
+        # Step 5: Participant polls with since cursor to fetch only newer messages
         poll2_response = await async_client.get(
             f"/api/v1/chats/{session_id}/messages",
             headers={"Authorization": f"Bearer {participant_token}"},
+            params={"since": msg1_timestamp},
         )
         assert poll2_response.status_code == 200
         poll2_data = poll2_response.json()["data"]
-        assert len(poll2_data) >= 2
-        # Verify that at least the creator's response is present
-        creator_responses = [msg for msg in poll2_data if msg["sender_id"] == str(creator.id)]
-        assert len(creator_responses) > 0
-        assert (
-            creator_responses[0]["content"] == "Great question! Let's break this down step by step."
-        )
+        poll2_meta = poll2_response.json()["meta"]
+        assert poll2_meta["since_filter_applied"] is True
+        assert len(poll2_data) == 1
+        assert poll2_data[0]["sender_id"] == str(creator.id)
+        assert poll2_data[0]["content"] == "Great question! Let's break this down step by step."
 
     # ------------------------------------------------------------------
     # QA-Gate Authentication Tests (401)
@@ -427,10 +429,10 @@ class TestChatE2EQAGate:
         """
         [QA-GATE-RATELIMIT-001] Rapid message sending exceeds rate limit (429).
 
-        Per LEARNINGS.md and rate_limit.py:
-        - Rate limit: 10 messages per 60 seconds per user (default config)
+        Per runtime config:
+        - Rate limit default is defined by RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS
         - Each message send increments user's counter
-        - 11th message within window returns 429 with Retry-After header
+        - The (max_requests + 1)-th message within the window returns 429
         """
         creator = await self._create_user(db_session, "qa-rl-creator@example.com", "qa_rl_creator")
         participant = await self._create_user(
@@ -442,12 +444,14 @@ class TestChatE2EQAGate:
 
         token, _ = create_access_token(participant.id, participant.email, role="consumer")
 
-        # Send messages up to the rate limit (10 allowed, 11th should fail)
+        max_requests = get_settings().RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS
+
+        # Send messages up to the configured limit; one additional request should fail.
         success_count = 0
         rate_limited = False
         retry_after = None
 
-        for i in range(35):
+        for i in range(max_requests + 5):
             response = await async_client.post(
                 f"/api/v1/chats/{session.id}/messages",
                 headers={"Authorization": f"Bearer {token}"},
@@ -474,12 +478,12 @@ class TestChatE2EQAGate:
         self, async_client, db_session
     ):
         """
-        [QA-GATE-POLL-001] Polling retrieves messages in chronological order.
+        [QA-GATE-POLL-001] Polling with since cursor returns only new messages.
 
         This verifies the polling mechanism used to implement real-time message delivery:
-        - Initial poll retrieves all messages
-        - Messages are returned in chronological order (by created_at, then id)
-        - Allows frontend to implement efficient polling patterns
+        - First message timestamp is used as polling cursor
+        - Follow-up poll with since returns only newer messages
+        - Response metadata indicates since filter usage
         """
         creator = await self._create_user(
             db_session, "qa-poll-creator@example.com", "qa_poll_creator"
@@ -503,6 +507,10 @@ class TestChatE2EQAGate:
             json={"content": "First message"},
         )
         assert msg1_response.status_code == 201
+        msg1_timestamp = msg1_response.json()["data"]["created_at"]
+
+        # Ensure a strictly newer timestamp for the next message.
+        await asyncio.sleep(1.1)
 
         # Participant sends second message
         msg2_response = await async_client.post(
@@ -512,63 +520,17 @@ class TestChatE2EQAGate:
         )
         assert msg2_response.status_code == 201
 
-        # Creator polls all messages
+        # Creator polls with since cursor and should only receive newer entries.
         poll_response = await async_client.get(
             f"/api/v1/chats/{session.id}/messages",
             headers={"Authorization": f"Bearer {creator_token}"},
+            params={"since": msg1_timestamp},
         )
 
         assert poll_response.status_code == 200
         messages = poll_response.json()["data"]
+        meta = poll_response.json()["meta"]
 
-        # Should return both messages in chronological order
-        assert len(messages) >= 2, "Should return all messages"
-        message_contents = [m["content"] for m in messages]
-        assert "First message" in message_contents
-        assert "Second message" in message_contents
-
-    # ------------------------------------------------------------------
-    # QA-Gate Summary & Documentation
-    # ------------------------------------------------------------------
-
-    @pytest.mark.asyncio
-    async def test_qa_gate_test_coverage_matrix_documented(self):
-        """
-        [QA-GATE-DOC-001] Verify this test file documents all required test cases.
-
-        Test Coverage Matrix:
-        ┌─────────────────────────────────────────────────────────────────┐
-        │ Category      │ Test Cases                      │ Status        │
-        ├─────────────────────────────────────────────────────────────────┤
-        │ Core Flow     │ Session → Message → Poll        │ ✓ Implemented │
-        │ Auth (401)    │ Missing token on 3 endpoints    │ ✓ Implemented │
-        │ Authz (403)   │ Non-participant access          │ ✓ Implemented │
-        │ Not Found (404)│ Non-existent resources          │ ✓ Implemented │
-        │ Validation (422) │ Empty/long/missing content    │ ✓ Implemented │
-        │ Rate Limit (429) │ Excessive message sends       │ ✓ Implemented │
-        │ Polling       │ 'since' filter logic            │ ✓ Implemented │
-        │ TLS Security  │ (See test_transport_security.py)│ ✓ Separate    │
-        └─────────────────────────────────────────────────────────────────┘
-
-        Findings:
-        - All core chat flows are functional and properly sequenced
-        - Security boundaries (401/403) are enforced consistently
-        - Input validation rejects invalid content correctly
-        - Rate limiting prevents message abuse
-        - Polling mechanism supports efficient real-time updates
-        - TLS redirect middleware enforces HTTPS on protected paths
-
-        Open Items for Sprint #8:
-        - [ ] Frontend WebSocket support for real-time message delivery (currently polling-based)
-        - [ ] Message read/delivery receipts (currently no status tracking)
-        - [ ] Chat session archival after completion
-        - [ ] Admin moderation tools for inappropriate messages
-        - [ ] User presence/typing indicators
-
-        Risks:
-        - Polling-based architecture may scale poorly with many concurrent users
-        - No message encryption at rest; relies on TLS in transit
-        - Rate limit config (10 msg/60s) may need tuning based on user feedback
-        """
-        # This is a documentation test; the actual validations are in the other tests
-        assert True
+        assert meta["since_filter_applied"] is True
+        assert len(messages) == 1
+        assert messages[0]["content"] == "Second message"
