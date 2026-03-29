@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 from app.config import get_settings
+from app.modules.admin.router import get_admin_router
 from app.modules.audit.router import get_audit_router
 from app.modules.auth.router import get_auth_router
 from app.modules.chat.router import get_chat_router
@@ -75,6 +76,7 @@ def create_app() -> FastAPI:
 
     # Include routers
     app.include_router(get_auth_router())
+    app.include_router(get_admin_router())
     app.include_router(get_audit_router())
     app.include_router(get_upload_router())
     app.include_router(get_nanos_router())

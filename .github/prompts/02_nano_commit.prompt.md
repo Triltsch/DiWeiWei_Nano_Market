@@ -40,6 +40,54 @@ Perform the necessary steps in the following order:
 
 ## Create pull request
 
-- Create a pull request for merging the changed into the `main` branch.
-- If the implemented issue is known, link that pull request to the implemented issue. Add 'Fixes #issue_number' to the pull request description if there is an implemented issue, but direct MCP access to the PR is not possible.
-- Add a summary about that pull request to its description.
+- Create a pull request for merging the changes into the `main` branch.
+- If the implemented issue is known, link that pull request to the implemented issue.
+
+### PR body format
+
+The pull request body **must** use the following structured Markdown format exactly — no plain-text summaries:
+
+```markdown
+Fixes #<issue_number>
+
+## Summary
+
+<One short paragraph describing what this PR delivers at a high level.>
+
+### Problem
+
+<What was missing or broken before this change?>
+
+### Solution
+
+<How does this PR solve the problem? Key design decisions.>
+
+---
+
+## Changes
+
+### <Area 1 — e.g. Models / Router / Service / Frontend / Tests>
+- <Bullet: specific change and why>
+- …
+
+### <Area 2>
+- …
+
+(Repeat for each logical area changed.)
+
+---
+
+## Validation
+
+| Check | Result |
+|-------|--------|
+| `black --check` | ✅ / ❌ |
+| `isort --check-only` | ✅ / ❌ |
+| `pytest tests/` | ✅ N passed |
+| Coverage | ✅ N% (required: 70%) |
+| Docker services | ✅ All healthy during full integration run |
+```
+
+- Fill in every section with real content from the implementation — do **not** leave placeholder text.
+- If a quality check has not been run yet, omit its row from the Validation table rather than guessing.
+- The `Fixes #N` line must appear on line 1, alone, with no preceding heading.

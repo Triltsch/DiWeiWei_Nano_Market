@@ -24,6 +24,7 @@ Design notes
   Story 6.3 will populate it when user-submitted flags arrive.
 """
 
+import logging
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
@@ -31,6 +32,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -59,6 +61,8 @@ from app.modules.moderation.schemas import (
     RatingContentDetail,
 )
 from app.modules.search.service import invalidate_search_cache
+
+logger = logging.getLogger(__name__)
 
 # Decision → ModerationCaseStatus mapping
 _DECISION_TO_CASE_STATUS: dict[str, ModerationCaseStatus] = {
@@ -162,6 +166,13 @@ async def get_moderation_queue(
     Returns:
         :class:`~app.modules.moderation.schemas.ModerationQueueResponse`
     """
+    # Ensure legacy pending items that were created before moderation-case upsert hooks
+    # are visible in the new queue API as pending cases.
+    if status_filter in {None, ModerationCaseStatus.PENDING}:
+        inserted = await _backfill_missing_pending_cases(db=db, content_type=content_type)
+        if inserted > 0:
+            await db.commit()
+
     # --- Build base query ---------------------------------------------------
     base_stmt = select(ModerationCase).order_by(ModerationCase.created_at, ModerationCase.id)
 
@@ -217,6 +228,117 @@ async def get_moderation_queue(
             has_prev_page=page > 1,
         ),
     )
+
+
+async def _backfill_missing_pending_cases(
+    *,
+    db: AsyncSession,
+    content_type: Optional[ModerationContentType],
+) -> int:
+    """Create missing pending moderation cases for already pending content.
+
+    This keeps `/api/v1/moderation/queue` consistent with the legacy
+    `/api/v1/nanos/pending-moderation` endpoint when data existed before the
+    moderation-case upsert integration was deployed.
+    """
+    inserted = 0
+
+    if content_type in {None, ModerationContentType.NANO}:
+        pending_nano_ids = list(
+            (await db.execute(select(Nano.id).where(Nano.status == NanoStatus.PENDING_REVIEW)))
+            .scalars()
+            .all()
+        )
+        inserted += await _insert_missing_cases_for_content_type(
+            db=db,
+            content_type=ModerationContentType.NANO,
+            content_ids=pending_nano_ids,
+        )
+
+    if content_type in {None, ModerationContentType.NANO_RATING}:
+        pending_rating_ids = list(
+            (
+                await db.execute(
+                    select(NanoRating.id).where(
+                        NanoRating.moderation_status == FeedbackModerationStatus.PENDING
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        inserted += await _insert_missing_cases_for_content_type(
+            db=db,
+            content_type=ModerationContentType.NANO_RATING,
+            content_ids=pending_rating_ids,
+        )
+
+    if content_type in {None, ModerationContentType.NANO_COMMENT}:
+        pending_comment_ids = list(
+            (
+                await db.execute(
+                    select(NanoComment.id).where(
+                        NanoComment.moderation_status == FeedbackModerationStatus.PENDING
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        inserted += await _insert_missing_cases_for_content_type(
+            db=db,
+            content_type=ModerationContentType.NANO_COMMENT,
+            content_ids=pending_comment_ids,
+        )
+
+    return inserted
+
+
+async def _insert_missing_cases_for_content_type(
+    *,
+    db: AsyncSession,
+    content_type: ModerationContentType,
+    content_ids: list[UUID],
+) -> int:
+    """Insert moderation cases for IDs that do not yet have a case."""
+    if not content_ids:
+        return 0
+
+    # Restrict the lookup to only the provided content_ids to avoid a full-table
+    # scan on moderation_cases (which could be very large).  The index on
+    # (content_type, content_id) is used for both the IN-list check and the
+    # subsequent INSERT path.
+    existing_ids = set(
+        (
+            await db.execute(
+                select(ModerationCase.content_id).where(
+                    ModerationCase.content_type == content_type,
+                    ModerationCase.content_id.in_(content_ids),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    missing_ids = [cid for cid in content_ids if cid not in existing_ids]
+    if not missing_ids:
+        return 0
+
+    # Bulk-add all missing cases in a single flush rather than N individual
+    # INSERT statements.
+    db.add_all(
+        [
+            ModerationCase(
+                content_type=content_type,
+                content_id=content_id,
+                status=ModerationCaseStatus.PENDING,
+            )
+            for content_id in missing_ids
+        ]
+    )
+    await db.flush()
+    return len(missing_ids)
 
 
 async def get_moderation_case(
@@ -348,22 +470,34 @@ async def review_moderation_case(
         now=now,
     )
 
-    # --- Audit log (flush only — committed together with content changes) ---
-    await AuditLogger.log_action(
-        session=db,
-        action=_DECISION_TO_AUDIT_ACTION[request.decision],
-        user_id=decided_by.user_id,
-        resource_type=case.content_type.value,
-        resource_id=str(case.content_id),
-        metadata={
-            "case_id": str(case_id),
-            "decision": request.decision,
-            "reason": request.reason,
-            "deferred_until": (
-                request.deferred_until.isoformat() if request.deferred_until else None
-            ),
-        },
-    )
+    # Keep moderation decisions available even when audit enum migrations lag.
+    try:
+        async with db.begin_nested():
+            await AuditLogger.log_action(
+                session=db,
+                action=_DECISION_TO_AUDIT_ACTION[request.decision],
+                user_id=decided_by.user_id,
+                resource_type=case.content_type.value,
+                resource_id=str(case.content_id),
+                metadata={
+                    "case_id": str(case_id),
+                    "decision": request.decision,
+                    "reason": request.reason,
+                    "deferred_until": (
+                        request.deferred_until.isoformat() if request.deferred_until else None
+                    ),
+                },
+            )
+    except SQLAlchemyError:
+        logger.exception(
+            "Failed to persist moderation audit event; continuing decision flow",
+            extra={
+                "case_id": str(case_id),
+                "decision": request.decision,
+                "content_type": case.content_type.value,
+                "content_id": str(case.content_id),
+            },
+        )
 
     # --- Single atomic commit for case + content + audit --------------------
     await db.commit()

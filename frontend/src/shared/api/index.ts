@@ -7,6 +7,15 @@
 export { httpClient } from "./httpClient";
 export { API_CONFIG, validateApiConfig } from "./config";
 export {
+  AdminApiError,
+  adminTakedownNano,
+  getAdminAuditLogs,
+  getAdminModerationQueue,
+  getAdminUsers,
+  reviewModerationCase,
+  updateAdminUserRole,
+} from "./admin";
+export {
   setupInterceptors,
   setupRequestInterceptor,
   setupResponseInterceptor,
@@ -55,6 +64,23 @@ export {
   updateAuthTokens,
 } from "./authSession";
 export type { AuthTokens, AuthUser } from "./types";
+export type {
+  AdminTakedownResponse,
+  AdminUser,
+  AdminUserStatus,
+  AdminUsersResponse,
+  AuditLogItem,
+  AuditLogsResponse,
+  GetAdminModerationQueueParams,
+  GetAdminUsersParams,
+  GetAuditLogsParams,
+  ModerationCaseItem,
+  ModerationCaseStatus,
+  ModerationContentType,
+  ModerationDecision,
+  ModerationQueueResponse,
+  ReviewModerationCaseRequest,
+} from "./admin";
 export type {
   AccountDeletionResponse,
   PasswordChangeRequest,

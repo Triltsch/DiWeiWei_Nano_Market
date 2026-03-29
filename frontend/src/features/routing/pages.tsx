@@ -15,6 +15,7 @@ import {
   ModeratorQueuePage as ModeratorQueuePageComponent,
   UploadWizardPage as UploadWizardPageComponent,
 } from "../creator";
+import { AdminPanelPage } from "../admin";
 import { ChatPanel } from "../chat/ChatPanel";
 import {
   createNanoComment,
@@ -1505,8 +1506,11 @@ export function ProfilePage(): JSX.Element {
 }
 
 export function AdminPage(): JSX.Element {
-  const { t } = useTranslation();
-  return <PlaceholderPage title={t("admin_title")} description={t("admin_description")} />;
+  return (
+    <PageLayout>
+      <AdminPanelPage />
+    </PageLayout>
+  );
 }
 
 export function TermsPage(): JSX.Element {
