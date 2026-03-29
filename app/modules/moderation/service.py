@@ -304,34 +304,41 @@ async def _insert_missing_cases_for_content_type(
     if not content_ids:
         return 0
 
+    # Restrict the lookup to only the provided content_ids to avoid a full-table
+    # scan on moderation_cases (which could be very large).  The index on
+    # (content_type, content_id) is used for both the IN-list check and the
+    # subsequent INSERT path.
     existing_ids = set(
         (
             await db.execute(
-                select(ModerationCase.content_id).where(ModerationCase.content_type == content_type)
+                select(ModerationCase.content_id).where(
+                    ModerationCase.content_type == content_type,
+                    ModerationCase.content_id.in_(content_ids),
+                )
             )
         )
         .scalars()
         .all()
     )
 
-    inserted = 0
-    for content_id in content_ids:
-        if content_id in existing_ids:
-            continue
+    missing_ids = [cid for cid in content_ids if cid not in existing_ids]
+    if not missing_ids:
+        return 0
 
-        db.add(
+    # Bulk-add all missing cases in a single flush rather than N individual
+    # INSERT statements.
+    db.add_all(
+        [
             ModerationCase(
                 content_type=content_type,
                 content_id=content_id,
                 status=ModerationCaseStatus.PENDING,
             )
-        )
-        inserted += 1
-
-    if inserted > 0:
-        await db.flush()
-
-    return inserted
+            for content_id in missing_ids
+        ]
+    )
+    await db.flush()
+    return len(missing_ids)
 
 
 async def get_moderation_case(

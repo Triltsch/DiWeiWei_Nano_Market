@@ -92,6 +92,8 @@ async def update_admin_user_role(
 
     user.role = new_role
     db.add(user)
-    await db.commit()
+    # Flush only - the router commits once after the audit log is also written,
+    # ensuring the role change and its audit entry are persisted atomically.
+    await db.flush()
     await db.refresh(user)
     return user, previous_role, True

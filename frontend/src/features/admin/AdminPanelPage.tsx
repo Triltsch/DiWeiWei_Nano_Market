@@ -311,28 +311,16 @@ export function AdminPanelPage(): JSX.Element {
   };
 
   useEffect(() => {
-    let isActive = true;
-
     const loadInitialData = async (): Promise<void> => {
-      try {
-        await Promise.all([
-          loadUsers(0),
-          loadAuditLogs(0),
-          loadModerationQueue(1),
-          loadModerationOpenTotal(),
-        ]);
-      } finally {
-        if (!isActive) {
-          return;
-        }
-      }
+      await Promise.all([
+        loadUsers(0),
+        loadAuditLogs(0),
+        loadModerationQueue(1),
+        loadModerationOpenTotal(),
+      ]);
     };
 
     void loadInitialData();
-
-    return () => {
-      isActive = false;
-    };
   }, []);
 
   const handleRoleDraftChange = (userId: string, role: AuthRole): void => {
