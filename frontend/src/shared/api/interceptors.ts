@@ -105,6 +105,15 @@ export function setupResponseInterceptor(instance: AxiosInstance): void {
       const statusCode = error.response?.status;
       const originalRequest = error.config as RetriableRequestConfig | undefined;
 
+      const isRetriedBusinessValidationError =
+        statusCode === 401 &&
+        originalRequest?._retry === true &&
+        originalRequest.url?.includes("/api/v1/auth/me/change-password");
+
+      if (isRetriedBusinessValidationError) {
+        return Promise.reject(error);
+      }
+
       if (
         statusCode === 401 &&
         originalRequest &&
