@@ -376,8 +376,10 @@ export function AccountSettingsPage(): JSX.Element {
 
   if (isLoading) {
     return (
-      <section className="card-elevated py-10 text-center" aria-label={t("profile_loading")}>
-        <p className="text-neutral-600">{t("profile_loading")}</p>
+      <section className="card-elevated py-10 text-center">
+        <p className="text-neutral-600" role="status" aria-live="polite">
+          {t("profile_loading")}
+        </p>
       </section>
     );
   }
@@ -424,7 +426,7 @@ export function AccountSettingsPage(): JSX.Element {
             <dt className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
               {t("profile_language_label")}
             </dt>
-            <dd className="mt-1 font-medium text-neutral-900">{profile.preferredLanguage.toUpperCase()}</dd>
+            <dd className="mt-1 font-medium text-neutral-900">{profileForm.preferredLanguage.toUpperCase()}</dd>
           </div>
           <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3 shadow-sm">
             <dt className="text-xs font-semibold uppercase tracking-wide text-neutral-500">

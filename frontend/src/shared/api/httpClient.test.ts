@@ -281,7 +281,6 @@ describe("HTTP Client - Response Interceptor", () => {
     expect(secondResult).toEqual(retryResponses[1]);
   });
 
-
   /**
    * Verifies that a retried request which still returns 401 is passed back to
    * the caller without forcing a logout. This protects business-validation

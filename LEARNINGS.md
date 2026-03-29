@@ -7,6 +7,7 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - Asynchrone `useEffect`-Flows immer mit `try/catch` und sichtbarem Fehlerzustand implementieren.
 - In asynchronen Effekten immer Abbruchschutz (`isActive` + Cleanup) gegen State-Updates nach Unmount nutzen.
 - Bei Präferenzfeldern wie Sprache UI-Zustand sofort aktualisieren; kein Refetch-Effect darf von derselben Präferenz abhängen, sonst werden Nutzeränderungen direkt wieder überschrieben.
+- Wenn ein Formular Spracheinstellung speichert: Sofort `setLanguage()` aufrufen, NICHT auf Backend-Antwort oder Refetch warten. Andernfalls sieht der Nutzer die neue Sprache kurz und sie wird prompt von der Backend-Antwort mit der alten Präferenz zurückgesetzt.
 - UX-Magic-Numbers (Debounce, Page Size, Timeouts) als Modulkonstanten führen.
 - URL↔State-Sync nur mit Write-Guard (`useRef`) um Feedback-Loops zu vermeiden.
 - Alle sichtbaren Strings über `t()` lokalisieren (inkl. Fallbacks und Fehlermeldungen).
@@ -22,13 +23,14 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - API-Clients pro Domäne kapseln (z. B. Feedback, Detail, Search) und HTTP-Status auf typisierte Fehlercodes mappen.
 - 401/403 im Frontend explizit trennen: 401 = Re-Login, 403 = Forbidden-State.
 - Redirect-Parameter nach Login zuerst gegen Open-Redirect-Regeln validieren, dann role-aware Fallback anwenden.
+- Self-Service-Endpunkte (Passwortänderung, Profilupdate) können *authentifizierten* Nutzern mit 401 antworten, wenn eine Business-Validation fehlschlägt (z. B. „aktuelles Passwort falsch"). Interceptoren müssen `_retry`-Flag prüfen und nicht blindlings Logout auslösen, sonst wird ein legitimer Validierungsfehler zur Session-Löschung.
 
 ## Frontend-Tests
 
 - Tests verhaltensbasiert schreiben (Lifecycle, Error-Path, Refetch, Redirect), nicht nur Existenzprüfungen.
 - In Tests kein `any`; konkrete Library-Typen verwenden.
 - Bei i18n-Tests nach aktivem Sprachwechsel auf die erwartete neue Sprache asserten (Labels/Buttons), statt statische Strings aus der initialen Locale zu verwenden.
-- Asynchrone Assertions mit `waitFor`, `await` und `rejects` stabilisieren.
+- In Tests, die Sprachwechsel prüfen: Nach `fireEvent.change(language)` beim nächsten Button-Suche / Label-Check die neue Sprache erwartet (z. B. "Save profile" statt "Profil speichern"). Alte Labels sind nach dem Wechsel nicht mehr im DOM; Tests, die auf den alten String asserten würden, scheitern — das ist korrekt und deckt den UX-Fehler auf.
 - Debounced/async Mock-Assertions mit Call-Count + Last-Call kombinieren.
 - Für CI-nahe Frontend-Läufe `vitest run`/`npx vitest run` statt Watch-Mode nutzen.
 - Exakte Testanzahlen nicht in Doku festschreiben; CI ist die autoritative Quelle.

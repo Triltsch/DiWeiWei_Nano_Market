@@ -261,6 +261,8 @@ function getErrorCode(error: unknown): AccountSettingsApiErrorCode {
     const detail = error.response?.data?.detail ?? "";
 
     if (status === 401) {
+      // Coupled to backend message in app/modules/auth/router.py (change password route).
+      // Prefer a machine-readable API error code when backend support is available.
       if (detail === "Current password is incorrect") {
         return "current-password-incorrect";
       }
@@ -300,6 +302,7 @@ function getErrorMessage(error: unknown): string {
 
     return error.response.data?.detail ?? "Request failed. Please try again.";
   }
+
 
   if (error instanceof Error) {
     return error.message;

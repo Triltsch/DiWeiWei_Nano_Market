@@ -101,7 +101,7 @@ describe("AccountSettingsPage", () => {
   it("loads and renders account settings data", async () => {
     renderPage();
 
-    expect(screen.getByLabelText("Profil wird geladen...")).toBeTruthy();
+    expect(screen.getByRole("status")).toHaveTextContent("Profil wird geladen...");
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Profil" })).toBeTruthy();
