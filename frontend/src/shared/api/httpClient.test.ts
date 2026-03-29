@@ -280,4 +280,41 @@ describe("HTTP Client - Response Interceptor", () => {
     expect(firstResult).toEqual(retryResponses[0]);
     expect(secondResult).toEqual(retryResponses[1]);
   });
+
+
+  /**
+   * Verifies that a retried request which still returns 401 is passed back to
+   * the caller without forcing a logout. This protects business-validation
+   * flows that intentionally use 401 on authenticated endpoints.
+   */
+  it("does not clear the session when a retried request still returns 401", async () => {
+    const unauthorizedEventSpy = vi.fn();
+    window.addEventListener("auth:unauthorized", unauthorizedEventSpy);
+
+    setAuthSession(
+      {
+        accessToken: "fresh-access",
+        refreshToken: "fresh-refresh",
+        expiresIn: 900,
+      },
+      { email: "tester@example.com" }
+    );
+
+    const rejectedHandler = getResponseHandlers().find((handler) => handler.rejected)?.rejected;
+    if (!rejectedHandler) {
+      throw new Error("Response interceptor rejected handler missing");
+    }
+
+    const error = {
+      response: { status: 401 },
+      config: createRequestConfig({ url: "/api/v1/auth/me/change-password", _retry: true }),
+      message: "Unauthorized",
+    } as unknown as Error;
+
+    await expect(rejectedHandler(error)).rejects.toBe(error);
+    expect(getAccessToken()).toBe("fresh-access");
+    expect(unauthorizedEventSpy).not.toHaveBeenCalled();
+
+    window.removeEventListener("auth:unauthorized", unauthorizedEventSpy);
+  });
 });

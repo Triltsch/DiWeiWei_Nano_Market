@@ -14,6 +14,14 @@ export {
 export { useUserProfile } from "./useUserProfile";
 export { normalizeSearchLevel, searchNanos } from "./search";
 export {
+  AccountSettingsApiError,
+  changeMyPassword,
+  exportMyData,
+  getMyProfile,
+  requestMyAccountDeletion,
+  updateMyProfile,
+} from "./accountSettings";
+export {
   getCreatorNanoMetadata,
   getCreatorNanos,
   deleteCreatorNano,
@@ -47,6 +55,13 @@ export {
   updateAuthTokens,
 } from "./authSession";
 export type { AuthTokens, AuthUser } from "./types";
+export type {
+  AccountDeletionResponse,
+  PasswordChangeRequest,
+  UserDataExport,
+  UserProfile,
+  UserProfileUpdateRequest,
+} from "./accountSettings";
 export type { SearchFilters, SearchNano, SearchRequest, SearchResponse } from "./search";
 export type {
   CreatorNanoListResponse,

@@ -6,6 +6,7 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 
 - Asynchrone `useEffect`-Flows immer mit `try/catch` und sichtbarem Fehlerzustand implementieren.
 - In asynchronen Effekten immer Abbruchschutz (`isActive` + Cleanup) gegen State-Updates nach Unmount nutzen.
+- Bei Präferenzfeldern wie Sprache UI-Zustand sofort aktualisieren; kein Refetch-Effect darf von derselben Präferenz abhängen, sonst werden Nutzeränderungen direkt wieder überschrieben.
 - UX-Magic-Numbers (Debounce, Page Size, Timeouts) als Modulkonstanten führen.
 - URL↔State-Sync nur mit Write-Guard (`useRef`) um Feedback-Loops zu vermeiden.
 - Alle sichtbaren Strings über `t()` lokalisieren (inkl. Fallbacks und Fehlermeldungen).
@@ -26,6 +27,7 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 
 - Tests verhaltensbasiert schreiben (Lifecycle, Error-Path, Refetch, Redirect), nicht nur Existenzprüfungen.
 - In Tests kein `any`; konkrete Library-Typen verwenden.
+- Bei i18n-Tests nach aktivem Sprachwechsel auf die erwartete neue Sprache asserten (Labels/Buttons), statt statische Strings aus der initialen Locale zu verwenden.
 - Asynchrone Assertions mit `waitFor`, `await` und `rejects` stabilisieren.
 - Debounced/async Mock-Assertions mit Call-Count + Last-Call kombinieren.
 - Für CI-nahe Frontend-Läufe `vitest run`/`npx vitest run` statt Watch-Mode nutzen.

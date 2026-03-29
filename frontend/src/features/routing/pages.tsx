@@ -8,6 +8,7 @@ import {
   VerifyEmailPage as VerifyEmailAuthPage,
 } from "../auth";
 import { PrivacyPage as PrivacyLegalPage, TermsPage as TermsLegalPage } from "../legal/pages";
+import { AccountSettingsPage } from "../profile";
 import {
   CreatorDashboardPage as CreatorDashboardPageComponent,
   EditNanoPage as EditNanoPageComponent,
@@ -1496,8 +1497,11 @@ export function DashboardPage(): JSX.Element {
 }
 
 export function ProfilePage(): JSX.Element {
-  const { t } = useTranslation();
-  return <PlaceholderPage title={t("profile_title")} description={t("profile_description")} />;
+  return (
+    <PageLayout>
+      <AccountSettingsPage />
+    </PageLayout>
+  );
 }
 
 export function AdminPage(): JSX.Element {

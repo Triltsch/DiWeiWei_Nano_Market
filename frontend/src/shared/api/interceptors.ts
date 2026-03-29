@@ -105,6 +105,10 @@ export function setupResponseInterceptor(instance: AxiosInstance): void {
       const statusCode = error.response?.status;
       const originalRequest = error.config as RetriableRequestConfig | undefined;
 
+      if (statusCode === 401 && originalRequest?._retry) {
+        return Promise.reject(error);
+      }
+
       if (
         statusCode === 401 &&
         originalRequest &&
