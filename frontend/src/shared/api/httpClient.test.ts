@@ -12,15 +12,19 @@ import { API_CONFIG } from "./config";
 import { setAuthSession, clearAuthSession, getAccessToken } from "./authSession";
 import { httpClient } from "./httpClient";
 
+type RetriableTestRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
+
 function createRequestConfig(
-  config: Partial<InternalAxiosRequestConfig> = {}
-): InternalAxiosRequestConfig {
+  config: Partial<RetriableTestRequestConfig> = {}
+): RetriableTestRequestConfig {
   return {
     headers: new AxiosHeaders(),
     url: "/api/v1/test",
     method: "get",
     ...config,
-  } as InternalAxiosRequestConfig;
+  } as RetriableTestRequestConfig;
 }
 
 function getRequestHandlers() {
@@ -36,8 +40,8 @@ function getResponseHandlers() {
 }
 
 function runRequestInterceptors(
-  initialConfig: InternalAxiosRequestConfig
-): InternalAxiosRequestConfig {
+  initialConfig: RetriableTestRequestConfig
+): RetriableTestRequestConfig {
   let config = initialConfig;
 
   for (const handler of getRequestHandlers()) {
@@ -313,6 +317,41 @@ describe("HTTP Client - Response Interceptor", () => {
     await expect(rejectedHandler(error)).rejects.toBe(error);
     expect(getAccessToken()).toBe("fresh-access");
     expect(unauthorizedEventSpy).not.toHaveBeenCalled();
+
+    window.removeEventListener("auth:unauthorized", unauthorizedEventSpy);
+  });
+
+  /**
+   * Verifies retried 401 responses still trigger unauthorized handling for
+   * regular endpoints where a 401 indicates a true auth failure.
+   */
+  it("clears session for retried 401 on non-business endpoints", async () => {
+    const unauthorizedEventSpy = vi.fn();
+    window.addEventListener("auth:unauthorized", unauthorizedEventSpy);
+
+    setAuthSession(
+      {
+        accessToken: "fresh-access",
+        refreshToken: "fresh-refresh",
+        expiresIn: 900,
+      },
+      { email: "tester@example.com" }
+    );
+
+    const rejectedHandler = getResponseHandlers().find((handler) => handler.rejected)?.rejected;
+    if (!rejectedHandler) {
+      throw new Error("Response interceptor rejected handler missing");
+    }
+
+    const error = {
+      response: { status: 401 },
+      config: createRequestConfig({ url: "/api/v1/protected", _retry: true }),
+      message: "Unauthorized",
+    } as unknown as Error;
+
+    await expect(rejectedHandler(error)).rejects.toBe(error);
+    expect(getAccessToken()).toBeNull();
+    expect(unauthorizedEventSpy).toHaveBeenCalledOnce();
 
     window.removeEventListener("auth:unauthorized", unauthorizedEventSpy);
   });

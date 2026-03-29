@@ -241,6 +241,8 @@ describe("AccountSettingsPage", () => {
    * state after the download has been prepared.
    */
   it("exports user data and shows success feedback", async () => {
+    const originalCreateObjectURL = window.URL.createObjectURL;
+    const originalRevokeObjectURL = window.URL.revokeObjectURL;
     const createObjectUrlSpy = vi.fn(() => "blob:export-test");
     const revokeObjectUrlSpy = vi.fn();
     const anchorClickSpy = vi
@@ -257,45 +259,59 @@ describe("AccountSettingsPage", () => {
       value: revokeObjectUrlSpy,
     });
 
-    mockedExportMyData.mockResolvedValue({
-      exportDate: "2026-03-28T12:00:00Z",
-      userId: "user-1",
-      email: "user@example.com",
-      username: "nano-user",
-      firstName: "Ada",
-      lastName: "Lovelace",
-      bio: null,
-      company: null,
-      jobTitle: null,
-      phone: null,
-      preferredLanguage: "de",
-      createdAt: "2026-03-20T10:00:00Z",
-      updatedAt: "2026-03-28T10:00:00Z",
-      lastLogin: null,
-      emailVerified: true,
-      verifiedAt: null,
-      status: "active",
-      role: "creator",
-      acceptedTerms: null,
-      acceptedPrivacy: null,
-    });
+    try {
+      mockedExportMyData.mockResolvedValue({
+        exportDate: "2026-03-28T12:00:00Z",
+        userId: "user-1",
+        email: "user@example.com",
+        username: "nano-user",
+        firstName: "Ada",
+        lastName: "Lovelace",
+        bio: null,
+        company: null,
+        jobTitle: null,
+        phone: null,
+        preferredLanguage: "de",
+        createdAt: "2026-03-20T10:00:00Z",
+        updatedAt: "2026-03-28T10:00:00Z",
+        lastLogin: null,
+        emailVerified: true,
+        verifiedAt: null,
+        status: "active",
+        role: "creator",
+        acceptedTerms: null,
+        acceptedPrivacy: null,
+      });
 
-    renderPage();
+      renderPage();
 
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Datenexport herunterladen" })).toBeTruthy();
-    });
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Datenexport herunterladen" })).toBeTruthy();
+      });
 
-    fireEvent.click(screen.getByRole("button", { name: "Datenexport herunterladen" }));
+      fireEvent.click(screen.getByRole("button", { name: "Datenexport herunterladen" }));
 
-    await waitFor(() => {
-      expect(mockedExportMyData).toHaveBeenCalledOnce();
-      expect(screen.getByText("Ihr Datenexport wurde vorbereitet.")).toBeTruthy();
-    });
+      await waitFor(() => {
+        expect(mockedExportMyData).toHaveBeenCalledOnce();
+        expect(screen.getByText("Ihr Datenexport wurde vorbereitet.")).toBeTruthy();
+      });
 
-    expect(createObjectUrlSpy).toHaveBeenCalledOnce();
-    expect(revokeObjectUrlSpy).toHaveBeenCalledOnce();
-    expect(anchorClickSpy).toHaveBeenCalledOnce();
+      expect(createObjectUrlSpy).toHaveBeenCalledOnce();
+      expect(revokeObjectUrlSpy).toHaveBeenCalledOnce();
+      expect(anchorClickSpy).toHaveBeenCalledOnce();
+    } finally {
+      Object.defineProperty(window.URL, "createObjectURL", {
+        configurable: true,
+        writable: true,
+        value: originalCreateObjectURL,
+      });
+      Object.defineProperty(window.URL, "revokeObjectURL", {
+        configurable: true,
+        writable: true,
+        value: originalRevokeObjectURL,
+      });
+      anchorClickSpy.mockRestore();
+    }
   });
 
   /**

@@ -3,7 +3,7 @@ import axios from "axios";
 import type { AuthRole } from "./types";
 import { httpClient } from "./httpClient";
 
-export type AccountStatus = "active" | "inactive" | "suspended";
+export type AccountStatus = "active" | "inactive" | "suspended" | "deleted";
 
 export interface UserProfile {
   id: string;
@@ -188,14 +188,19 @@ function mapRole(value: unknown): AuthRole {
 }
 
 function mapStatus(value: unknown): AccountStatus {
-  if (value === "inactive" || value === "suspended") {
+  if (value === "inactive" || value === "suspended" || value === "deleted") {
     return value;
   }
 
-  return "active";
+  if (value === "active") {
+    return value;
+  }
+
+  return "inactive";
 }
 
 function mapUserProfile(raw: RawUserProfile): UserProfile {
+
   return {
     id: asString(raw.id) ?? "",
     email: asString(raw.email) ?? "",

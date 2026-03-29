@@ -82,6 +82,10 @@ function getStatusLabel(
   status: UserProfile["status"],
   t: ReturnType<typeof useTranslation>["t"],
 ): string {
+  if (status === "deleted") {
+    return t("profile_status_deleted");
+  }
+
   if (status === "inactive") {
     return t("profile_status_inactive");
   }
