@@ -221,6 +221,21 @@ class AuditLogsQueryResponse(BaseModel):
     offset: int
 
 
+class AdminUserListResponse(BaseModel):
+    """Paginated admin user list response."""
+
+    users: list[UserResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class AdminUserRoleUpdateRequest(BaseModel):
+    """Request payload for admin-managed role changes."""
+
+    role: UserRole
+
+
 class SuspiciousActivityResponse(BaseModel):
     """Suspicious activity detection response schema"""
 

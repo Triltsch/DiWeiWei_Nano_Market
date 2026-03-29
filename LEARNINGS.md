@@ -145,3 +145,10 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - QA-Gate Befunde dokumentieren: Was funktioniert, was ist offen, welche Risiken bestehen.
 - Chat-Session Determinismus: Eindeutigkeit basiert auf (nano_id, creator_id, participant_user_id); creator_id muss nano.creator_id sein, participant_user_id ist der initiierende User.
 - Message-Ordering: order_by(created_at.asc(), id.asc()) mit id als Tie-Breaker für Clock-Skew-Resilienz.
+
+## Admin Panel / Moderation Queue Patterns
+
+- KPI-Karten-Zählerstände immer über eine eigene, dedizierte API-Anfrage (z. B. `limit=1`) vom gefilterten Listen-State entkoppeln. Wird `moderationTotal` aus dem gefilterten Listen-Response für die Summary-Card verwendet, ändert sich der KPI-Wert bei Filterwechsel — was für den Nutzer keinen Sinn ergibt.
+- Audit-Logging im Moderations-Service fault-tolerant implementieren (Savepoint/try-catch): Ein fehlgeschlagener Audit-Insert darf die eigentliche Moderationsentscheidung nicht rückgängig machen. Postgres-Enum-Typ und SQLAlchemy-Enum müssen synchron gehalten und bei neuen Werten per dedizierter Alembic-Migration (`ALTER TYPE ... ADD VALUE`) erweitert werden.
+- Beim Umschreiben einer Legacy-Seite (flaches Moderator-API-Format) auf das Case-basierte Admin-API-Format (`ModerationCaseItem`) müssen alle Helper-Funktionen an die neue Datenstruktur angepasst werden (z. B. `content_type`, `target_id` statt separater `nano_id`/`rating_id`-Felder).
+- Jede Komponente, die `<GlobalNav>` einbettet (welches intern `useNavigate()` verwendet), benötigt in Vitest-Tests einen `<MemoryRouter>`-Wrapper, da React Router Hooks einen Router-Kontext erfordern.

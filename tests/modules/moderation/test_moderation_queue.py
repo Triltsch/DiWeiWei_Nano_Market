@@ -15,6 +15,7 @@ from uuid import UUID
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.models import (
     AuditAction,
@@ -34,6 +35,7 @@ from app.models import (
     UserRole,
 )
 from app.modules.auth.service import verify_user_email
+from app.modules.moderation import service as moderation_service
 
 
 async def _create_user_with_role(async_client, db_session, role: UserRole, password: str) -> User:
@@ -221,6 +223,79 @@ async def test_queue_filter_and_pagination(async_client, db_session, creator_use
 
 
 @pytest.mark.asyncio
+async def test_queue_backfills_missing_cases_for_pending_content(
+    async_client,
+    db_session,
+    creator_user,
+    moderator_token,
+):
+    """Pending content without explicit ModerationCase rows should still appear in queue."""
+    nano = _make_nano(
+        creator_id=creator_user.id,
+        status=NanoStatus.PENDING_REVIEW,
+        title="Legacy Pending Nano",
+    )
+    rating_nano = _make_nano(
+        creator_id=creator_user.id,
+        status=NanoStatus.PUBLISHED,
+        title="Legacy Pending Rating Nano",
+    )
+    comment_nano = _make_nano(
+        creator_id=creator_user.id,
+        status=NanoStatus.PUBLISHED,
+        title="Legacy Pending Comment Nano",
+    )
+
+    rating = NanoRating(
+        id=uuid.uuid4(),
+        nano_id=rating_nano.id,
+        user_id=creator_user.id,
+        score=5,
+        moderation_status=FeedbackModerationStatus.PENDING,
+    )
+    comment = NanoComment(
+        id=uuid.uuid4(),
+        nano_id=comment_nano.id,
+        user_id=creator_user.id,
+        content="Legacy pending comment",
+        moderation_status=FeedbackModerationStatus.PENDING,
+    )
+
+    db_session.add_all([nano, rating_nano, comment_nano, rating, comment])
+    await db_session.commit()
+
+    queue = await async_client.get(
+        "/api/v1/moderation/queue",
+        headers={"Authorization": f"Bearer {moderator_token}"},
+    )
+
+    assert queue.status_code == 200
+    payload = queue.json()
+
+    assert payload["pagination"]["total_results"] >= 3
+
+    item_types = [item["content_type"] for item in payload["items"]]
+    assert "nano" in item_types
+    assert "nano_rating" in item_types
+    assert "nano_comment" in item_types
+
+    cases = (
+        (
+            await db_session.execute(
+                select(ModerationCase).where(
+                    ModerationCase.content_id.in_([nano.id, rating.id, comment.id])
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    assert len(cases) == 3
+    assert all(case.status == ModerationCaseStatus.PENDING for case in cases)
+
+
+@pytest.mark.asyncio
 async def test_review_approve_nano_publishes_and_writes_audit(
     async_client,
     db_session,
@@ -403,6 +478,56 @@ async def test_review_defer_sets_case_deferral_without_changing_nano(
         json={
             "decision": "defer",
             "reason": "Waiting for policy team clarification.",
+            "deferred_until": deferred_until.isoformat(),
+        },
+        headers={"Authorization": f"Bearer {moderator_token}"},
+    )
+    assert review.status_code == 200
+
+    await db_session.refresh(nano)
+    await db_session.refresh(case)
+
+    assert nano.status == NanoStatus.PENDING_REVIEW
+    assert case.status == ModerationCaseStatus.DEFERRED
+    assert case.deferred_until is not None
+
+
+@pytest.mark.asyncio
+async def test_review_defer_succeeds_when_audit_logging_fails(
+    async_client,
+    db_session,
+    creator_user,
+    moderator_token,
+    monkeypatch,
+):
+    """Validate moderation decision is committed even when audit persistence fails."""
+    nano = _make_nano(
+        creator_id=creator_user.id,
+        status=NanoStatus.PENDING_REVIEW,
+        title="Deferred Nano With Audit Failure",
+    )
+    db_session.add(nano)
+    await db_session.flush()
+
+    case = ModerationCase(
+        content_type=ModerationContentType.NANO,
+        content_id=nano.id,
+        status=ModerationCaseStatus.PENDING,
+    )
+    db_session.add(case)
+    await db_session.commit()
+
+    async def _raise_audit_error(*args, **kwargs):
+        raise SQLAlchemyError("simulated audit enum mismatch")
+
+    monkeypatch.setattr(moderation_service.AuditLogger, "log_action", _raise_audit_error)
+
+    deferred_until = datetime.now(timezone.utc) + timedelta(days=2)
+    review = await async_client.post(
+        f"/api/v1/moderation/cases/{case.id}/review",
+        json={
+            "decision": "defer",
+            "reason": "Proceed even if audit logging fails.",
             "deferred_until": deferred_until.isoformat(),
         },
         headers={"Authorization": f"Bearer {moderator_token}"},
