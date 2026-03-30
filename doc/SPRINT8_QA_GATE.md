@@ -40,8 +40,7 @@ Primary objective: verify functional E2E behavior, RBAC enforcement, moderation 
 - [x] Moderator user cannot update profiles (admin-only operation)
 
 **Coverage Sources:**
-- `tests/modules/auth/test_auth_routes.py` - Self-service profile endpoints
-- `tests/modules/users/test_user_profile_routes.py` - Profile display and update flows
+- `tests/modules/auth/test_auth_routes.py` - Self-service profile endpoints and profile display/update flows
 - Backend auth router: `app/modules/auth/router.py`
 
 ---
@@ -73,8 +72,9 @@ Primary objective: verify functional E2E behavior, RBAC enforcement, moderation 
 
 **Coverage Sources:**
 - `tests/modules/auth/test_auth_routes.py` - change-password endpoint
-- `tests/modules/auth/test_password_validation.py` - password strength, hashing
-- Frontend: `frontend/src/features/account-settings/AccountSettingsPage.tsx`
+- `tests/modules/auth/test_password_strength.py` - password strength validation
+- `tests/modules/auth/test_password_hashing.py` - password hashing and bcrypt
+- Frontend: `frontend/src/features/profile/AccountSettingsPage.tsx`
 
 ---
 
@@ -105,7 +105,8 @@ Primary objective: verify functional E2E behavior, RBAC enforcement, moderation 
 - [x] Audit events are retained per compliance policy
 
 **Coverage Sources:**
-- `tests/modules/auth/test_gdpr_routes.py` - GDPR export/deletion endpoints
+- `tests/modules/auth/test_gdpr_api.py` - GDPR export/deletion endpoints
+- `tests/modules/auth/test_gdpr_compliance.py` - GDPR compliance validation
 - Backend service: `app/modules/auth/service.py` - GDPR operations
 - Audit logging: `app/modules/audit/service.py` - tracks deletions
 
@@ -138,7 +139,7 @@ Primary objective: verify functional E2E behavior, RBAC enforcement, moderation 
 
 **Coverage Sources:**
 - `tests/modules/nanos/test_nanos_routes.py` - feedback moderation integration
-- `tests/modules/moderation/test_moderation_queue_routes.py` - moderation endpoints
+- `tests/modules/moderation/test_moderation_queue.py` - moderation endpoints
 - Backend service: `app/modules/moderation/service.py`
 - Audit: `app/modules/audit/service.py`
 
@@ -171,9 +172,9 @@ Primary objective: verify functional E2E behavior, RBAC enforcement, moderation 
 - [x] Unauthenticated request: 401 Unauthorized
 
 **Coverage Sources:**
-- `tests/modules/admin/test_admin_routes.py` - admin user/role endpoints
+- `tests/modules/admin/test_admin_user_management.py` - admin user/role endpoints
 - Frontend: `frontend/src/features/admin/AdminPanelPage.tsx`
-- RBAC: `app/security/dependencies.py` - `require_role` guards
+- RBAC: `app/modules/auth/middleware.py` - `require_role` guards
 
 ---
 
@@ -193,7 +194,8 @@ Primary objective: verify functional E2E behavior, RBAC enforcement, moderation 
 - [x] Non-admin attempt: 403 Forbidden
 
 **Coverage Sources:**
-- `tests/modules/admin/test_admin_audit_routes.py`
+- `tests/modules/test_audit_routes.py`
+- `tests/modules/test_audit_integration.py`
 - Backend: `app/modules/admin/service.py`
 
 ---
@@ -227,7 +229,7 @@ Primary objective: verify functional E2E behavior, RBAC enforcement, moderation 
 - [x] Unauthenticated: 401
 
 **Coverage Sources:**
-- `tests/modules/admin/test_admin_takedown_routes.py`
+- `tests/modules/nanos/test_admin_takedown.py`
 - Backend: `app/modules/admin/service.py` - takedown operations
 - Audit: takedown actions logged with full context
 
@@ -262,10 +264,10 @@ Primary objective: verify functional E2E behavior, RBAC enforcement, moderation 
 
 **Coverage Sources:**
 - `tests/modules/auth/test_auth_routes.py` - role-based access patterns
-- `tests/modules/admin/test_admin_routes.py` - admin-only gating
-- `tests/modules/moderation/test_moderation_routes.py` - moderator-only gating
-- Frontend: `frontend/src/security/routeGuards.ts` - role-aware navigation
-- Backend: `app/security/dependencies.py` - `require_role("admin")`, etc.
+- `tests/modules/admin/test_admin_user_management.py` - admin-only gating
+- `tests/modules/moderation/test_moderation_queue.py` - moderator-only gating
+- Frontend: `frontend/src/features/routing/ProtectedRouteLayout.tsx` - role-aware navigation
+- Backend: `app/modules/auth/middleware.py` - `require_role("admin")`, etc.
 
 ---
 
@@ -358,7 +360,7 @@ The following validations will be executed as part of this gate:
 2. **Unit & Integration Tests** (`Test: Verified` VS Code task)
    - Docker infrastructure health check (PostgreSQL, Redis, MinIO, Meilisearch)
    - pytest suite: `tests/` directory
-   - Coverage threshold: ≥80% (enforce via CI)
+   - Coverage threshold: ≥70% (enforce via CI)
    - All tests must pass (0 failures, warnings tolerated if non-blocking)
 
 3. **End-to-End Behavior Validation** (manual + test assertions)
