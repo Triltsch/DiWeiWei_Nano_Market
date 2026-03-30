@@ -423,6 +423,28 @@ Acceptance:
 
 ---
 
+### Sprint 8a: Self-Hosted Mailserver Integration (Issues #125–#130)
+
+Implements the technical blueprint defined in Issue #123 / `doc/MAILSERVER_SELF_HOSTED_AUTH.md`.
+
+```
+Priority  Issue  Type            Title
+P1        #125   Infrastructure  Add mailpit SMTP test service to Docker Compose
+P1        #126   Backend         Typed SMTP settings with fail-fast validation
+P1        #127   Backend         Async SMTP transport abstraction (aiosmtplib, retry, metrics)
+P1        #128   Backend/Auth    Wire registration + resend-verification to SMTP transport
+P2        #129   QA              Auth-flow integration tests with mailpit container
+P2        #130   Docs/Ops        SMTP operations runbook (DNS, Prometheus alerts, incident response)
+```
+
+**Critical Path:** #125 → #126 → #127 → #128 → #129 (sequential)
+**Parallel:** #130 can start after #127 metric names are known.
+
+**Total Effort Estimate:** 11 Personentage
+**Sprint Goal:** Self-hosted auth mail delivery operational end-to-end in the container environment; verified by integration tests; ops runbook ready for Ubuntu go-live.
+
+---
+
 ## 3. Sprint Planning (MVP: 10 Sprints à 1 Woche)
 
 > **Two parallel tracks from Sprint 2 onwards:**
@@ -488,6 +510,15 @@ Sprint 8 (Week 8): User Profile, Moderation & Admin UI
 └─ Story 8.9: Self-Hosted Mailserver Integration Blueprint (Docs/Infra Add-on)
 Goal: Full admin + user profile functionality
 
+Sprint 8a (Week 8 Add-on): Self-Hosted Mailserver Integration (Issues #125–#130)
+├─ Issue #125: Add mailpit SMTP test service to Docker Compose (Infrastructure Enabler)
+├─ Issue #126: Typed SMTP settings in app/config.py with fail-fast validation (Backend)
+├─ Issue #127: Async SMTP transport abstraction with retry and metrics (Backend)
+├─ Issue #128: Wire auth flows (registration, resend) to SMTP transport (Backend/Auth)
+├─ Issue #129: Auth-flow integration tests with mailpit container (QA)
+└─ Issue #130: SMTP operations runbook — DNS, monitoring, incident response (Docs/Ops)
+Goal: Self-hosted auth mail delivery operational end-to-end in container environment
+
 Sprint 9 (Week 9): Security Hardening & CI/CD
 ├─ Story 7.6: CI/CD Pipeline (GitHub Actions)
 ├─ Story 7.7: SSL/TLS & Security Hardening (Caddy/Nginx)
@@ -503,7 +534,7 @@ Sprint 10 (Week 10): Testing, QA & Go-Live
 └─ Story 8.2 polish (landing page final)
 Goal: Production-ready
 
-TOTAL: 10 Sprints = 2.5 Monate MVP (inkl. Frontend)
+TOTAL: 10 Sprints + Sprint 8a = 2.5 Monate MVP + Mailserver Integration (inkl. Frontend)
 ```
 
 ---
