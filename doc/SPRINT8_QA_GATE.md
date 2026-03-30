@@ -447,7 +447,7 @@ All integration test scenarios passed via the test suite:
 - [x] GDPR delete → account inaccessibility (test coverage via `tests/modules/auth/test_gdpr_compliance.py`)
 - [x] Moderation decision → visibility changes (test coverage via `tests/modules/nanos/test_moderation_workflow.py`)
 - [x] Takedown → search/detail exclusion (test coverage via `tests/modules/nanos/test_admin_takedown.py`)
-- [x] Role change → access changes (test coverage via `tests/modules/auth/test_account_settings.py` + `tests/modules/admin/test_admin_routes.py`)
+- [x] Role change → access changes (test coverage via `tests/modules/auth/test_account_settings.py` + `tests/modules/admin/test_admin_user_management.py`)
 - [x] RBAC enforcement across all roles (test coverage via dedicated RBAC test modules)
 
 **Validation Method:** Full pytest execution against live Docker infrastructure (PostgreSQL, Redis, MinIO, Meilisearch) ensures end-to-end integration correctness.
