@@ -54,7 +54,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: diweiwei_test_app
-    env_file: .env
+    env_file: .env.example
     environment:
       TEST_DB_URL: "postgresql+asyncpg://testuser:testpassword@postgres:5432/diweiwei_test"
       REDIS_URL: "redis://redis:6379/0"
