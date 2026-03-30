@@ -95,3 +95,32 @@ def test_smtp_password_redacted_in_repr_and_model_dump() -> None:
 
     assert raw_password not in repr(settings)
     assert raw_password not in str(settings.model_dump())
+
+
+def test_smtp_production_rejects_development_defaults() -> None:
+    """Production settings reject placeholder SMTP defaults to avoid hidden misconfiguration."""
+    with pytest.raises(ValidationError, match="production requires explicit SMTP_HOST"):
+        Settings(
+            ENV="production",
+            SMTP_USE_TLS=False,
+            SMTP_USE_STARTTLS=True,
+        )
+
+
+def test_smtp_production_accepts_explicit_values() -> None:
+    """Production settings accept explicit SMTP credentials and sender values."""
+    settings = Settings(
+        ENV="production",
+        SMTP_HOST="smtp.example.com",
+        SMTP_PORT=587,
+        SMTP_USERNAME="mailer",
+        SMTP_PASSWORD="strong-secret",
+        SMTP_FROM_ADDRESS="notifications@example.com",
+        SMTP_USE_TLS=False,
+        SMTP_USE_STARTTLS=True,
+    )
+
+    smtp = settings.smtp_settings
+
+    assert smtp.smtp_host == "smtp.example.com"
+    assert smtp.smtp_username == "mailer"

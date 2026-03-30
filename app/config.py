@@ -1,7 +1,7 @@
 """Application configuration and settings"""
 
 from functools import lru_cache
-from typing import Optional
+from typing import ClassVar, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, SecretStr, model_validator
 from pydantic_settings import BaseSettings
@@ -9,6 +9,11 @@ from pydantic_settings import BaseSettings
 
 class SMTPSettings(BaseModel):
     """Typed SMTP transport settings with TLS mode safety validation."""
+
+    DEV_DEFAULT_HOST: ClassVar[str] = "mailpit"
+    DEV_DEFAULT_USERNAME: ClassVar[str] = "mailpit"
+    DEV_DEFAULT_PASSWORD: ClassVar[str] = "mailpit"
+    DEV_DEFAULT_FROM_ADDRESS: ClassVar[str] = "no-reply@example.com"
 
     smtp_host: str
     smtp_port: int
@@ -40,6 +45,19 @@ class SMTPSettings(BaseModel):
             raise ValueError(
                 "Invalid SMTP configuration: unencrypted SMTP mode is not allowed in production."
             )
+
+        if self.environment == "production":
+            uses_dev_defaults = (
+                self.smtp_host == self.DEV_DEFAULT_HOST
+                or self.smtp_username == self.DEV_DEFAULT_USERNAME
+                or self.smtp_password.get_secret_value() == self.DEV_DEFAULT_PASSWORD
+                or str(self.smtp_from_address) == self.DEV_DEFAULT_FROM_ADDRESS
+            )
+            if uses_dev_defaults:
+                raise ValueError(
+                    "Invalid SMTP configuration: production requires explicit SMTP_HOST, "
+                    "SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM_ADDRESS values (not development defaults)."
+                )
 
         return self
 
@@ -80,7 +98,7 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 1025
     SMTP_USERNAME: str = "mailpit"
     SMTP_PASSWORD: SecretStr = SecretStr("mailpit")
-    SMTP_FROM_ADDRESS: str = "no-reply@example.local"
+    SMTP_FROM_ADDRESS: EmailStr = "no-reply@example.com"
     SMTP_FROM_NAME: str = "DiWeiWei Nano-Marktplatz"
     SMTP_USE_TLS: bool = False
     SMTP_USE_STARTTLS: bool = True
@@ -145,16 +163,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_smtp_transport_flags(self) -> "Settings":
-        """Fail fast for invalid SMTP transport combinations."""
-        if self.SMTP_USE_TLS and self.SMTP_USE_STARTTLS:
-            raise ValueError(
-                "Invalid SMTP configuration: SMTP_USE_TLS and SMTP_USE_STARTTLS cannot both be true."
-            )
-
-        if not self.SMTP_USE_TLS and not self.SMTP_USE_STARTTLS and self.ENV == "production":
-            raise ValueError(
-                "Invalid SMTP configuration: unencrypted SMTP mode is not allowed in production."
-            )
+        """Fail fast by delegating SMTP transport validation to SMTPSettings."""
+        _ = self.smtp_settings
 
         return self
 
