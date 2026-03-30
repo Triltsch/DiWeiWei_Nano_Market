@@ -399,6 +399,30 @@ Story 8.8: Admin Panel UI
 
 ---
 
+### Sprint 8 Add-on (Issue #123): Self-Hosted Mailserver for Auth Emails
+
+```
+Story 8.9: Self-Hosted Mailserver Integration Blueprint
+- Define Docker Compose target architecture for self-hosted SMTP delivery
+- Specify auth flow integration for verification and resend verification emails
+- Optional extension path for password reset mail (if enabled)
+- Define environment and secret requirements for Ubuntu container operation
+- Define monitoring, health checks, and delivery failure handling
+- Add QA strategy for unit, integration, and E2E mail delivery evidence
+
+Acceptance:
+✓ Architecture and operations design documented
+✓ Security baseline (TLS/STARTTLS, secret handling, DNS checklist) documented
+✓ Failure mapping and recovery behavior specified
+✓ Typed SMTP backend config implementation scope explicitly defined (host/port/mode/timeouts/retry validation)
+✓ Sprint 8 roadmap and QA gate updated with mailserver criteria
+```
+
+**Effort Estimate:** 3 Personentage
+**Deliverable:** `doc/MAILSERVER_SELF_HOSTED_AUTH.md`
+
+---
+
 ## 3. Sprint Planning (MVP: 10 Sprints à 1 Woche)
 
 > **Two parallel tracks from Sprint 2 onwards:**
@@ -460,7 +484,8 @@ Sprint 8 (Week 8): User Profile, Moderation & Admin UI
 ├─ Story 8.7: User Profile & Account Settings (Frontend)
 ├─ Story 6.2: Content Review Workflow (Backend)
 ├─ Story 6.4: Admin Takedown Functions (Backend)
-└─ Story 8.8: Admin Panel UI (Frontend)
+├─ Story 8.8: Admin Panel UI (Frontend)
+└─ Story 8.9: Self-Hosted Mailserver Integration Blueprint (Docs/Infra Add-on)
 Goal: Full admin + user profile functionality
 
 Sprint 9 (Week 9): Security Hardening & CI/CD
@@ -565,3 +590,4 @@ Phase 2: v3.0.0 (H1 2026)
 - [01 — Stakeholder & Rollen](./01_stakeholder_roles.md)
 - [02 — Fachliche Anforderungen](./02_requirements.md) (Anforderungen→Stories)
 - [03 — User Journeys](./03_user_journeys.md) (Inspiration für Stories)
+- [Self-Hosted Mailserver Auth Plan](../MAILSERVER_SELF_HOSTED_AUTH.md)

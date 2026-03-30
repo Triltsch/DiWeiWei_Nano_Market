@@ -8,6 +8,7 @@ This gate validates Sprint-8 end-to-end functionality across:
 - **Content Moderation** - Review workflow, moderation decisions, audit trails
 - **Admin Functions** - User role management, audit log viewing, content takedown
 - **RBAC & Multi-Role Behavior** - `admin`, `moderator`, `creator`, `consumer` role constraints
+- **Sprint 8 Add-on (Issue #123)** - self-hosted mailserver architecture and auth-mail QA readiness
 
 Primary objective: verify functional E2E behavior, RBAC enforcement, moderation workflow consistency, and admin safety controls across all roles.
 
@@ -377,6 +378,52 @@ The following validations will be executed as part of this gate:
    - `docker compose up -d` - services start without error
    - Health checks pass for all required services (postgres, redis, minio, app)
    - No port conflicts or credential mismatches
+
+5. **Mailserver/Auth-Mail Validation Readiness (Issue #123)**
+   - Self-hosted mailserver architecture documented for Docker/Ubuntu target deployment
+   - SMTP config contract documented (host/port/TLS/STARTTLS/credentials/retry/timeout)
+   - Security requirements documented (no plaintext secrets, TLS enforcement, DNS checklist)
+   - Failure paths documented (SMTP down, timeout, auth failure, retry behavior)
+   - Test strategy documented for unit, integration, and E2E delivery evidence
+
+---
+
+## Sprint 8 Add-on QA Matrix (Issue #123)
+
+Reference: `doc/MAILSERVER_SELF_HOSTED_AUTH.md`
+
+### A. Architecture & Operations Design
+
+- [x] Docker Compose architecture for self-hosted mail delivery documented (services, network, volumes)
+- [x] Healthcheck strategy for SMTP service documented
+- [x] Ubuntu target operation checklist documented (runtime, firewall, persistence)
+- [x] DNS readiness checklist documented (MX, PTR, SPF, DKIM, DMARC)
+
+### B. Auth Flow Integration Requirements
+
+- [x] Registration -> verification mail integration flow specified
+- [x] Re-send verification flow specified with abuse/rate-limit considerations
+- [x] Optional password reset flow integration path specified
+- [x] API behavior under delivery failures specified (stable 503 mapping)
+
+### C. Security & Secrets
+
+- [x] SMTP credential handling documented with no plaintext secrets in repository
+- [x] TLS/STARTTLS requirements documented
+- [x] Logging guidance documented to avoid sensitive payload leakage
+
+### D. Test Strategy (Container-based)
+
+- [x] Unit test coverage requirements documented (config validation, payload builder, error mapping)
+- [x] Integration test strategy documented (SMTP test container, delivery assertion)
+- [x] E2E test strategy documented (register -> verify -> login; optional reset flow)
+
+### E. Required Sprint-8 Documentation Updates
+
+- [x] `doc/planning/08_backlog_roadmap.md` includes Sprint-8 mailserver add-on story
+- [x] `doc/SPRINT8_QA_GATE.md` includes mailserver QA extension
+
+Acceptance status for Issue #123 documentation deliverables: **documented and ready for implementation follow-up**.
 
 ---
 
