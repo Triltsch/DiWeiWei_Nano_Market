@@ -79,6 +79,11 @@ healthcheck:
 4. Verification mail is sent through same SMTP abstraction.
 5. Rate limit and abuse protection are applied.
 
+Current behavior vs target behavior:
+- Current MVP behavior: `/auth/resend-verification-email` returns a verification token in the API response to support manual/local verification workflows.
+- Target behavior after SMTP delivery integration: token value is not returned in API responses; success/failure is communicated via stable, product-safe response contracts.
+- Recommended migration toggle: add an environment switch (for example `AUTH_RESEND_RETURN_TOKEN`) so development/test can keep explicit-token responses while production uses email-only delivery semantics.
+
 ### 2.3 Password Reset (Optional Scope)
 
 If password reset is currently active:
@@ -99,9 +104,34 @@ The app should resolve all SMTP settings from environment variables (or equivale
 - `SMTP_FROM_NAME`
 - `SMTP_USE_TLS` (implicit TLS, usually 465)
 - `SMTP_USE_STARTTLS` (usually 587)
-- `SMTP_TIMEOUT_SECONDS`
+- `SMTP_CONNECT_TIMEOUT_SECONDS`
+- `SMTP_READ_TIMEOUT_SECONDS`
 - `SMTP_RETRY_MAX_ATTEMPTS`
 - `SMTP_RETRY_BACKOFF_SECONDS`
+
+#### 3.1.1 TLS / STARTTLS Mode Semantics
+
+`SMTP_USE_TLS` and `SMTP_USE_STARTTLS` are mutually exclusive transport mode flags:
+
+- `SMTP_USE_TLS=true`, `SMTP_USE_STARTTLS=false`
+  - Mode: implicit TLS (SMTPS)
+  - Recommended port: `465`
+- `SMTP_USE_TLS=false`, `SMTP_USE_STARTTLS=true`
+  - Mode: STARTTLS upgrade
+  - Recommended port: `587`
+- `SMTP_USE_TLS=false`, `SMTP_USE_STARTTLS=false`
+  - Mode: plain SMTP
+  - Allowed only for local development/testing (for example Mailpit on `1025`)
+- `SMTP_USE_TLS=true`, `SMTP_USE_STARTTLS=true`
+  - Invalid configuration
+  - Implementation must fail fast at startup with a clear configuration error
+
+Port mismatch handling requirements:
+- For implicit TLS mode, non-SMTPS ports should produce either a startup configuration error or an explicit warning with documented override behavior.
+- For STARTTLS mode, the client must require successful TLS upgrade before sending credentials or message content.
+
+Production security enforcement:
+- Unencrypted SMTP mode (`SMTP_USE_TLS=false` and `SMTP_USE_STARTTLS=false`) must be rejected in production unless explicitly whitelisted for a non-production profile.
 
 ### 3.2 Secret Handling Rules
 
@@ -198,5 +228,6 @@ Minimum evidence required in container setup:
 1. Add dedicated SMTP test service profile to `docker-compose.yml` for integration tests.
 2. Introduce typed SMTP settings in backend config module with strict validation.
 3. Implement backend mail transport abstraction with retry and metrics instrumentation.
+  - Prefer an async SMTP client compatible with FastAPI async execution (recommended baseline: `aiosmtplib`).
 4. Add auth-flow integration tests backed by mail test container.
 5. Extend runbook with operational DNS and incident response procedures.

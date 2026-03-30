@@ -414,6 +414,7 @@ Acceptance:
 ✓ Architecture and operations design documented
 ✓ Security baseline (TLS/STARTTLS, secret handling, DNS checklist) documented
 ✓ Failure mapping and recovery behavior specified
+✓ Typed SMTP backend config implementation scope explicitly defined (host/port/mode/timeouts/retry validation)
 ✓ Sprint 8 roadmap and QA gate updated with mailserver criteria
 ```
 
