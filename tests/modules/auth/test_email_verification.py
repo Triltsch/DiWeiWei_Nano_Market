@@ -8,6 +8,7 @@ This module contains comprehensive tests for the email verification system, incl
 """
 
 from datetime import datetime, timedelta, timezone
+from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 import pytest
@@ -22,10 +23,23 @@ from app.modules.auth.service import (
     verify_email_with_token,
 )
 from app.modules.auth.tokens import create_email_verification_token
+from app.modules.mail import SMTPDeliveryError
 from app.schemas import EmailVerificationRequest
 from expect import expect
 
 settings = get_settings()
+
+
+def _extract_token_from_mail_body(body_text: str) -> str:
+    for line in body_text.splitlines():
+        if "/verify-email?" not in line:
+            continue
+
+        token = parse_qs(urlparse(line.strip()).query).get("token")
+        if token:
+            return token[0]
+
+    raise AssertionError("Verification token link not found in body_text")
 
 
 @pytest.mark.asyncio
@@ -171,12 +185,15 @@ async def test_resend_email_verification_token_success(
     await db_session.commit()
 
     # Act
-    token, expires_in = await resend_email_verification_token(db_session, verified_user.email)
+    token, expires_in, username = await resend_email_verification_token(
+        db_session, verified_user.email
+    )
 
     # Assert
     expect(token).is_not_none()
     expect(isinstance(token, str)).to_be_true()
     expect(expires_in).equal(settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS * 60 * 60)
+    expect(username).equal(verified_user.username)
 
 
 @pytest.mark.asyncio
@@ -274,7 +291,7 @@ async def test_verify_email_endpoint_expired_token(async_client, verified_user: 
 
 @pytest.mark.asyncio
 async def test_resend_verification_email_endpoint_success(
-    async_client, db_session: AsyncSession, verified_user: User
+    async_client, db_session: AsyncSession, verified_user: User, sent_auth_emails
 ) -> None:
     """Test /auth/resend-verification-email endpoint success.
 
@@ -286,6 +303,7 @@ async def test_resend_verification_email_endpoint_success(
     verified_user.verified_at = None
     db_session.add(verified_user)
     await db_session.commit()
+    initial_mail_count = len(sent_auth_emails)
 
     # Act
     response = await async_client.post(
@@ -298,6 +316,77 @@ async def test_resend_verification_email_endpoint_success(
     expect(data["message"]).contains("Verification token generated")
     expect(data["email"]).equal(verified_user.email)
     expect(data["message"]).contains("Copy this token")
+    assert len(sent_auth_emails) == initial_mail_count
+
+
+@pytest.mark.asyncio
+async def test_resend_verification_email_endpoint_sends_mail_when_toggle_disabled(
+    async_client,
+    db_session: AsyncSession,
+    verified_user: User,
+    sent_auth_emails,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test resend endpoint delivers email instead of returning token when toggle is disabled."""
+    verified_user.email_verified = False
+    verified_user.verified_at = None
+    db_session.add(verified_user)
+    await db_session.commit()
+    initial_mail_count = len(sent_auth_emails)
+
+    monkeypatch.setattr("app.modules.auth.router.settings.AUTH_RESEND_RETURN_TOKEN", False)
+    monkeypatch.setattr("app.modules.auth.router.settings.FRONTEND_URL", "http://localhost:5173")
+
+    response = await async_client.post(
+        "/api/v1/auth/resend-verification-email", json={"email": verified_user.email}
+    )
+
+    expect(response.status_code).equal(200)
+    data = response.json()
+    expect(data["message"]).equal("Verification email sent. Please check your inbox.")
+    assert "Copy this token" not in data["message"]
+    assert len(sent_auth_emails) == initial_mail_count + 1
+    delivered_mail = sent_auth_emails[-1]
+    expect(delivered_mail["to"]).equal(verified_user.email)
+    expect(delivered_mail["subject"]).equal("Your new verification link")
+    token = _extract_token_from_mail_body(delivered_mail["body_text"])
+    expect(token).is_not_none()
+
+
+@pytest.mark.asyncio
+async def test_resend_verification_email_endpoint_smtp_failure_returns_safe_503(
+    async_client,
+    db_session: AsyncSession,
+    verified_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test resend endpoint maps SMTP delivery failures to the stable 503 contract."""
+    verified_user.email_verified = False
+    verified_user.verified_at = None
+    db_session.add(verified_user)
+    await db_session.commit()
+
+    async def mock_send_mail(_to: str, _subject: str, _body_html: str, _body_text: str) -> None:
+        raise SMTPDeliveryError("mail relay timeout", attempts=3)
+
+    monkeypatch.setattr("app.modules.auth.router.settings.AUTH_RESEND_RETURN_TOKEN", False)
+    monkeypatch.setattr("app.modules.auth.router.send_mail", mock_send_mail)
+    caplog.set_level("ERROR", logger="app.modules.auth.router")
+
+    response = await async_client.post(
+        "/api/v1/auth/resend-verification-email", json={"email": verified_user.email}
+    )
+
+    expect(response.status_code).equal(503)
+    expect(response.json()["detail"]).equal(
+        "Email delivery is currently unavailable. Please try again later."
+    )
+
+    record = next(record for record in caplog.records if record.msg == "auth_mail_delivery_failed")
+    expect(record.flow_name).equal("resend_verification")
+    expect(record.message_type).equal("resend_verification")
+    expect(record.correlation_id).is_not_none()
 
 
 @pytest.mark.asyncio

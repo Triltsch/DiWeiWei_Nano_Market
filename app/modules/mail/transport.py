@@ -120,11 +120,20 @@ async def _deliver_with_client(*, to: str, subject: str, body_html: str, body_te
         if smtp_settings.smtp_use_starttls:
             await smtp_client.starttls(timeout=smtp_settings.smtp_read_timeout_seconds)
 
-        await smtp_client.login(
-            smtp_settings.smtp_username,
-            smtp_settings.smtp_password.get_secret_value(),
-            timeout=smtp_settings.smtp_read_timeout_seconds,
-        )
+        username = smtp_settings.smtp_username.strip()
+        password = smtp_settings.smtp_password.get_secret_value()
+        has_credentials = bool(username or password)
+
+        if has_credentials:
+            if smtp_client.supports_extension("auth"):
+                await smtp_client.login(
+                    username,
+                    password,
+                    timeout=smtp_settings.smtp_read_timeout_seconds,
+                )
+            else:
+                logger.info("smtp_auth_skipped_no_server_auth")
+
         await smtp_client.send_message(message, timeout=smtp_settings.smtp_read_timeout_seconds)
     finally:
         try:

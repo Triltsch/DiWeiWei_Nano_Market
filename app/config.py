@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
     ENV: str = "development"
+    FRONTEND_URL: str = "http://localhost:5173"
 
     # Database settings
     DATABASE_URL: Optional[str] = None
@@ -92,6 +93,7 @@ class Settings(BaseSettings):
 
     # Email verification
     EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
+    AUTH_RESEND_RETURN_TOKEN: bool | None = None
 
     # SMTP settings
     SMTP_HOST: str = "mailpit"
@@ -163,7 +165,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_smtp_transport_flags(self) -> "Settings":
-        """Fail fast by delegating SMTP transport validation to SMTPSettings."""
+        """Apply environment defaults and validate SMTP transport settings."""
+        if self.AUTH_RESEND_RETURN_TOKEN is None:
+            self.AUTH_RESEND_RETURN_TOKEN = self.ENV in {"development", "test"}
+
         _ = self.smtp_settings
 
         return self

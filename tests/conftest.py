@@ -4,6 +4,7 @@ import asyncio
 import os
 import sys
 import uuid
+from typing import Any
 from uuid import UUID
 
 import httpx
@@ -242,6 +243,25 @@ def reset_rate_limiters():
     yield
     LOGIN_RATE_LIMITER.reset()
     CHAT_MESSAGE_RATE_LIMITER.reset()
+
+
+@pytest.fixture(autouse=True)
+def sent_auth_emails(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    """Capture auth mail sends so endpoint tests stay isolated from SMTP."""
+    sent_messages: list[dict[str, Any]] = []
+
+    async def _fake_send_mail(to: str, subject: str, body_html: str, body_text: str) -> None:
+        sent_messages.append(
+            {
+                "to": to,
+                "subject": subject,
+                "body_html": body_html,
+                "body_text": body_text,
+            }
+        )
+
+    monkeypatch.setattr("app.modules.auth.router.send_mail", _fake_send_mail)
+    return sent_messages
 
 
 @pytest.fixture(autouse=True)

@@ -12,12 +12,34 @@ vi.mock("../../shared/api/httpClient", () => ({
 const mockedHttpPost = vi.mocked(httpClient.post);
 
 describe("registerUser", () => {
-  it("maps 409 responses to email-already-registered even with varying backend detail", async () => {
+  it("maps 409 username conflicts to username-already-taken", async () => {
     mockedHttpPost.mockRejectedValue({
       isAxiosError: true,
       response: {
         status: 409,
-        data: { detail: "Benutzer schon vorhanden" },
+        data: { detail: "Username already taken" },
+      },
+    });
+
+    await expect(
+      registerUser({
+        email: "user@example.com",
+        username: "user123",
+        password: "StrongPass1!",
+        acceptTerms: true,
+        acceptPrivacy: true,
+      })
+    ).rejects.toMatchObject({
+      code: "username-already-taken",
+    });
+  });
+
+  it("maps 409 email conflicts to email-already-registered", async () => {
+    mockedHttpPost.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 409,
+        data: { detail: "Email already registered" },
       },
     });
 
@@ -34,12 +56,12 @@ describe("registerUser", () => {
     });
   });
 
-  it("keeps non-409 register errors on generic request-failed code", async () => {
+  it("keeps unknown 409 register errors on generic request-failed code", async () => {
     mockedHttpPost.mockRejectedValue({
       isAxiosError: true,
       response: {
-        status: 400,
-        data: { detail: "Some unrelated validation message" },
+        status: 409,
+        data: { detail: "Benutzer schon vorhanden" },
       },
     });
 

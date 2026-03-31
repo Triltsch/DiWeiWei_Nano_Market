@@ -64,7 +64,12 @@ function getErrorCode(error: unknown): AuthErrorCode {
 
 function getRegisterErrorCode(error: unknown): AuthErrorCode {
   if (axios.isAxiosError<ApiErrorResponse>(error) && error.response?.status === 409) {
-    return "email-already-registered";
+    const detail = error.response.data?.detail;
+    if (detail && detail in AUTH_ERROR_CODES) {
+      return AUTH_ERROR_CODES[detail];
+    }
+
+    return "request-failed";
   }
 
   return getErrorCode(error);
