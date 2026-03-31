@@ -1,17 +1,31 @@
 """Tests for authentication API routes"""
 
 from typing import NoReturn
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
 from app.modules.auth.service import verify_user_email
+from app.modules.mail import SMTPAuthError, SMTPDeliveryError
 from app.schemas import UserRegister
 
 
+def _extract_verification_link_token(body_text: str) -> str:
+    for line in body_text.splitlines():
+        if "/verify-email?" not in line:
+            continue
+
+        token = parse_qs(urlparse(line.strip()).query).get("token")
+        if token:
+            return token[0]
+
+    raise AssertionError("Verification token link not found in body_text")
+
+
 @pytest.mark.asyncio
-async def test_register_endpoint_success(async_client, test_user_data: dict):
+async def test_register_endpoint_success(async_client, test_user_data: dict, sent_auth_emails):
     """Test /auth/register endpoint with valid data"""
     response = await async_client.post("/api/v1/auth/register", json=test_user_data)
 
@@ -22,6 +36,41 @@ async def test_register_endpoint_success(async_client, test_user_data: dict):
     assert not data["email_verified"]
     assert "id" in data
     assert "created_at" in data
+    assert len(sent_auth_emails) == 1
+    assert sent_auth_emails[0]["to"] == test_user_data["email"].lower()
+    assert sent_auth_emails[0]["subject"] == "Verify your email address"
+    assert _extract_verification_link_token(sent_auth_emails[0]["body_text"])
+
+
+@pytest.mark.asyncio
+async def test_register_endpoint_smtp_failure_returns_safe_503(
+    async_client,
+    test_user_data: dict,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    """Test /auth/register maps SMTP delivery failures to a stable 503 response."""
+
+    async def mock_send_mail(_to: str, _subject: str, _body_html: str, _body_text: str) -> NoReturn:
+        raise SMTPDeliveryError("smtp connection refused: mailpit", attempts=1)
+
+    monkeypatch.setattr("app.modules.auth.router.send_mail", mock_send_mail)
+    caplog.set_level("ERROR", logger="app.modules.auth.router")
+
+    response = await async_client.post("/api/v1/auth/register", json=test_user_data)
+
+    assert response.status_code == 503
+    assert (
+        response.json()["detail"]
+        == "Email delivery is currently unavailable. Please try again later."
+    )
+    assert "mailpit" not in response.text.lower()
+
+    record = next(record for record in caplog.records if record.msg == "auth_mail_delivery_failed")
+    assert record.flow_name == "register"
+    assert record.message_type == "verification"
+    assert record.error_type == "SMTPDeliveryError"
+    assert record.correlation_id
 
 
 @pytest.mark.asyncio
@@ -116,6 +165,28 @@ async def test_register_endpoint_unrelated_oserror_is_not_mapped_to_503(
 
     with pytest.raises(OSError, match="Unrelated OS failure"):
         await async_client.post("/api/v1/auth/register", json=test_user_data)
+
+
+@pytest.mark.asyncio
+async def test_register_endpoint_smtp_auth_failure_returns_safe_503(
+    async_client,
+    test_user_data: dict,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Test /auth/register maps SMTP auth failures to the same stable 503 response."""
+
+    async def mock_send_mail(_to: str, _subject: str, _body_html: str, _body_text: str) -> NoReturn:
+        raise SMTPAuthError("bad smtp credentials")
+
+    monkeypatch.setattr("app.modules.auth.router.send_mail", mock_send_mail)
+
+    response = await async_client.post("/api/v1/auth/register", json=test_user_data)
+
+    assert response.status_code == 503
+    assert (
+        response.json()["detail"]
+        == "Email delivery is currently unavailable. Please try again later."
+    )
 
 
 @pytest.mark.asyncio

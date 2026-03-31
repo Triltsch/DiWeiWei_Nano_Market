@@ -93,8 +93,8 @@ export function VerifyEmailPage(): JSX.Element {
     setErrorMessage(null);
 
     try {
-      const response = await resendVerificationEmail(email);
-      setStatusMessage(response.message || t("verify_resend_success"));
+      await resendVerificationEmail(email);
+      setStatusMessage(t("verify_resend_success"));
       setCooldownSeconds(30);
     } catch (error) {
       const message = error instanceof Error ? error.message : t("verify_resend_failed");

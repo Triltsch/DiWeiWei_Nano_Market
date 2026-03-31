@@ -55,6 +55,7 @@ services:
     volumes:
       - mail_queue_data:/data
     networks:
+      - diwei_dev
       - mail_internal
     restart: unless-stopped
 
@@ -142,6 +143,7 @@ services:
       SMTP_PORT: "1025"
       SMTP_USE_TLS: "false"
       SMTP_USE_STARTTLS: "false"
+      AUTH_RESEND_RETURN_TOKEN: "false"
       # Pass PostgreSQL credentials for entrypoint script
       POSTGRES_USER: "${POSTGRES_USER:-diwei_user}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-diwei_password}"

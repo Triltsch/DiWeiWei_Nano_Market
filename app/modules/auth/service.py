@@ -356,7 +356,9 @@ async def verify_email_with_token(
     return UserResponse.model_validate(user)
 
 
-async def resend_email_verification_token(db_session: AsyncSession, email: str) -> tuple[str, int]:
+async def resend_email_verification_token(
+    db_session: AsyncSession, email: str
+) -> tuple[str, int, str]:
     """
     Generate a new email verification token for a user.
 
@@ -365,7 +367,7 @@ async def resend_email_verification_token(db_session: AsyncSession, email: str) 
         email: User email
 
     Returns:
-        Tuple of (token, expires_in_seconds)
+        Tuple of (token, expires_in_seconds, username)
 
     Raises:
         AuthenticationError: If user not found or email already verified
@@ -382,7 +384,7 @@ async def resend_email_verification_token(db_session: AsyncSession, email: str) 
         raise AuthenticationError("Email already verified")
 
     token, expires_in = create_email_verification_token(user.id, user.email)
-    return token, expires_in
+    return token, expires_in, user.username
 
 
 async def refresh_access_token(db_session: AsyncSession, refresh_token: str) -> TokenResponse:

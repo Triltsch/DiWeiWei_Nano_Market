@@ -1,7 +1,9 @@
 """Authentication API routes"""
 
-from typing import Annotated
-from uuid import UUID
+import logging
+from typing import Annotated, Callable
+from urllib.parse import urlencode
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.exc import OperationalError
@@ -39,8 +41,17 @@ from app.modules.auth.service import (
     update_user_profile,
     verify_email_with_token,
 )
-from app.modules.auth.tokens import verify_token
+from app.modules.auth.tokens import create_email_verification_token, verify_token
 from app.modules.auth.validators import calculate_password_strength
+from app.modules.mail import (
+    MailPayload,
+    SMTPAuthError,
+    SMTPDeliveryError,
+    build_resend_verification_email,
+    build_verification_email,
+    send_mail,
+    set_mail_context,
+)
 from app.schemas import (
     AccountDeletionRequest,
     AccountDeletionResponse,
@@ -71,6 +82,11 @@ router = APIRouter(
 )
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
+
+MAIL_DELIVERY_UNAVAILABLE_DETAIL = (
+    "Email delivery is currently unavailable. Please try again later."
+)
 
 LOGIN_RATE_LIMITER = SlidingWindowRateLimiter(
     max_requests=settings.RATE_LIMIT_LOGIN_MAX_REQUESTS,
@@ -108,6 +124,44 @@ def _get_user_agent(request: Request) -> str:
     return request.headers.get("user-agent", "")
 
 
+def _build_verification_url(token: str, email: str) -> str:
+    """Build the frontend verification URL embedded in auth emails."""
+    query = urlencode({"token": token, "email": email})
+    return f"{settings.FRONTEND_URL.rstrip('/')}/verify-email?{query}"
+
+
+async def _send_verification_mail(
+    *,
+    email: str,
+    username: str,
+    token: str,
+    flow_name: str,
+    template_builder: Callable[[str, str], MailPayload],
+) -> None:
+    """Render and send a verification mail with stable SMTP error mapping."""
+    correlation_id = str(uuid4())
+    payload = template_builder(username, _build_verification_url(token, email))
+
+    set_mail_context(payload.message_type, correlation_id)
+
+    try:
+        await send_mail(email, payload.subject, payload.body_html, payload.body_text)
+    except (SMTPDeliveryError, SMTPAuthError) as error:
+        logger.error(
+            "auth_mail_delivery_failed",
+            extra={
+                "flow_name": flow_name,
+                "message_type": payload.message_type,
+                "correlation_id": correlation_id,
+                "error_type": error.__class__.__name__,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=MAIL_DELIVERY_UNAVAILABLE_DETAIL,
+        ) from error
+
+
 async def _enforce_login_rate_limit(request: Request) -> None:
     """Apply per-client login rate limiting."""
     client_ip = _get_client_ip(request)
@@ -136,7 +190,9 @@ async def _enforce_login_rate_limit(request: Request) -> None:
         },
         503: {
             "model": SimpleErrorResponse,
-            "description": "Service unavailable - database dependency unreachable",
+            "description": (
+                "Service unavailable - database dependency unreachable " "or email delivery failure"
+            ),
         },
     },
 )
@@ -176,6 +232,15 @@ async def register(
             user_agent=_get_user_agent(request),
         )
         await db.commit()
+
+        verification_token, _ = create_email_verification_token(user.id, user.email)
+        await _send_verification_mail(
+            email=user.email,
+            username=user.username,
+            token=verification_token,
+            flow_name="register",
+            template_builder=build_verification_email,
+        )
 
         return user
     except UserAlreadyExistsError as e:
@@ -494,22 +559,32 @@ async def resend_verification_email_endpoint(
     Request body:
     - **email**: User email address
 
-    Returns token information (token generation confirmed, but actual email sending
-    not yet implemented). In production, the token would be sent via email.
-
-    ## MVP Note
-    Currently returns the token for manual testing. In production:
-    - Token would be sent via email with verification link
-    - Client would not receive token in response
-    - Only confirmation message would be returned
+    Returns the legacy token response in development/test when
+    AUTH_RESEND_RETURN_TOKEN is enabled. Otherwise sends a verification mail and
+    returns a product-safe success message.
     """
     try:
-        token, expires_in = await resend_email_verification_token(db, body.email)
+        token, _expires_in, username = await resend_email_verification_token(db, body.email)
+
+        if settings.AUTH_RESEND_RETURN_TOKEN:
+            return VerificationEmailResponse(
+                message=(
+                    "(MVP) Verification token generated. "
+                    "Copy this token to verify your email: " + token
+                ),
+                email=body.email,
+            )
+
+        await _send_verification_mail(
+            email=body.email,
+            username=username,
+            token=token,
+            flow_name="resend_verification",
+            template_builder=build_resend_verification_email,
+        )
+
         return VerificationEmailResponse(
-            message=(
-                "(MVP) Verification token generated. "
-                "Copy this token to verify your email: " + token
-            ),
+            message="Verification email sent. Please check your inbox.",
             email=body.email,
         )
     except AuthenticationError as e:

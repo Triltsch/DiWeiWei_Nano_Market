@@ -21,6 +21,7 @@ class FakeSMTP:
     send_calls: int = 0
     connect_calls: int = 0
     quit_calls: int = 0
+    auth_supported: bool = True
     send_effects: list[Callable[[], None]] = []
 
     def __init__(self, **kwargs: Any) -> None:
@@ -34,6 +35,7 @@ class FakeSMTP:
         cls.send_calls = 0
         cls.connect_calls = 0
         cls.quit_calls = 0
+        cls.auth_supported = True
         cls.send_effects = []
 
     async def connect(self) -> None:
@@ -58,6 +60,9 @@ class FakeSMTP:
 
     async def quit(self) -> None:
         self.__class__.quit_calls += 1
+
+    def supports_extension(self, extension_name: str) -> bool:
+        return extension_name.lower() == "auth" and self.__class__.auth_supported
 
 
 class TransientSMTPError(Exception):
@@ -222,3 +227,13 @@ async def test_send_mail_rejects_from_name_header_injection(
         await send_mail("person@example.com", "Hello", "<p>html</p>", "text")
 
     assert FakeSMTP.connect_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_send_mail_skips_login_when_server_has_no_auth_support() -> None:
+    FakeSMTP.auth_supported = False
+
+    await send_mail("user@example.com", "Hello", "<p>html</p>", "text")
+
+    assert FakeSMTP.login_calls == 0
+    assert FakeSMTP.send_calls == 1
