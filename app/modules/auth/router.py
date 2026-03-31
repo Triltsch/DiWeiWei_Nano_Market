@@ -44,6 +44,7 @@ from app.modules.auth.service import (
 from app.modules.auth.tokens import create_email_verification_token, verify_token
 from app.modules.auth.validators import calculate_password_strength
 from app.modules.mail import (
+    MailPayload,
     SMTPAuthError,
     SMTPDeliveryError,
     build_resend_verification_email,
@@ -135,7 +136,7 @@ async def _send_verification_mail(
     username: str,
     token: str,
     flow_name: str,
-    template_builder: Callable[[str, str], object],
+    template_builder: Callable[[str, str], MailPayload],
 ) -> None:
     """Render and send a verification mail with stable SMTP error mapping."""
     correlation_id = str(uuid4())
@@ -189,7 +190,9 @@ async def _enforce_login_rate_limit(request: Request) -> None:
         },
         503: {
             "model": SimpleErrorResponse,
-            "description": "Service unavailable - database dependency unreachable",
+            "description": (
+                "Service unavailable - database dependency unreachable " "or email delivery failure"
+            ),
         },
     },
 )

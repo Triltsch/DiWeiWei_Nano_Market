@@ -122,7 +122,15 @@ async def _deliver_with_client(*, to: str, subject: str, body_html: str, body_te
 
         username = smtp_settings.smtp_username.strip()
         password = smtp_settings.smtp_password.get_secret_value()
-        has_credentials = bool(username or password)
+        # Require both username AND password to attempt AUTH; a single value
+        # is likely a misconfiguration and would cause avoidable auth failures.
+        has_credentials = bool(username and password)
+
+        if bool(username) != bool(password):
+            logger.warning(
+                "smtp_credentials_incomplete",
+                extra={"has_username": bool(username), "has_password": bool(password)},
+            )
 
         if has_credentials:
             if smtp_client.supports_extension("auth"):
