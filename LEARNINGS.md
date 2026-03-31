@@ -47,6 +47,7 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - Öffentliche APIs nur freigegebene Inhalte zeigen; Moderations-/Pending-Reads separat modellieren.
 - Nach Content-Updates Moderationsstatus auf `pending` zurücksetzen und Moderationsmetadaten bereinigen.
 - Bei Self-Service-Profilupdates muss das Response-Schema alle updatebaren Felder enthalten (z. B. `company`, `job_title`, `phone`), sonst brechen API-Vertrag und Integrationstests trotz erfolgreichem Write.
+- In FastAPI/Starlette für 422-Responses `HTTP_422_UNPROCESSABLE_CONTENT` statt `HTTP_422_UNPROCESSABLE_ENTITY` verwenden, um DeprecationWarnings in aktuellen Versionen zu vermeiden.
 
 ## Backend/API (Datenintegrität, Fehler, Security)
 
