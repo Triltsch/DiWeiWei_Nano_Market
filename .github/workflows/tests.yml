@@ -40,12 +40,12 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
         run: |
-          python -m pytest tests/ -m "not integration" -v
+          python -m pytest tests/ -m "not integration" -v --cov=app --cov-report=xml
       
       - name: Upload coverage reports
         uses: codecov/codecov-action@v6
         with:
-          files: ./htmlcov/
+          files: ./coverage.xml
           flags: unit-tests
           name: codecov-umbrella
 
