@@ -96,11 +96,14 @@ async def _deliver_with_client(*, to: str, subject: str, body_html: str, body_te
 
     _validate_header_value("to", to)
     _validate_header_value("subject", subject)
+    _validate_header_value("from_name", smtp_settings.smtp_from_name)
     _validate_header_value("from", smtp_settings.smtp_from_address)
+    from_header = f"{smtp_settings.smtp_from_name} <{smtp_settings.smtp_from_address}>"
+    _validate_header_value("from", from_header)
 
     message = EmailMessage()
     message["Subject"] = subject
-    message["From"] = f"{smtp_settings.smtp_from_name} <{smtp_settings.smtp_from_address}>"
+    message["From"] = from_header
     message["To"] = to
     message.set_content(body_text)
     message.add_alternative(body_html, subtype="html")

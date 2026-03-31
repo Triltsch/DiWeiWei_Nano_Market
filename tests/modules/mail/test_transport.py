@@ -209,3 +209,16 @@ async def test_send_mail_rejects_header_injection() -> None:
         await send_mail("person@example.com", "Hello\nBcc:evil@example.com", "<p>html</p>", "text")
 
     assert FakeSMTP.connect_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_send_mail_rejects_from_name_header_injection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SMTP_FROM_NAME", "DiWeiWei\nBcc:evil@example.com")
+    get_settings.cache_clear()
+
+    with pytest.raises(ValueError, match="CRLF"):
+        await send_mail("person@example.com", "Hello", "<p>html</p>", "text")
+
+    assert FakeSMTP.connect_calls == 0
