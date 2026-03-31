@@ -51,6 +51,7 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 
 - DB-Constraints und Service-Guards kombinieren (z. B. `UNIQUE` + 409-Precheck + `IntegrityError`-Handling).
 - Für fail-fast Config-Validierung auf `Settings`-Ebene nur Felder strikt typisieren, deren bestehende `.env`-Werte den Validator sicher erfüllen; spezialisierte Typen wie `EmailStr` besser in ein abgeleitetes/nested Modell verlagern, um Startup-Regressionen durch Legacy-Werte (z. B. `.local` Domains) zu vermeiden.
+- Bei SMTP-Transporten Input-Validierungsfehler (z. B. Header-Injection via CRLF) nicht in generische Delivery-Retries überführen: `ValueError` direkt durchreichen, nur transient 4xx-Zustände retryn und Timeout/Connect klar auf stabile Delivery-Fehler mappen.
 - Für Admin-Takedown-Flows eine dedizierte Admin-Endpoint-Semantik statt generischer Status-Updates nutzen: idempotente Wiederholung (`already_removed`), strukturierte Audit-Metadaten (`operation`, Grund, Actor, Zeitstempel) und explizite Cache-Invalidierung sichern Nachvollziehbarkeit und konsistente öffentliche Unsichtbarkeit.
 - `IntegrityError` bei konkurrenten Creates abfangen: nach `rollback()` die bereits existierende Zeile re-selecten und mit `reused=True` returnen (Race-Condition-Resilienz für idempotente Create-or-Get Semantik).
 - Für "create-or-reuse" Endpunkte HTTP-Semantik explizit halten (`201` bei Neuanlage, `200` bei Reuse).
