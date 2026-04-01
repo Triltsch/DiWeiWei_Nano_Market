@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.models import User
 from app.modules.auth.service import verify_user_email
-from app.modules.mail.transport import send_mail
+from app.modules.mail.transport import SMTPAuthError, send_mail
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration, pytest.mark.mailpit_integration]
 
@@ -100,7 +100,6 @@ def _mailpit_smtp_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     get_settings.cache_clear()
 
 
-@pytest.mark.asyncio
 async def test_register_sends_single_verification_email_and_duplicate_sends_none(
     async_client,
 ) -> None:
@@ -120,6 +119,10 @@ async def test_register_sends_single_verification_email_and_duplicate_sends_none
     message_detail = await _mailpit_get_message_detail(message)
     detail_snapshot = json.dumps(message_detail)
     assert "/verify-email?token=" in detail_snapshot
+    # Verify From address is present and non-empty (acceptance criteria: assert required metadata)
+    from_info = message_detail.get("From", {})
+    assert isinstance(from_info, dict), "Mailpit 'From' field should be an object"
+    assert from_info.get("Address"), "Email must have a non-empty From address"
 
     duplicate_response = await async_client.post("/api/v1/auth/register", json=payload)
 
@@ -128,7 +131,6 @@ async def test_register_sends_single_verification_email_and_duplicate_sends_none
     assert len(messages_after_duplicate) == 1
 
 
-@pytest.mark.asyncio
 async def test_resend_verification_sends_fresh_mail_for_unverified_user(
     async_client,
     monkeypatch: pytest.MonkeyPatch,
@@ -156,9 +158,12 @@ async def test_resend_verification_sends_fresh_mail_for_unverified_user(
     message_detail = await _mailpit_get_message_detail(message)
     detail_snapshot = json.dumps(message_detail)
     assert "/verify-email?token=" in detail_snapshot
+    # Verify From address is present and non-empty (acceptance criteria: assert required metadata)
+    from_info = message_detail.get("From", {})
+    assert isinstance(from_info, dict), "Mailpit 'From' field should be an object"
+    assert from_info.get("Address"), "Resend email must have a non-empty From address"
 
 
-@pytest.mark.asyncio
 async def test_resend_verification_for_verified_user_sends_no_email(
     async_client,
     db_session: AsyncSession,
@@ -182,7 +187,6 @@ async def test_resend_verification_for_verified_user_sends_no_email(
     assert await _mailpit_get_messages() == []
 
 
-@pytest.mark.asyncio
 async def test_register_smtp_unreachable_returns_safe_503(
     async_client,
     monkeypatch: pytest.MonkeyPatch,
@@ -211,13 +215,16 @@ async def test_register_smtp_unreachable_returns_safe_503(
         get_settings.cache_clear()
 
 
-@pytest.mark.asyncio
-async def test_resend_verification_rate_limit_behavior_if_enabled(
+async def test_resend_verification_documents_no_rate_limit_currently(
     async_client,
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Document current behavior: endpoint has no dedicated resend rate limiter yet."""
+    """Document current behavior: endpoint has no dedicated resend rate limiter yet.
+
+    Both requests return 200 and two mails are delivered. This test should be
+    updated to assert a 429 + no additional mail once a rate limiter is added.
+    """
     payload = _build_registration_payload()
     register_response = await async_client.post("/api/v1/auth/register", json=payload)
     assert register_response.status_code == 201
@@ -244,3 +251,33 @@ async def test_resend_verification_rate_limit_behavior_if_enabled(
     assert second.status_code == 200
     messages = await _mailpit_get_messages()
     assert len(messages) == 2
+
+
+async def test_register_smtp_auth_failure_returns_safe_503(
+    async_client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SMTP auth failure (invalid credentials) must map to a stable 503 response.
+
+    The application raises SMTPAuthError when SMTP login fails. This test verifies
+    that the register endpoint catches that error and returns 503 without leaking
+    internal SMTP details to the caller.
+    """
+    payload = _build_registration_payload()
+
+    async def _raise_smtp_auth_error(*args: object, **kwargs: object) -> None:
+        raise SMTPAuthError("535 Authentication credentials invalid")
+
+    monkeypatch.setattr("app.modules.auth.router.send_mail", _raise_smtp_auth_error)
+
+    response = await async_client.post("/api/v1/auth/register", json=payload)
+
+    assert response.status_code == 503
+    assert (
+        response.json()["detail"]
+        == "Email delivery is currently unavailable. Please try again later."
+    )
+    assert "smtp" not in response.text.lower()
+    assert "auth" not in response.text.lower()
+    assert "credentials" not in response.text.lower()
+    assert await _mailpit_get_messages() == []
