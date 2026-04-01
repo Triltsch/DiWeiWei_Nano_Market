@@ -47,6 +47,7 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - Öffentliche APIs nur freigegebene Inhalte zeigen; Moderations-/Pending-Reads separat modellieren.
 - Nach Content-Updates Moderationsstatus auf `pending` zurücksetzen und Moderationsmetadaten bereinigen.
 - Bei Self-Service-Profilupdates muss das Response-Schema alle updatebaren Felder enthalten (z. B. `company`, `job_title`, `phone`), sonst brechen API-Vertrag und Integrationstests trotz erfolgreichem Write.
+- In FastAPI/Starlette für 422-Responses `HTTP_422_UNPROCESSABLE_CONTENT` statt `HTTP_422_UNPROCESSABLE_ENTITY` verwenden, um DeprecationWarnings in aktuellen Versionen zu vermeiden.
 
 ## Backend/API (Datenintegrität, Fehler, Security)
 
@@ -65,6 +66,7 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - CORS mit Credentials nur mit expliziten Origins konfigurieren (nie `*`).
 - Infrastrukturfehler am API-Rand gezielt auf stabile HTTP-Fehler mappen.
 - Passwort-Hashing-Abhängigkeiten reproduzierbar pinnen (CI-kompatibel).
+- Wenn nur bcrypt benötigt wird, direkte `bcrypt`-Nutzung gegenüber `passlib` bevorzugen: das vermeidet Python-3.13-DeprecationWarnings rund um das stdlib-Modul `crypt`.
 - In Async-SQLAlchemy-Services nach `commit()` bei Rückgabe von Feldern mit `onupdate`/serverseitiger Aktualisierung (z. B. `updated_at`) das ORM-Objekt per `await session.refresh(obj)` laden, sonst kann beim Attributzugriff `MissingGreenlet` auftreten.
 - Neue SQLAlchemy-Modelle/Enums immer auf Top-Level einfügen (nicht versehentlich in bestehende Klassen eingerückt), da verschachtelte Definitionen erst zur Importzeit mit schwerer nachvollziehbaren `NameError`/Typauflösungsfehlern auffallen.
 

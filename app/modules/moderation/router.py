@@ -103,7 +103,7 @@ def get_moderation_router(
                 from fastapi import HTTPException
 
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail=(
                         f"Invalid status '{case_status}'.  "
                         "Allowed values: pending, approved, rejected, deferred, escalated, all."

@@ -433,7 +433,7 @@ async def review_moderation_case(
     # --- Validate decision --------------------------------------------------
     if not request.is_valid_decision():
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"Invalid decision '{request.decision}'.  "
                 f"Allowed values: {', '.join(sorted(VALID_DECISIONS))}."

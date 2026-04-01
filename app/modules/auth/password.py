@@ -1,26 +1,26 @@
-"""
-Password hashing and verification utilities.
+"""Password hashing and verification utilities.
 
-This module implements secure password hashing using bcrypt with a minimum cost factor of 12.
-The implementation follows OWASP guidelines for password storage and includes:
+This module implements secure password hashing using bcrypt with a minimum
+cost factor of 12. The implementation follows OWASP guidelines for password
+storage and includes:
 
 - bcrypt hashing with cost factor 12 (2^12 = 4096 iterations)
-- Constant-time comparison via passlib to prevent timing attacks
+- bcrypt's constant-time verification primitive
 - SHA256 pre-hashing for passwords exceeding bcrypt's 72-byte limit
-- No plain-text password storage or logging
+- no plain-text password storage or logging
 
-Security Properties:
-- Passwords are hashed using bcrypt with salt (automatically handled by bcrypt)
-- Verification uses constant-time comparison (handled by passlib internally)
-- Failed verifications do not leak information about password correctness
-- No passwords are stored in logs or error messages
+Security properties:
+- passwords are hashed using bcrypt with a unique salt per hash
+- verification uses bcrypt's constant-time comparison path
+- failed verifications do not leak information about password correctness
+- no passwords are stored in logs or error messages
 """
 
 import hashlib
 import logging
 from typing import Final
 
-from passlib.context import CryptContext
+import bcrypt
 
 # Configure logging (passwords will NEVER be logged)
 logger = logging.getLogger(__name__)
@@ -30,16 +30,25 @@ logger = logging.getLogger(__name__)
 # Higher values increase security but also computation time
 BCRYPT_ROUNDS: Final[int] = 12
 
-# Configure bcrypt-only context (no fallbacks for production security)
-# passlib's bcrypt implementation uses constant-time comparison internally
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    bcrypt__rounds=BCRYPT_ROUNDS,
-)
-
 # Bcrypt has a 72-byte password limit
 BCRYPT_MAX_PASSWORD_BYTES: Final[int] = 72
+BCRYPT_PREFIXES: Final[tuple[str, ...]] = ("$2a$", "$2b$", "$2y$")
+
+
+def _normalize_password(password: str) -> str:
+    """Normalize passwords before hashing or verification.
+
+    bcrypt only processes the first 72 input bytes. Long passwords are first
+    reduced to a deterministic SHA256 hex digest so the full input remains
+    significant during verification.
+    """
+    password_bytes = password.encode("utf-8")
+    if len(password_bytes) <= BCRYPT_MAX_PASSWORD_BYTES:
+        return password
+
+    # SHA256 output is 64 ASCII hex chars = 64 bytes, safely under bcrypt's limit.
+    logger.debug("Applied SHA256 pre-hashing for long password")
+    return hashlib.sha256(password_bytes).hexdigest()
 
 
 def hash_password(password: str) -> str:
@@ -69,18 +78,13 @@ def hash_password(password: str) -> str:
     if len(password) > 1000:  # Sanity check to prevent DoS
         raise ValueError("Password exceeds maximum length")
 
-    # Apply SHA256 pre-hashing for long passwords (bcrypt 72-byte limit)
-    password_bytes = password.encode("utf-8")
-    password_to_hash = password
-
-    if len(password_bytes) > BCRYPT_MAX_PASSWORD_BYTES:
-        # SHA256 output is 64 ASCII hex chars = 64 bytes, safely under 72-byte limit
-        password_to_hash = hashlib.sha256(password_bytes).hexdigest()
-        logger.debug("Applied SHA256 pre-hashing for long password")
+    password_to_hash = _normalize_password(password)
 
     try:
-        hashed = pwd_context.hash(password_to_hash)
-        return hashed
+        password_bytes = password_to_hash.encode("utf-8")
+        salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
+        hashed = bcrypt.hashpw(password_bytes, salt)
+        return hashed.decode("ascii")
     except Exception as e:
         # Log error without exposing password
         logger.error(f"Password hashing failed: {type(e).__name__}")
@@ -91,8 +95,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     Verify a plain text password against a bcrypt hash.
 
-    This function uses constant-time comparison (via passlib) to prevent
-    timing attacks that could leak information about password correctness.
+    This function uses bcrypt's constant-time comparison path to prevent timing
+    attacks that could leak information about password correctness.
 
     The same SHA256 pre-hashing is applied if the password exceeds 72 bytes,
     ensuring consistency with the hashing process.
@@ -107,22 +111,17 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Note:
         - Returns False for any errors (invalid hash format, etc.)
         - Does not raise exceptions to prevent information leakage
-        - Uses constant-time comparison internally (passlib)
+        - Uses constant-time comparison internally (bcrypt)
     """
     if not plain_password or not hashed_password:
         return False
 
     try:
-        # Apply same pre-hashing logic as hash_password for consistency
-        password_bytes = plain_password.encode("utf-8")
-        password_to_verify = plain_password
-
-        if len(password_bytes) > BCRYPT_MAX_PASSWORD_BYTES:
-            # SHA256 output is 64 ASCII hex chars = 64 bytes, safely under 72-byte limit
-            password_to_verify = hashlib.sha256(password_bytes).hexdigest()
-
-        # passlib's verify() uses constant-time comparison internally
-        return pwd_context.verify(password_to_verify, hashed_password)
+        password_to_verify = _normalize_password(plain_password)
+        return bcrypt.checkpw(
+            password_to_verify.encode("utf-8"),
+            hashed_password.encode("ascii"),
+        )
     except Exception:
         # Return False for any errors (invalid hash, etc.)
         # Do not log password or expose error details
@@ -151,14 +150,11 @@ def get_password_hash_info(hashed_password: str) -> dict[str, str | int | None]:
         {'scheme': 'bcrypt', 'rounds': 12, 'valid': True}
     """
     try:
-        # Use resolve=False to get scheme name as string, not handler object
-        scheme = pwd_context.identify(hashed_password, resolve=False)
-        if scheme:
-            # Extract rounds from bcrypt hash (format: $2b$12$...)
+        if hashed_password.startswith(BCRYPT_PREFIXES):
             parts = hashed_password.split("$")
             rounds = int(parts[2]) if len(parts) >= 3 else None
             return {
-                "scheme": scheme,
+                "scheme": "bcrypt",
                 "rounds": rounds,
                 "valid": True,
             }
