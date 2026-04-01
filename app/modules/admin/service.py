@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, or_, select
@@ -34,10 +33,19 @@ async def list_admin_users(
     search: str | None = None,
     role: UserRole | None = None,
     status: UserStatus | None = None,
+    exclude_deleted: bool = True,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[list[User], int]:
-    """Return a filtered, paginated user list for the admin panel."""
+    """Return a filtered, paginated user list for the admin panel.
+
+    Args:
+        exclude_deleted: When True (default) and no explicit ``status`` filter is
+            provided, soft-deleted users are omitted.  Set to False to include
+            them in an unfiltered result set.  When ``status`` is passed
+            explicitly this flag is ignored — the caller controls inclusion via
+            the status filter.
+    """
     filters = []
 
     if search:
@@ -56,8 +64,11 @@ async def list_admin_users(
 
     if status is not None:
         filters.append(User.status == status)
-    else:
-        # Hide deleted users by default; they remain visible via explicit status filter.
+    elif exclude_deleted:
+        # When no explicit status filter is provided, hide deleted users by default.
+        # API consumers that want deleted users in an unfiltered result can pass
+        # exclude_deleted=False; the router exposes this as an `exclude_deleted`
+        # query parameter so the intent stays explicit for all callers.
         filters.append(User.status != UserStatus.DELETED)
 
     count_query = select(func.count()).select_from(User)
@@ -133,7 +144,6 @@ async def delete_admin_user(
     previous_email = user.email
     previous_username = user.username
 
-    now = datetime.now(timezone.utc)
     anonymized_suffix = user.id.hex[:16]
     user.email = f"deleted+{user.id.hex}@example.com"
     user.username = f"del_{anonymized_suffix}"
@@ -152,8 +162,13 @@ async def delete_admin_user(
     user.job_title = None
     user.phone = None
     user.profile_avatar = None
-    user.deletion_requested_at = now
-    user.deletion_scheduled_at = now
+    # Do NOT set deletion_requested_at / deletion_scheduled_at here.
+    # Those fields drive the GDPR scheduled hard-deletion flow: setting them
+    # to `now` would immediately qualify the record for permanent erasure by
+    # cleanup jobs.  Admin soft-delete is a durable anonymisation — the row
+    # stays for referential integrity and must not be swept by the GDPR purge.
+    user.deletion_requested_at = None
+    user.deletion_scheduled_at = None
     user.deletion_reason = "admin_deleted"
 
     db.add(user)

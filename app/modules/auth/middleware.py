@@ -6,7 +6,11 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import get_db
+from app.models import User, UserStatus
 from app.modules.auth.tokens import TokenData, verify_token
 from app.redis_client import is_token_blacklisted
 
@@ -20,6 +24,7 @@ ROLE_ADMIN = "admin"
 
 async def get_current_user(
     credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(security)],
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenData:
     """
     Validate JWT access token and return token data.
@@ -28,12 +33,16 @@ async def get_current_user(
 
     Args:
         credentials: HTTP Bearer token from Authorization header
+        db: Database session used to verify the user's current account status.
+            This guards against access tokens for soft-deleted accounts that
+            have not yet expired.
 
     Returns:
         TokenData with user information
 
     Raises:
-        HTTPException: If token is invalid, expired, or blacklisted
+        HTTPException: If token is invalid, expired, blacklisted, or the
+            associated user account has been deleted.
     """
     if credentials is None:
         raise HTTPException(
@@ -59,6 +68,19 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired access token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Confirm the user's DB record is still active.  Refresh tokens are revoked
+    # on admin delete, but outstanding access tokens remain valid until expiry
+    # unless we perform this check.  This ensures immediate lockout.
+    db_user = (
+        await db.execute(select(User).where(User.id == token_data.user_id))
+    ).scalar_one_or_none()
+    if db_user is None or db_user.status == UserStatus.DELETED:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is no longer active",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

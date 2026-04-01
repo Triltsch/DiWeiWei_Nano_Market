@@ -49,6 +49,7 @@ def get_admin_router(prefix: str = "/api/v1/admin", tags: list[str] | None = Non
         search: Annotated[str | None, Query(max_length=100)] = None,
         role: Annotated[UserRole | None, Query()] = None,
         user_status: Annotated[UserStatus | None, Query(alias="status")] = None,
+        exclude_deleted: Annotated[bool, Query()] = True,
         limit: Annotated[int, Query(ge=1, le=100)] = 20,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> AdminUserListResponse:
@@ -57,6 +58,7 @@ def get_admin_router(prefix: str = "/api/v1/admin", tags: list[str] | None = Non
             search=search,
             role=role,
             status=user_status,
+            exclude_deleted=exclude_deleted,
             limit=limit,
             offset=offset,
         )
@@ -150,9 +152,21 @@ def get_admin_router(prefix: str = "/api/v1/admin", tags: list[str] | None = Non
             ip_address=_get_client_ip(request),
             user_agent=_get_user_agent(request),
         )
-        await delete_refresh_token(str(user.id))
+
+        # Commit the DB transaction (user record + audit log) before touching Redis.
+        # Refresh-token deletion is best-effort: a Redis outage must not roll back
+        # an already-committed admin delete.
         await db.commit()
         await db.refresh(user)
+
+        try:
+            await delete_refresh_token(str(user.id))
+        except Exception:  # noqa: BLE001
+            # Intentionally swallow Redis errors.  The user is already deleted in
+            # the database; failing to revoke the refresh token is preferable to
+            # surfacing a 500 and leaving the deletion uncommitted.
+            pass
+
         return UserResponse.model_validate(user)
 
     return router
