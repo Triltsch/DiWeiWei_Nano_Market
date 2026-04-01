@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   AdminApiError,
   adminTakedownNano,
+  deleteAdminUser,
   getAdminAuditLogs,
   getAdminModerationQueue,
   getAdminUsers,
@@ -181,6 +182,7 @@ export function AdminPanelPage(): JSX.Element {
   const [userMessage, setUserMessage] = useState<string | null>(null);
   const [userRoleDrafts, setUserRoleDrafts] = useState<Record<string, AuthRole>>({});
   const [userRolePending, setUserRolePending] = useState<Record<string, boolean>>({});
+  const [userDeletePending, setUserDeletePending] = useState<Record<string, boolean>>({});
 
   const [auditActionFilter, setAuditActionFilter] = useState("");
   const [auditResourceTypeFilter, setAuditResourceTypeFilter] = useState("");
@@ -353,6 +355,39 @@ export function AdminPanelPage(): JSX.Element {
       );
     } finally {
       setUserRolePending((current) => ({ ...current, [userId]: false }));
+    }
+  };
+
+  const handleDeleteUser = async (userId: string): Promise<void> => {
+    const currentUser = users.find((user) => user.id === userId);
+    if (!currentUser) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `${t("admin_users_delete_confirm_prefix")} ${currentUser.username}?`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setUserMessage(null);
+    setUserDeletePending((current) => ({ ...current, [userId]: true }));
+    try {
+      await deleteAdminUser(userId);
+      setUserMessage(t("admin_users_delete_success"));
+      await Promise.all([loadUsers(0), loadAuditLogs(auditOffset)]);
+    } catch (error) {
+      setUsersError(
+        getAdminErrorMessage(
+          error,
+          t("admin_users_delete_error"),
+          t("auth_error_forbidden"),
+          t("auth_error_unauthorized"),
+        ),
+      );
+    } finally {
+      setUserDeletePending((current) => ({ ...current, [userId]: false }));
     }
   };
 
@@ -570,6 +605,7 @@ export function AdminPanelPage(): JSX.Element {
                 {users.map((user) => {
                   const draftRole = userRoleDrafts[user.id] ?? user.role;
                   const isSaving = userRolePending[user.id] === true;
+                  const isDeleting = userDeletePending[user.id] === true;
                   const isChanged = draftRole !== user.role;
 
                   return (
@@ -609,13 +645,22 @@ export function AdminPanelPage(): JSX.Element {
                         {formatDateTime(user.lastLogin, locale)}
                       </td>
                       <td className="rounded-r-2xl px-3 py-3 align-top">
-                        <button
-                          onClick={() => void handleSaveRole(user.id)}
-                          disabled={!isChanged || isSaving}
-                          className="rounded-xl bg-neutral-900 px-4 py-2 font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {isSaving ? t("admin_users_saving") : t("admin_users_save_role")}
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => void handleSaveRole(user.id)}
+                            disabled={!isChanged || isSaving || isDeleting}
+                            className="rounded-xl bg-neutral-900 px-4 py-2 font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {isSaving ? t("admin_users_saving") : t("admin_users_save_role")}
+                          </button>
+                          <button
+                            onClick={() => void handleDeleteUser(user.id)}
+                            disabled={isSaving || isDeleting || user.status === "deleted"}
+                            className="rounded-xl bg-error-600 px-4 py-2 font-medium text-white transition hover:bg-error-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {isDeleting ? t("admin_users_deleting") : t("admin_users_delete")}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

@@ -11,6 +11,7 @@ vi.mock("../../shared/api", async () => {
   return {
     ...actual,
     adminTakedownNano: vi.fn(),
+    deleteAdminUser: vi.fn(),
     getAdminAuditLogs: vi.fn(),
     getAdminModerationQueue: vi.fn(),
     getAdminUsers: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock("../../shared/api", async () => {
 
 const mockedGetAdminUsers = vi.mocked(sharedApi.getAdminUsers);
 const mockedUpdateAdminUserRole = vi.mocked(sharedApi.updateAdminUserRole);
+const mockedDeleteAdminUser = vi.mocked(sharedApi.deleteAdminUser);
 const mockedGetAdminAuditLogs = vi.mocked(sharedApi.getAdminAuditLogs);
 const mockedGetAdminModerationQueue = vi.mocked(sharedApi.getAdminModerationQueue);
 const mockedReviewModerationCase = vi.mocked(sharedApi.reviewModerationCase);
@@ -135,12 +137,14 @@ describe("AdminPanelPage", () => {
   beforeEach(() => {
     mockedGetAdminUsers.mockReset();
     mockedUpdateAdminUserRole.mockReset();
+    mockedDeleteAdminUser.mockReset();
     mockedGetAdminAuditLogs.mockReset();
     mockedGetAdminModerationQueue.mockReset();
     mockedReviewModerationCase.mockReset();
     mockedAdminTakedownNano.mockReset();
 
     mockedGetAdminUsers.mockResolvedValue(baseUsers);
+    mockedDeleteAdminUser.mockResolvedValue(baseUsers.users[0]);
     mockedGetAdminAuditLogs.mockResolvedValue(baseAuditLogs);
     mockedGetAdminModerationQueue.mockResolvedValue(baseModeration);
   });
@@ -177,6 +181,34 @@ describe("AdminPanelPage", () => {
     });
 
     expect(screen.getByText("Rolle wurde aktualisiert.")).toBeTruthy();
+  });
+
+  it("deletes a user after explicit confirmation", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    mockedDeleteAdminUser.mockResolvedValue({
+      ...baseUsers.users[0],
+      status: "deleted",
+      email: "deleted+abc@deleted.local",
+      username: "del_1234567890abcd",
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("creator-1")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Benutzer löschen" }));
+
+    await waitFor(() => {
+      expect(mockedDeleteAdminUser).toHaveBeenCalledWith("user-1");
+    });
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(screen.getByText("Benutzer wurde gelöscht.")).toBeTruthy();
+
+    confirmSpy.mockRestore();
   });
 
   it("submits moderation decisions and takedown actions", async () => {

@@ -9,6 +9,7 @@ export { API_CONFIG, validateApiConfig } from "./config";
 export {
   AdminApiError,
   adminTakedownNano,
+  deleteAdminUser,
   getAdminAuditLogs,
   getAdminModerationQueue,
   getAdminUsers,
