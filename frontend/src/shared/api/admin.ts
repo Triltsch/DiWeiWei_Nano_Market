@@ -425,6 +425,15 @@ export async function updateAdminUserRole(userId: string, role: AuthRole): Promi
   }
 }
 
+export async function deleteAdminUser(userId: string): Promise<AdminUser> {
+  try {
+    const response = await httpClient.delete<RawAdminUser>(`/api/v1/admin/users/${userId}`);
+    return mapAdminUser(response.data);
+  } catch (error) {
+    throw toAdminApiError(error);
+  }
+}
+
 export async function getAdminAuditLogs(
   params: GetAuditLogsParams = {},
 ): Promise<AuditLogsResponse> {

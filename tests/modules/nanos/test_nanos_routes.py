@@ -134,7 +134,7 @@ class TestGetNanoMetadata:
 
     @pytest.mark.asyncio
     async def test_get_nano_metadata_non_published_admin_allowed(
-        self, async_client, db_session, verified_user_id
+        self, async_client, db_session, verified_user_id, admin_token
     ):
         """Admin role can access non-published metadata."""
         nano = Nano(
@@ -153,7 +153,6 @@ class TestGetNanoMetadata:
         db_session.add(nano)
         await db_session.commit()
 
-        admin_token, _ = create_access_token(uuid.uuid4(), "admin@example.com", role="admin")
         response = await async_client.get(
             f"/api/v1/nanos/{nano.id}",
             headers={"Authorization": f"Bearer {admin_token}"},
@@ -866,6 +865,24 @@ class TestNanoDetailViewRoutes:
         self, async_client, db_session, verified_user_id
     ):
         """Authenticated non-owner without elevated role cannot access non-published Nano."""
+        from app.models import User, UserRole, UserStatus
+
+        # Create a second, fully-persisted user so the auth middleware can verify DB status.
+        other_uid = uuid.uuid4()
+        other_suffix = other_uid.hex[:8]
+        other_user = User(
+            id=other_uid,
+            email=f"other_{other_suffix}@example.com",
+            username=f"other_{other_suffix}",
+            password_hash="placeholder",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            role=UserRole.CONSUMER,
+            preferred_language="en",
+            login_attempts=0,
+        )
+        db_session.add(other_user)
+
         nano = Nano(
             id=uuid.uuid4(),
             creator_id=verified_user_id,
@@ -883,7 +900,7 @@ class TestNanoDetailViewRoutes:
         db_session.add(nano)
         await db_session.commit()
 
-        other_token, _ = create_access_token(uuid.uuid4(), "other@example.com", role="consumer")
+        other_token, _ = create_access_token(other_uid, other_user.email, role="consumer")
 
         response = await async_client.get(
             f"/api/v1/nanos/{nano.id}/detail",
@@ -928,7 +945,7 @@ class TestNanoDetailViewRoutes:
 
     @pytest.mark.asyncio
     async def test_get_nano_detail_non_published_admin_allowed(
-        self, async_client, db_session, verified_user_id
+        self, async_client, db_session, verified_user_id, admin_token
     ):
         """Admin role can access non-published Nano detail view."""
         nano = Nano(
@@ -948,7 +965,6 @@ class TestNanoDetailViewRoutes:
         db_session.add(nano)
         await db_session.commit()
 
-        admin_token, _ = create_access_token(uuid.uuid4(), "admin@example.com", role="admin")
         response = await async_client.get(
             f"/api/v1/nanos/{nano.id}/detail",
             headers={"Authorization": f"Bearer {admin_token}"},
@@ -989,6 +1005,25 @@ class TestNanoDetailViewRoutes:
         self, async_client, db_session, verified_user_id
     ):
         """Download path for non-published Nano is blocked for unauthorized authenticated users."""
+        from app.models import User, UserRole, UserStatus
+
+        # Create a second persistent user; phantom JWTs are now rejected by the
+        # DB status check added to get_current_user() (Copilot review comment 4).
+        other_uid = uuid.uuid4()
+        other_suffix = other_uid.hex[:8]
+        other_user = User(
+            id=other_uid,
+            email=f"dlother_{other_suffix}@example.com",
+            username=f"dlother_{other_suffix}",
+            password_hash="placeholder",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            role=UserRole.CONSUMER,
+            preferred_language="en",
+            login_attempts=0,
+        )
+        db_session.add(other_user)
+
         nano = Nano(
             id=uuid.uuid4(),
             creator_id=verified_user_id,
@@ -1005,7 +1040,7 @@ class TestNanoDetailViewRoutes:
         db_session.add(nano)
         await db_session.commit()
 
-        other_token, _ = create_access_token(uuid.uuid4(), "other@example.com", role="consumer")
+        other_token, _ = create_access_token(other_uid, other_user.email, role="consumer")
 
         response = await async_client.get(
             f"/api/v1/nanos/{nano.id}/download-info",
@@ -1067,6 +1102,24 @@ class TestNanoDetailViewRoutes:
         self, async_client, db_session, verified_user_id, monkeypatch
     ):
         """Moderator role can resolve a presigned download URL for non-published Nano."""
+        from app.models import User, UserRole, UserStatus
+
+        # Create a real moderator user so the DB status check in get_current_user() passes.
+        mod_uid = uuid.uuid4()
+        mod_suffix = mod_uid.hex[:8]
+        mod_user = User(
+            id=mod_uid,
+            email=f"mod_{mod_suffix}@example.com",
+            username=f"mod_{mod_suffix}",
+            password_hash="placeholder",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            role=UserRole.MODERATOR,
+            preferred_language="en",
+            login_attempts=0,
+        )
+        db_session.add(mod_user)
+
         nano = Nano(
             id=uuid.uuid4(),
             creator_id=verified_user_id,
@@ -1083,11 +1136,7 @@ class TestNanoDetailViewRoutes:
         db_session.add(nano)
         await db_session.commit()
 
-        moderator_token, _ = create_access_token(
-            uuid.uuid4(),
-            "moderator@example.com",
-            role="moderator",
-        )
+        moderator_token, _ = create_access_token(mod_uid, mod_user.email, role="moderator")
 
         storage_adapter = Mock()
         storage_adapter.get_file_url.return_value = (

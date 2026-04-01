@@ -12,13 +12,16 @@ from app.database import get_db
 from app.models import AuditAction, UserRole, UserStatus
 from app.modules.admin.service import (
     AdminRoleChangeError,
+    AdminUserDeleteConflictError,
     AdminUserNotFoundError,
+    delete_admin_user,
     list_admin_users,
     update_admin_user_role,
 )
 from app.modules.audit.service import AuditLogger
 from app.modules.auth.middleware import ROLE_ADMIN, require_role
 from app.modules.auth.tokens import TokenData
+from app.redis_client import delete_refresh_token
 from app.schemas import AdminUserListResponse, AdminUserRoleUpdateRequest, UserResponse
 
 
@@ -46,6 +49,7 @@ def get_admin_router(prefix: str = "/api/v1/admin", tags: list[str] | None = Non
         search: Annotated[str | None, Query(max_length=100)] = None,
         role: Annotated[UserRole | None, Query()] = None,
         user_status: Annotated[UserStatus | None, Query(alias="status")] = None,
+        exclude_deleted: Annotated[bool, Query()] = True,
         limit: Annotated[int, Query(ge=1, le=100)] = 20,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> AdminUserListResponse:
@@ -54,6 +58,7 @@ def get_admin_router(prefix: str = "/api/v1/admin", tags: list[str] | None = Non
             search=search,
             role=role,
             status=user_status,
+            exclude_deleted=exclude_deleted,
             limit=limit,
             offset=offset,
         )
@@ -107,6 +112,60 @@ def get_admin_router(prefix: str = "/api/v1/admin", tags: list[str] | None = Non
             )
             await db.commit()
             await db.refresh(user)
+
+        return UserResponse.model_validate(user)
+
+    @router.delete(
+        "/users/{user_id}",
+        response_model=UserResponse,
+        summary="Delete a user account",
+    )
+    async def delete_user(
+        user_id: UUID,
+        request: Request,
+        current_user: Annotated[TokenData, Depends(require_role(ROLE_ADMIN))],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> UserResponse:
+        try:
+            user, previous_email, previous_username = await delete_admin_user(
+                db,
+                target_user_id=user_id,
+                actor_user_id=current_user.user_id,
+            )
+        except AdminUserNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        except AdminUserDeleteConflictError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+        await AuditLogger.log_action(
+            session=db,
+            action=AuditAction.USER_DELETED_BY_ADMIN,
+            user_id=current_user.user_id,
+            resource_type="user",
+            resource_id=str(user.id),
+            metadata={
+                "target_user_id": str(user.id),
+                "previous_email": previous_email,
+                "previous_username": previous_username,
+                "new_status": user.status.value,
+            },
+            ip_address=_get_client_ip(request),
+            user_agent=_get_user_agent(request),
+        )
+
+        # Commit the DB transaction (user record + audit log) before touching Redis.
+        # Refresh-token deletion is best-effort: a Redis outage must not roll back
+        # an already-committed admin delete.
+        await db.commit()
+        await db.refresh(user)
+
+        try:
+            await delete_refresh_token(str(user.id))
+        except Exception:  # noqa: BLE001
+            # Intentionally swallow Redis errors.  The user is already deleted in
+            # the database; failing to revoke the refresh token is preferable to
+            # surfacing a 500 and leaving the deletion uncommitted.
+            pass
 
         return UserResponse.model_validate(user)
 
