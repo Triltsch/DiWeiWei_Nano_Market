@@ -38,6 +38,9 @@ services:
     image: axllent/mailpit:v1.26.2
     container_name: diweiwei_test_mailpit
     command: ["--database", "/data/mailpit.db", "--smtp", "0.0.0.0:1025", "--listen", "0.0.0.0:8025"]
+    ports:
+      - "1025:1025"
+      - "8025:8025"
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 1025 && wget --quiet --tries=1 --spider http://127.0.0.1:8025/api/v1/info"]
       interval: 10s

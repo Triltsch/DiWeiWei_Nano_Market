@@ -246,8 +246,13 @@ def reset_rate_limiters():
 
 
 @pytest.fixture(autouse=True)
-def sent_auth_emails(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+def sent_auth_emails(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> list[dict[str, Any]]:
     """Capture auth mail sends so endpoint tests stay isolated from SMTP."""
+    if request.node.get_closest_marker("mailpit_integration"):
+        return []
+
     sent_messages: list[dict[str, Any]] = []
 
     async def _fake_send_mail(to: str, subject: str, body_html: str, body_text: str) -> None:

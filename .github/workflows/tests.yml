@@ -76,6 +76,17 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
+
+      mailpit:
+        image: axllent/mailpit:v1.26.2
+        options: >-
+          --health-cmd "sh -c 'wget --quiet --tries=1 --spider http://localhost:8025/api/v1/info && nc -z localhost 1025'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 1025:1025
+          - 8025:8025
     
     steps:
       - uses: actions/checkout@v6
@@ -95,5 +106,11 @@ jobs:
           TEST_DB_URL: postgresql+asyncpg://testuser:testpassword@localhost:5433/diweiwei_test
           REDIS_HOST: localhost
           REDIS_PORT: 6379
+          SMTP_HOST: localhost
+          SMTP_PORT: 1025
+          SMTP_USE_TLS: "false"
+          SMTP_USE_STARTTLS: "false"
+          AUTH_RESEND_RETURN_TOKEN: "false"
+          MAILPIT_API_BASE_URL: http://localhost:8025/api/v1
         run: |
           python -m pytest tests/ -m integration -v --no-cov
