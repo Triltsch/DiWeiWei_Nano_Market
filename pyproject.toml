@@ -105,6 +105,7 @@ addopts = "--cov=app --cov-report=html --cov-report=term-missing --cov-fail-unde
 asyncio_mode = "auto"
 markers = [
     "integration: mark test as an integration test (requires Docker PostgreSQL)",
+    "mailpit_integration: mark test as requiring real Mailpit SMTP/API integration",
     "unit: mark test as a unit test (uses in-memory SQLite)",
 ]
 # Note: Environment variables are loaded from .env file via Pydantic Settings

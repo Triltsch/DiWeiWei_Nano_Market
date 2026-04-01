@@ -95,6 +95,7 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - Line-Endings in Entrypoints auf LF normalisieren.
 - Vite-Multistage-Builds mit explizitem `frontend/public`-Copy absichern.
 - Service-URLs im Container-Kontext explizit setzen (kein `localhost`-Default im Container).
+- Wenn lokale Integrations-Tasks (`Test: Verified`) Host-seitiges `pytest` gegen Docker-Dienste ausführen, müssen *alle* extern benötigten Services in den Readiness-Checks enthalten sein (z. B. Mailpit zusätzlich zu App/DB/Redis), sonst entstehen falsche 503-Fehler durch zu frühes Test-Starten.
 - Runtime-Pfade (Root-Redirects, API-Bases) über Umgebungsvariablen steuern.
 - Dienste mit Host-Port-Mapping nicht ausschließlich an `internal: true`-Netzwerke hängen: für Host-Zugriff zusätzlich ein nicht-internes Bridge-Netzwerk anbinden.
 - Alembic-Recovery bei inkonsistentem Local-State klar durchführen (`stamp base` → `upgrade head`).
