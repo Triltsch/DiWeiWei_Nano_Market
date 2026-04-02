@@ -113,13 +113,15 @@ Proceed to production only when all checks are true:
 
 ## 2. Monitoring and Alerting (Section 5.3)
 
-### 2.1 Required metrics (Issue #127 transport)
+### 2.1 Planned metrics (pending transport instrumentation; Issue #127)
 
-Expose and scrape the following metrics from SMTP transport:
+Target state: expose and scrape the following metrics from SMTP transport once instrumentation is implemented:
 - `smtp_send_total{status="success|failure",message_type="verification|resend|reset"}`
 - `smtp_send_latency_seconds` histogram (use p50 and p95 views)
 - `smtp_retry_queue_depth` gauge
 - `smtp_auth_failures_total` counter
+
+Note: As of this runbook version, these Prometheus metrics are not yet exported by `app/modules/mail/transport.py`. Until Issue #127 is implemented, use existing SMTP-related application logs and provider-side dashboards for delivery failures, latency, queue behavior, and authentication errors.
 
 ### 2.2 Prometheus alert rules (YAML)
 
@@ -134,6 +136,8 @@ groups:
             /
             clamp_min(sum(rate(smtp_send_total[5m])), 1)
           ) < 0.95
+          and
+          sum(rate(smtp_send_total[5m])) >= 0.1
         for: 5m
         labels:
           severity: warning
@@ -145,7 +149,7 @@ groups:
 
       - alert: SmtpRetryQueueDepthGrowing
         expr: |
-          delta(smtp_retry_queue_depth[10m]) > 0
+          deriv(smtp_retry_queue_depth[10m]) > 0
         for: 10m
         labels:
           severity: warning
@@ -153,11 +157,11 @@ groups:
           component: smtp
         annotations:
           summary: "SMTP retry queue depth is growing"
-          description: "Retry queue depth has increased for 10 minutes. Investigate downstream SMTP availability and error categories."
+          description: "Retry queue depth shows a sustained increasing trend over 10 minutes. Investigate downstream SMTP availability and error categories."
 
       - alert: SmtpAuthFailuresHigh
         expr: |
-          rate(smtp_auth_failures_total[1m]) > 5
+          increase(smtp_auth_failures_total[1m]) > 5
         for: 2m
         labels:
           severity: critical
@@ -181,7 +185,7 @@ Create these baseline panels:
    - Query: `smtp_retry_queue_depth`
    - Visualization: time series + current stat
 4. SMTP Auth Failures
-   - Query: `rate(smtp_auth_failures_total[1m])`
+  - Query: `increase(smtp_auth_failures_total[1m])`
    - Visualization: time series and incident marker annotations
 
 ## 3. Incident Response Procedures
