@@ -150,6 +150,8 @@ Production security enforcement:
 
 ## 5. Operations and Delivery Checklist (Ubuntu Target)
 
+Detailed operational procedures for DNS, alerting rules, incident handling, and secret rotation are maintained in [SMTP Operations Runbook](./SMTP_OPERATIONS_RUNBOOK.md).
+
 ### 5.1 Platform Readiness
 
 - Ubuntu host patched and hardened.
