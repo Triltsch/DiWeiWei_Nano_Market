@@ -88,6 +88,7 @@ Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Revie
 - Moderationsentscheidungen als eigene Event-Metrik zählen.
 - Monitoring-Artefakte (Dashboards, Alerts) als versionierte Dateien verwalten.
 - "No data" in Grafana als erwartbar behandeln, bis gezielter Traffic erzeugt wurde.
+- Alert-Regeln immer einheitenkonsistent formulieren (`rate()` = pro Sekunde, `increase()` = absolut pro Fenster) und bei Quoten-Metriken einen Mindest-Traffic-Guard ergänzen, damit Idle-Phasen keine False-Positive-Pages auslösen.
 - Healthchecks auf robuste, image-native Probes stützen; keine fragilen Tool-Abhängigkeiten.
 
 ## Docker, Runtime, Migrationen
