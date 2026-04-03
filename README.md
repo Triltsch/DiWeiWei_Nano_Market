@@ -123,6 +123,7 @@ Implementierte Kernbereiche:
 ### Kern-Dokumente
 - [doc/DEVELOPER_SETUP.md](./doc/DEVELOPER_SETUP.md) – Setup, Troubleshooting, MinIO
 - [doc/DATABASE_MIGRATIONS.md](./doc/DATABASE_MIGRATIONS.md) – Alembic Workflow
+- [doc/SSL_TLS_SETUP.md](./doc/SSL_TLS_SETUP.md) – TLS proxy setup, cert generation, verification
 - [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) – Detaillierter Feature-Status
 - [LEARNINGS.md](./LEARNINGS.md) – Operative Regeln und Best Practices
 

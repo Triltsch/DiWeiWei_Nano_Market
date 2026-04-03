@@ -103,8 +103,7 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 
 ## Docker, Runtime, Migrationen
 
-- Line-Endings in Entrypoints: LF.
-- Vite-Multistage-Builds: explizitem `frontend/public`-Copy absichern.
+- Bei `docker-compose.yml`-`command: >` mit `/bin/sh -c` OpenSSL-Aufrufe als einzelne Kommandozeile (oder mit expliziten `\`-Fortsetzungen) schreiben; sonst können Flags wie `-keyout` als eigene Shell-Kommandos ausgeführt werden.
 - Service-URLs im Container: explizit setzen (kein `localhost`-Default).
 - Integrations-Tasks (`Test: Verified`): alle benötigten Services in Readiness-Checks (z. B. Mailpit + App/DB/Redis).
 - Runtime-Pfade (Root-Redirects, API-Bases) über Umgebungsvariablen steuern.

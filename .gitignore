@@ -55,6 +55,8 @@ Thumbs.db
 # Application specific
 *.sqlite
 *.sqlite3
+docker/ssl/*.crt
+docker/ssl/*.key
 
 # Frontend
 node_modules/
