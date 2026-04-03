@@ -221,12 +221,7 @@ services:
       /bin/sh -c "
       mkdir -p /etc/nginx/ssl;
       if [ ! -f /etc/nginx/ssl/server.crt ] || [ ! -f /etc/nginx/ssl/server.key ]; then
-        openssl req -x509 -nodes -newkey rsa:4096
-        -keyout /etc/nginx/ssl/server.key
-        -out /etc/nginx/ssl/server.crt
-        -days 365
-        -subj '/C=DE/ST=BW/L=Stuttgart/O=DiWeiWei/CN=localhost'
-        -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1';
+        openssl req -x509 -nodes -newkey rsa:4096 -keyout /etc/nginx/ssl/server.key -out /etc/nginx/ssl/server.crt -days 365 -subj '/C=DE/ST=BW/L=Stuttgart/O=DiWeiWei/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1';
       fi;
       nginx -g 'daemon off;'
       "

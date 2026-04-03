@@ -17,7 +17,8 @@ def test_nginx_default_conf_contains_required_security_controls() -> None:
     content = (_repo_root() / "docker" / "nginx" / "default.conf").read_text(encoding="utf-8")
 
     required_fragments = (
-        "listen 443 ssl http2;",
+        "listen 443 ssl;",
+        "http2 on;",
         "ssl_protocols TLSv1.2 TLSv1.3;",
         "ssl_session_tickets off;",
         "limit_req_status 429;",
