@@ -1,24 +1,42 @@
 # Implementation Status
 
-## 📌 Current Sprint Snapshot (Issue-basiert)
+**Stand:** April 3, 2026
 
-**Stand:** March 25, 2026
+## 📋 Sprint Completion Summary
 
-**Abgeschlossen:**
-- ✅ Sprint 1-5 abgeschlossen
-- ✅ Sprint-5-Issues: #70, #71, #72, #73, #74 (alle closed)
+| Sprint | Status | Issues | Completion |
+|--------|--------|--------|------------|
+| 1-5 | ✅ Complete | Historical | 100% |
+| 6 | ✅ Complete | #83–#88 | 100% |
+| 7 | ✅ Complete | #89–#100 | 100% |
+| 8 | ✅ Complete | [#111–#116](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues?q=is%3Aissue+number%3A111-116) | 100% |
+| 8a | ✅ Complete | [#125–#130](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues?q=is%3Aissue+number%3A125-130) | 100% |
+| 9 | 📋 Planned | [#141–#144](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues?q=is%3Aissue+number%3A141-144) | 0% |
 
-**Aktuell in Arbeit:**
-- 🚧 Sprint 6
-- ✅ Bereits erledigt in Sprint 6: #83 (Ratings Backend), #84 (Comments Backend), #85 (Moderationsworkflow)
-- 🚧 Noch offen in Sprint 6: #86 (Frontend-Integration), #87 (QA-Gate), #88 (Observability)
-
-**Leitplanken unverändert:**
-- Meilisearch als MVP-Search-Stack
-- Performance-Ziel: `<500ms p95`
-- Security/Compliance als verpflichtender DoD-Bestandteil
+**Leitplanken:**
+- Meilisearch als MVP-Search-Stack ✅
+- Performance-Ziel: `<500ms p95` ✅
+- Security/Compliance als DoD-Bestandteil ✅
 
 ---
+
+## 🚀 Sprint 9 (geplant)
+
+**Sprintziel:** Produktionsreife (CI/CD, TLS-Hardening, Trust & Safety)
+
+**Priorisierte Issues:**
+- [#144](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/144) - CI/CD Pipeline with GitHub Actions
+- [#142](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/142) - SSL/TLS Hardening & Reverse Proxy Configuration
+- [#141](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/141) - User Reporting / Flag System
+- [#143](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/143) - Spam Prevention & Rate Limiting
+
+**Authoritative Source:** GitHub issues tracking (click issue numbers above for latest details)
+
+---
+
+## 📚 Detailed Sprint Implementation History
+
+**Note:** Detailed Sprint 2–6 implementation records are preserved below for reference. For latest status on any sprint, consult GitHub issues (see links above).
 
 ## ✅ Sprint 2 [S2-FE-04]: Configure Axios Client + JWT Injection Hook Points - COMPLETE
 

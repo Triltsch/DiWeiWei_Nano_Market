@@ -78,7 +78,7 @@ docker-compose down
 - MinIO: http://localhost:9001 (minioadmin/minioadmin)
 - Meilisearch: http://localhost:7700
 
-Runbooks: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md) | [doc/FEEDBACK_OBSERVABILITY_RUNBOOK.md](doc/FEEDBACK_OBSERVABILITY_RUNBOOK.md) | [doc/SPRINT5_QA_GATE.md](doc/SPRINT5_QA_GATE.md) | [doc/SPRINT6_QA_GATE.md](doc/SPRINT6_QA_GATE.md)
+Runbooks: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md) | [doc/FEEDBACK_OBSERVABILITY_RUNBOOK.md](doc/FEEDBACK_OBSERVABILITY_RUNBOOK.md) | [doc/SPRINT5_QA_GATE.md](doc/SPRINT5_QA_GATE.md) | [doc/SPRINT6_QA_GATE.md](doc/SPRINT6_QA_GATE.md) | [doc/SPRINT8_QA_GATE.md](doc/SPRINT8_QA_GATE.md)
 
 ## 👥 Rollen & Zugriff
 
@@ -132,7 +132,9 @@ Implementierte Kernbereiche:
 - [doc/REACT_QUERY_SETUP.md](./doc/REACT_QUERY_SETUP.md)
 - [doc/SEARCH_CACHE.md](./doc/SEARCH_CACHE.md)
 - [doc/SEARCH_OPERATIONS.md](./doc/SEARCH_OPERATIONS.md)
+- [doc/SPRINT5_QA_GATE.md](./doc/SPRINT5_QA_GATE.md)
 - [doc/SPRINT6_QA_GATE.md](./doc/SPRINT6_QA_GATE.md)
+- [doc/SPRINT8_QA_GATE.md](./doc/SPRINT8_QA_GATE.md)
 
 ## 🔒 Security
 
