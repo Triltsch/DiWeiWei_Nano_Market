@@ -19,6 +19,10 @@ def test_nginx_default_conf_contains_required_security_controls() -> None:
     required_fragments = (
         "listen 443 ssl http2;",
         "ssl_protocols TLSv1.2 TLSv1.3;",
+        "ssl_session_tickets off;",
+        "limit_req_status 429;",
+        "error_page 429 @rate_limited;",
+        "Retry-After",
         "Strict-Transport-Security",
         "Content-Security-Policy",
         "X-Frame-Options",
