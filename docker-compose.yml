@@ -225,7 +225,8 @@ services:
         -keyout /etc/nginx/ssl/server.key
         -out /etc/nginx/ssl/server.crt
         -days 365
-        -subj '/C=DE/ST=BW/L=Stuttgart/O=DiWeiWei/CN=localhost';
+        -subj '/C=DE/ST=BW/L=Stuttgart/O=DiWeiWei/CN=localhost'
+        -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1';
       fi;
       nginx -g 'daemon off;'
       "
@@ -238,7 +239,7 @@ services:
       frontend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "--no-check-certificate", "https://127.0.0.1/health"]
       interval: 10s
       timeout: 5s
       retries: 5

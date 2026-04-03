@@ -105,6 +105,8 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 
 - Line-Endings in Entrypoints: LF.
 - Reverse-Proxy TLS im lokalen Compose robust machen: Zertifikate bei fehlenden `docker/ssl/*.crt|*.key` beim Service-Start automatisch erzeugen, damit `docker compose up` auf frischen Workspaces nicht an fehlenden Cert-Files scheitert.
+- Nginx-Rate-Limits: `limit_req` liefert ohne Override `503`; für API-Semantik explizit `limit_req_status 429` setzen und `Retry-After` nur im dedizierten `error_page 429`-Handler ausgeben (nicht pauschal pro Location).
+- Lokale Self-Signed-Zertifikate mit SAN (`DNS:localhost,IP:127.0.0.1`) erzeugen; HTTP→HTTPS-Umleitungen in Healthchecks berücksichtigen (`https://127.0.0.1/health` + `--no-check-certificate`).
 - Vite-Multistage-Builds: explizitem `frontend/public`-Copy absichern.
 - Service-URLs im Container: explizit setzen (kein `localhost`-Default).
 - Integrations-Tasks (`Test: Verified`): alle benötigten Services in Readiness-Checks (z. B. Mailpit + App/DB/Redis).
