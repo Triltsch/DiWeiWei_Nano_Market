@@ -104,6 +104,7 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 ## Docker, Runtime, Migrationen
 
 - Line-Endings in Entrypoints: LF.
+- Reverse-Proxy TLS im lokalen Compose robust machen: Zertifikate bei fehlenden `docker/ssl/*.crt|*.key` beim Service-Start automatisch erzeugen, damit `docker compose up` auf frischen Workspaces nicht an fehlenden Cert-Files scheitert.
 - Vite-Multistage-Builds: explizitem `frontend/public`-Copy absichern.
 - Service-URLs im Container: explizit setzen (kein `localhost`-Default).
 - Integrations-Tasks (`Test: Verified`): alle benötigten Services in Readiness-Checks (z. B. Mailpit + App/DB/Redis).
