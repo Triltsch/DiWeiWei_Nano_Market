@@ -22,7 +22,7 @@ def test_nginx_default_conf_contains_required_security_controls() -> None:
         "ssl_session_tickets off;",
         "limit_req_status 429;",
         "error_page 429 @rate_limited;",
-        "Retry-After",
+        "add_header Retry-After 60 always;",
         "Strict-Transport-Security",
         "Content-Security-Policy",
         "X-Frame-Options",
