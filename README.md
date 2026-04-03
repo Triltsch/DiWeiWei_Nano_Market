@@ -4,42 +4,33 @@
 
 Marktplatz für Nano-Lerneinheiten mit JWT-Authentifizierung, Audit-Logging und umfassenden Tests.
 
-## 📊 Status auf einen Blick
+## 📊 Aktueller Status
 
-**Abgeschlossen:** Sprint 1 bis Sprint 7  
-Foundation, Upload/Storage, Search, Monitoring, Nano Detail, Creator Dashboard, Feedback-System sowie Communication (Chat, Polling, TLS-Baseline, QA-Gate).
+- **Abgeschlossen:** Sprint 1 bis Sprint 8a
+	- Sprint 8 abgeschlossen: Issues [#111](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/111), [#112](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/112), [#113](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/113), [#114](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/114), [#115](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/115), [#116](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/116)
+	- Sprint 8a abgeschlossen: Issues [#125](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/125), [#126](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/126), [#127](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/127), [#128](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/128), [#129](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/129), [#130](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/130)
+- **Geplant:** Sprint 9 (Security Hardening & CI/CD)
+	- Offen: [#141](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/141), [#142](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/142), [#143](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/143), [#144](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/144)
 
-**In Arbeit:** Sprint 8 (Profile, Moderation, Admin)  
-User Profile & Account Settings, Content Review Workflow, Admin Takedown Functions und Admin Panel UI.
+Vollständiger Umsetzungsstand: [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md)
 
-**Als Nächstes:** Sprint 9 (Security Hardening & CI/CD)  
-CI/CD Pipeline, SSL/TLS-Hardening, Flag System und Spam Prevention.
+## 📌 Nächster Sprint (Sprint 9, geplant)
 
-Für den vollständigen Funktionsstand siehe [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md).
+**Sprintziel:** Produktionsreife absichern mit CI/CD, TLS-Hardening sowie Trust-&-Safety-Enablern.
 
-## 📌 Aktueller Sprint (Sprint 8)
+**Priorisierte Issues:**
+- [#144](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/144) - Implement CI/CD Pipeline with GitHub Actions
+- [#142](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/142) - SSL/TLS Hardening & Reverse Proxy Configuration
+- [#141](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/141) - User Reporting / Flag System for Nanos
+- [#143](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/143) - Spam Prevention & Rate Limiting
 
-**Sprintziel:**
-Profil- und Admin-Funktionen Ende-zu-Ende liefern: User Self-Service, Moderationsworkflow und Admin-Oberfläche.
-
-**Priorisierte Sprint-8-Issues:**
-- 🚧 [#111](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/111) – Account Settings & DSGVO Self-Service API (Backend)
-- 🚧 [#112](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/112) – Content Review Workflow & Moderation Queue API (Backend)
-- 🚧 [#113](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/113) – Admin Takedown Functions with Audit Trail (Backend)
-- 🚧 [#114](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/114) – User Profile & Account Settings UI (Frontend)
-- 🚧 [#115](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/115) – Admin Panel UI (Frontend)
-- 🚧 [#116](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/116) – QA-Gate User Profile, Moderation and Admin
-
-**Leitplanken:**
-- Search-Stack: **Meilisearch** (MVP)
-- Performance-DoD: **<500ms p95**
-- Security/Compliance sind Pflichtbestandteil der Story-Abnahme
+**Sprint-Leitplanken:** Meilisearch (MVP), Performance-DoD <500ms p95, Security/Compliance als Pflichtbestandteil.
 
 ## ⏭️ Nächste Schritte
 
-- Sprint-8-Backend-Enabler und Frontend-Integration synchronisieren
-- Sprint-8-QA-Gate [#116](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/116) als Abnahmekriterium durchführen
-- Release-Readiness weiterhin über QA, Security und Observability absichern
+- Sprint-9-Issues priorisiert in Umsetzung überführen (Reihenfolge: [#144](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/144) -> [#142](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/142) -> [#141](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/141) -> [#143](https://github.com/Triltsch/DiWeiWei_Nano_Market/issues/143))
+- CI-/Security-QA-Kriterien für Sprint 9 früh als Definition of Done verankern
+- Sprint-10-Vorbereitung (Final QA & Go-Live) parallel in Runbooks vorstrukturieren
 
 ## 🚀 Quick Start
 
@@ -64,20 +55,20 @@ cd frontend && npm install && npm run dev
 ```
 Frontend: http://localhost:5173
 
-**Tests ausführen:**
+**Tests (lokal):**
 ```bash
-pytest tests/ -v                    # Backend tests
-cd frontend && npx vitest run       # Frontend tests (CI-stabil)
+pytest tests/ -v
+cd frontend && npx vitest run
 ```
 
-## 🐳 Docker Kurzüberblick
+## 🐳 Docker
 
-Lokal werden u. a. PostgreSQL, Redis, MinIO, Meilisearch, FastAPI, Prometheus und Grafana betrieben.
+Lokal laufen u. a. PostgreSQL, Redis, MinIO, Meilisearch, FastAPI, Prometheus und Grafana.
 
 ```bash
-docker-compose up -d           # Start all services
-docker-compose ps              # Health check (all should be "healthy")
-docker-compose down            # Stop services
+docker-compose up -d
+docker-compose ps
+docker-compose down
 ```
 
 **Zugriffe:**
@@ -101,54 +92,27 @@ Runbooks: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md) | [doc/FEEDBACK_OBS
 | Admin Panel | ❌ | ❌ | ❌ | ✅ |
 | View Public Content | ✅ | ✅ | ✅ | ✅ |
 
-## 🔌 API Überblick
+## 🔌 API Überblick (kompakt)
 
-**Vollständige API-Doku:** http://localhost:8000/docs
+Vollständige API-Doku: http://localhost:8000/docs
 
-**Authentication (implementiert):**
-- `POST /api/v1/auth/register` – Registration
-- `POST /api/v1/auth/login` – Login (JWT Access + Refresh)
-- `POST /api/v1/auth/verify-email` – Email verification
-- `POST /api/v1/auth/refresh-token` – Refresh access token
-- `POST /api/v1/auth/logout` – Logout
-
-**Nanos & Upload (implementiert):**
-- `POST /api/v1/upload/nano` – Upload ZIP (creates draft)
-- `GET /api/v1/nanos/{nano_id}` – Fetch nano metadata
-- `GET /api/v1/nanos/{nano_id}/detail` – Detail view with role-based visibility
-- `GET /api/v1/nanos/my-nanos` – Creator list with status/filter
-- `DELETE /api/v1/nanos/{nano_id}` – Delete/archive own nano (creator)
-- `POST /api/v1/nanos/{nano_id}/metadata` – Update metadata (creator, draft only)
-- `PATCH /api/v1/nanos/{nano_id}/status` – Change status (state machine)
-
-**Search/Feedback/Moderation (implementiert):**
-- `GET /api/v1/search` – Published nanos (Redis-cached, 30min TTL, deterministic keys)
-- `GET /api/v1/nanos/{nano_id}/comments` – Public comments (approved only)
-- `POST /api/v1/nanos/{nano_id}/comments` – Add comment (auth, starts pending)
-- `PATCH /api/v1/nanos/{nano_id}/comments/{id}/moderation` – Approve/hide (mod/admin)
-- `GET /api/v1/nanos/{nano_id}/ratings` – Aggregation (approved only, includes own pending if auth)
-- `POST /api/v1/nanos/{nano_id}/ratings` – Add 1-5 star rating (1 per user/nano, pending start)
-- `PATCH /api/v1/nanos/{nano_id}/ratings/me` – Update own (resets to pending)
-- `PATCH /api/v1/nanos/{nano_id}/ratings/{id}/moderation` – Approve/hide (mod/admin)
-- `GET /api/v1/nanos/pending-moderation` – Queue (mod/admin)
-- `GET /api/v1/audit/logs` – Audit logs (admin)
-- `GET /api/v1/audit/suspicious` – Suspicious activity (admin)
-
-**Chat (implementiert, Sprint 7):**
-- `POST /api/v1/chats` – Create or reuse chat session for a nano
-- `GET /api/v1/chats` – List chat sessions for current user (optional `nano_id` filter)
+Implementierte Kernbereiche:
+- Auth (Register, Login, Verify, Refresh, Logout)
+- Nano Upload & Management (Draft-Workflow, Metadata, Status-Transitions)
+- Search (Meilisearch + Redis Cache)
+- Feedback & Moderation (Kommentare, Ratings, Moderationsqueue)
+- Chat (Session erstellen/wiederverwenden, Sessions listen)
+- Audit (Logs, suspicious activity)
 
 ## 🛠️ Tech Stack
 
 | Component | Tech | Version |
 |-----------|------|---------|
 | Framework | FastAPI | 0.133.1 |
-| ORM | SQLAlchemy | 2.0.47 |
-| Validation | Pydantic | 2.12.5 |
 | Auth | JWT (python-jose) | 3.3.0 |
 | Crypto | passlib + bcrypt | 1.7.4 |
-| DB (Prod) | PostgreSQL | 13+ |
-| DB (Test) | SQLite | – |
+| Database | PostgreSQL (Prod), SQLite (Test) | 13+ / - |
+| Validation/ORM | Pydantic + SQLAlchemy | 2.12.5 / 2.0.47 |
 | Testing | pytest + Vitest | 9.0.2 / 3.x |
 | Storage | MinIO | 2024-12-13 |
 | Search | Meilisearch | 1.6.0 |
@@ -180,5 +144,5 @@ Runbooks: [doc/MONITORING_SETUP.md](doc/MONITORING_SETUP.md) | [doc/FEEDBACK_OBS
 
 ---
 
-**Last Updated:** March 2026
+**Last Updated:** April 2026
 

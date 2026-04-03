@@ -1,163 +1,181 @@
 # LEARNINGS
 
-Ziel: Ein kompaktes, direkt anwendbares Regelwerk für Implementierung und Review.
+Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 
-## Frontend (UX, State, i18n)
+## Frontend
 
-- Asynchrone `useEffect`-Flows immer mit `try/catch` und sichtbarem Fehlerzustand implementieren.
-- In asynchronen Effekten immer Abbruchschutz (`isActive` + Cleanup) gegen State-Updates nach Unmount nutzen.
-- Bei Präferenzfeldern wie Sprache UI-Zustand sofort aktualisieren; kein Refetch-Effect darf von derselben Präferenz abhängen, sonst werden Nutzeränderungen direkt wieder überschrieben.
-- Wenn ein Formular Spracheinstellung speichert: Sofort `setLanguage()` aufrufen, NICHT auf Backend-Antwort oder Refetch warten. Andernfalls sieht der Nutzer die neue Sprache kurz und sie wird prompt von der Backend-Antwort mit der alten Präferenz zurückgesetzt.
-- UX-Magic-Numbers (Debounce, Page Size, Timeouts) als Modulkonstanten führen.
-- URL↔State-Sync nur mit Write-Guard (`useRef`) um Feedback-Loops zu vermeiden.
-- Alle sichtbaren Strings über `t()` lokalisieren (inkl. Fallbacks und Fehlermeldungen).
-- Keine statischen `id`-Werte in wiederverwendbaren Komponenten; `useId()` verwenden.
-- API-Boundary ehrlich typisieren (`string | null`, optionale Felder) und Fallbacks erst im Rendering anwenden.
-- Detail-/Action-UX auth- und statusbewusst bauen: bei `!isAuthenticated` früh redirecten, nur sinnvolle Aktionen anbieten.
+### Async & Effects
+- `useEffect` async-Flows: `try/catch` + sichtbarer Fehlerzustand + Abbruchschutz (`isActive` Flag + Cleanup bei Unmount).
+- Präferenzfelder (Sprache): UI-State sofort updaten, NICHT auf Backend-Response warten; sonst wird Nutzer-Änderung von Response überschrieben.
+- URL↔State-Sync mit Write-Guard (`useRef`) um Feedback-Loops zu verhindern.
+- Magic-Numbers (Debounce, Page Size, Timeouts) als Modulkonstanten definieren.
 
-## Frontend (Routing, RBAC, API-Clients)
+### Lokalisierung & Typisierung
+- Alle sichtbaren Strings über `t()` lokalisieren (mit Fallbacks und Fehlermeldungen).
+- Keine statischen `id`-Werte in wiederverwendbaren Komponenten; `useId()` nutzen.
+- API-Boundary ehrlich typisieren: `string | null`, optionale Felder; Fallbacks erst im Rendering.
+- Detail-/Action-UX auth- und statusbewusst: `!isAuthenticated` → früh redirecten, nur mögliche Aktionen anbieten.
 
-- Route-Guards rollenfähig umsetzen (`requiredRoles`), nicht nur auth-basiert.
-- Navigation strikt rollenbasiert rendern; sichtbare Links und API-Berechtigung müssen konsistent sein.
-- JWT-Claim `role` zentral in den User-State übernehmen und nach Refresh neu ableiten.
-- API-Clients pro Domäne kapseln (z. B. Feedback, Detail, Search) und HTTP-Status auf typisierte Fehlercodes mappen.
-- 401/403 im Frontend explizit trennen: 401 = Re-Login, 403 = Forbidden-State.
-- 409-Konflikte im Frontend nicht pauschal behandeln: Backend-`detail` gezielt auswerten (z. B. Username vs. E-Mail-Konflikt), sonst entstehen irreführende Fehlermeldungen.
-- Redirect-Parameter nach Login zuerst gegen Open-Redirect-Regeln validieren, dann role-aware Fallback anwenden.
-- Self-Service-Endpunkte (Passwortänderung, Profilupdate) können *authentifizierten* Nutzern mit 401 antworten, wenn eine Business-Validation fehlschlägt (z. B. „aktuelles Passwort falsch"). Interceptoren müssen `_retry`-Flag prüfen und nicht blindlings Logout auslösen, sonst wird ein legitimer Validierungsfehler zur Session-Löschung.
+### Routing & RBAC
+- Route-Guards mit `requiredRoles` implementieren; Navigation rollenbasiert rendern (Links + API-Berechtigung konsistent).
+- JWT `role` zentral in User-State; nach Refresh neu ableiten.
+- API-Clients pro Domäne kapseln, HTTP-Status auf typisierte Fehlercodes mappen.
+- 401 vs. 403 explizit trennen: 401 = Re-Login, 403 = Forbidden-State.
+- 409-Konflikte: Backend-`detail` gezielt auswerten (z. B. Username vs. E-Mail), nicht pauschal behandeln.
+- Redirect nach Login gegen Open-Redirect-Regeln validieren, dann role-backed Fallback.
+- Self-Service-Endpunkte (Passwort/Profil): Bei Business-Validierungsfehlern können Auth. Nutzer 401 erhalten. Interceptor muss `_retry`-Flag prüfen, nicht blindlings Logout auslösen.
 
-## Frontend-Tests
+### Frontend Tests
+- Verhaltensbasierte Tests: Lifecycle, Error-Paths, Refetch, Redirects (nicht nur Existenzprüfungen).
+- Keine `any`-Types; konkrete Library-Typen verwenden.
+- i18n-Tests: Nach Sprachwechsel auf neue Sprache in Labels/Buttons asserten; alte sind dann weg aus DOM.
+- Debounced/async Assertions: Call-Count + Last-Call kombinieren.
+- CI: `vitest run` statt Watch-Mode; Testanzahlen nicht hardcoden (CI ist Quelle der Wahrheit).
 
-- Tests verhaltensbasiert schreiben (Lifecycle, Error-Path, Refetch, Redirect), nicht nur Existenzprüfungen.
-- In Tests kein `any`; konkrete Library-Typen verwenden.
-- Bei i18n-Tests nach aktivem Sprachwechsel auf die erwartete neue Sprache asserten (Labels/Buttons), statt statische Strings aus der initialen Locale zu verwenden.
-- In Tests, die Sprachwechsel prüfen: Nach `fireEvent.change(language)` beim nächsten Button-Suche / Label-Check die neue Sprache erwartet (z. B. "Save profile" statt "Profil speichern"). Alte Labels sind nach dem Wechsel nicht mehr im DOM; Tests, die auf den alten String asserten würden, scheitern — das ist korrekt und deckt den UX-Fehler auf.
-- Debounced/async Mock-Assertions mit Call-Count + Last-Call kombinieren.
-- Für CI-nahe Frontend-Läufe `vitest run`/`npx vitest run` statt Watch-Mode nutzen.
-- Exakte Testanzahlen nicht in Doku festschreiben; CI ist die autoritative Quelle.
+## Backend / API
 
-## Backend/API (Architektur, RBAC, Validierung)
-
-- Business-Regeln in den Service-Layer, Router nur für HTTP/DI.
-- Autorisierung/Ownership immer vor Mutation und vor No-op-Short-Circuits prüfen.
+### Architecture & Layering
+- Business-Regeln in Service-Layer; Router nur für HTTP/DI.
+- Autorisierung/Ownership VOR Mutation und vor No-op-Short-Circuits.
 - Stateful Logik als explizite State-Machine/Transition-Allowlist modellieren.
-- Idempotente Updates zulassen, aber ohne Informationsleck für Unbefugte.
-- Query-/Enum-Parameter serverseitig validieren und bei ungültigen Werten sauber mit 4xx antworten.
-- Optional-Auth im Router verwenden, finale Zugriffsentscheidung zentral im Service treffen.
-- Öffentliche APIs nur freigegebene Inhalte zeigen; Moderations-/Pending-Reads separat modellieren.
-- Nach Content-Updates Moderationsstatus auf `pending` zurücksetzen und Moderationsmetadaten bereinigen.
-- Bei Self-Service-Profilupdates muss das Response-Schema alle updatebaren Felder enthalten (z. B. `company`, `job_title`, `phone`), sonst brechen API-Vertrag und Integrationstests trotz erfolgreichem Write.
-- In FastAPI/Starlette für 422-Responses `HTTP_422_UNPROCESSABLE_CONTENT` statt `HTTP_422_UNPROCESSABLE_ENTITY` verwenden, um DeprecationWarnings in aktuellen Versionen zu vermeiden.
+- Idempotente Updates zulassen ohne Informationsleck für Unbefugte.
+- Optional-Auth im Router, zentrale Zugriffsentscheidung im Service.
 
-## Backend/API (Datenintegrität, Fehler, Security)
+### Content & Moderation
+- Öffentliche APIs nur freigegebene Inhalte zeigen; Moderations-/Pending-Reads separieren.
+- Nach Content-Updates Moderationsstatus auf `pending` zurücksetzen, Metadaten bereinigen.
+- Admin-Takedown: Dedizierte Endpoint-Semantik, idempotente Wiederholung, strukturierte Audit-Metadaten, explizite Cache-Invalidierung.
 
-- DB-Constraints und Service-Guards kombinieren (z. B. `UNIQUE` + 409-Precheck + `IntegrityError`-Handling).
-- Für fail-fast Config-Validierung auf `Settings`-Ebene nur Felder strikt typisieren, deren bestehende `.env`-Werte den Validator sicher erfüllen; spezialisierte Typen wie `EmailStr` besser in ein abgeleitetes/nested Modell verlagern, um Startup-Regressionen durch Legacy-Werte (z. B. `.local` Domains) zu vermeiden.
-- Bei SMTP-Transporten Input-Validierungsfehler (z. B. Header-Injection via CRLF) nicht in generische Delivery-Retries überführen: `ValueError` direkt durchreichen, nur transient 4xx-Zustände wiederholen und Timeout/Connect klar auf stabile Delivery-Fehler mappen.
-- Bei SMTP-Sinks wie Mailpit SMTP-Login nur ausführen, wenn der Server AUTH unterstützt und Credentials gesetzt sind; blindes `login()` erzeugt sonst vermeidbare 503-Fehler in Auth-Flows.
-- Für Admin-Takedown-Flows eine dedizierte Admin-Endpoint-Semantik statt generischer Status-Updates nutzen: idempotente Wiederholung (`already_removed`), strukturierte Audit-Metadaten (`operation`, Grund, Actor, Zeitstempel) und explizite Cache-Invalidierung sichern Nachvollziehbarkeit und konsistente öffentliche Unsichtbarkeit.
-- `IntegrityError` bei konkurrenten Creates abfangen: nach `rollback()` die bereits existierende Zeile re-selecten und mit `reused=True` returnen (Race-Condition-Resilienz für idempotente Create-or-Get Semantik).
-- Für "create-or-reuse" Endpunkte HTTP-Semantik explizit halten (`201` bei Neuanlage, `200` bei Reuse).
-- Bei paarweiser Session-Identität Teilnehmerreihenfolge deterministisch normalisieren, damit Eindeutigkeit robust bleibt.
-- Denormalisierte Aggregatfelder zentral und konsistent neu berechnen.
-- Pagination stabil über deterministische Sortierung inkl. Tie-Breaker umsetzen.
-- User-Content serverseitig normalisieren/sanitizen und auf persistiertem Wert validieren.
-- API-Dependencies und Signaturen strikt typkonsistent halten.
-- CORS mit Credentials nur mit expliziten Origins konfigurieren (nie `*`).
+### Validierung & Sicherheit
+- Query-/Enum-Parameter serverseitig validieren; ungültige Werte → sauber 4xx.
+- Response-Schema vollständig: alle updatebaren Felder enthalten, sonst API-Vertrag-Bruch + Testfehler.
+- Self-Service-Profilupdates: Response muss alle Felder (z. B. `company`, `job_title`, `phone`) enthalten.
+- CORS: Credentials nur mit expliziten Origins (nie `*`).
 - Infrastrukturfehler am API-Rand gezielt auf stabile HTTP-Fehler mappen.
+- In FastAPI `HTTP_422_UNPROCESSABLE_CONTENT` statt `HTTP_422_UNPROCESSABLE_ENTITY` (vermeidet DeprecationWarnings).
+
+### Data Integrity & Error Handling
+- DB-Constraints + Service-Guards kombinieren (z. B. `UNIQUE` + 409-Precheck + `IntegrityError`-Handling).
+- `IntegrityError` bei konkurrenten Creates: nach `rollback()` existierende Zeile re-selecten, `reused=True` returnen (Race-Condition-Resilienz).
+- Create-or-reuse: HTTP-Semantik explizit (`201` = neu, `200` = reuse).
+- Paarweise Session-Identität: Teilnehmerreihenfolge deterministisch normalisieren für Eindeutigkeit.
+- Denormalisierte Aggregatfelder zentral und konsistent neu berechnen.
+- Pagination stabil über deterministische Sortierung + Tie-Breaker (z. B. `order_by(created_at.asc(), id.asc())`).
+- User-Content normalisieren/sanitizen, auf persistiertem Wert validieren.
+
+### Passwort-Hashing & Bcrypt
 - Passwort-Hashing-Abhängigkeiten reproduzierbar pinnen (CI-kompatibel).
-- Wenn nur bcrypt benötigt wird, direkte `bcrypt`-Nutzung gegenüber `passlib` bevorzugen: das vermeidet Python-3.13-DeprecationWarnings rund um das stdlib-Modul `crypt`.
-- In Async-SQLAlchemy-Services nach `commit()` bei Rückgabe von Feldern mit `onupdate`/serverseitiger Aktualisierung (z. B. `updated_at`) das ORM-Objekt per `await session.refresh(obj)` laden, sonst kann beim Attributzugriff `MissingGreenlet` auftreten.
-- Neue SQLAlchemy-Modelle/Enums immer auf Top-Level einfügen (nicht versehentlich in bestehende Klassen eingerückt), da verschachtelte Definitionen erst zur Importzeit mit schwerer nachvollziehbaren `NameError`/Typauflösungsfehlern auffallen.
+- Wenn nur bcrypt benötigt: direkte `bcrypt`-Nutzung statt `passlib` (vermeidet Python-3.13-DeprecationWarnings um stdlib-`crypt`).
+- SHA256-Pre-Hashing: 64 Bytes Output sicher unter bcrypt 72-Byte-Limit.
+
+### SQLAlchemy & Async
+- Nach `commit()`: ORM-Objekte mit `onupdate`-Feldern (z. B. `updated_at`) per `await session.refresh(obj)` laden, sonst `MissingGreenlet`.
+- Neue SQLAlchemy-Modelle/Enums auf Top-Level einfügen (nicht eingerückt in Klassen); verschachtelte Definitionen → `NameError`/Typauflösungsfehler erst zur Laufzeit.
+- Config-Validierung: nur Felder strikt typisieren, deren bestehende `.env`-Werte sicher passen; spezialisierte Typen (z. B. `EmailStr`) in nested Models, um Startup-Regressionen durch Legacy-Werte zu vermeiden.
+
+### SMTP & Fehlerbehandlung
+- Input-Validierungsfehler (z. B. CRLF-Header-Injection): nicht in generische Delivery-Retries überführen; `ValueError` direkt throwthrough.
+- Nur transient 4xx-Zustände wiederholen; Timeout/Connect klar auf stabile Delivery-Fehler mappen.
+- Mailpit SMTP: `login()` nur ausführen wenn AUTH unterstützt + Credentials gesetzt (vermeidet 503 in Auth-Flows).
+
+### Policy & Audit
+- API-Dependencies und Signaturen strikt typkonsistent halten.
+- Audit-Logging fault-tolerant (Savepoint/try-catch): fehlgeschlagener Audit-Insert darf Entscheidung nicht rückgängig machen.
 
 ## Search, Cache, Redis
 
-- Search-Cache-Keys vollständig und deterministisch aus allen Query-Parametern bilden.
+- Cache-Keys vollständig + deterministisch aus allen Query-Parametern bilden.
 - Cache-Invalidierung zentral im Service-Layer bei relevanten Writes triggern.
-- Für Key-Löschung in produktionsnahen Pfaden `SCAN` statt `KEYS` verwenden.
-- Redis-Ausfälle dürfen Kernfunktionen nicht blockieren: degraded Fallback + Recovery-Strategie vorsehen.
-- Bei Redis-Recovery Read-Miss-Fälle mit best-effort Re-Sync behandeln.
-- In-Memory-TTL-Stores bei `set` prunen; `expires_in_seconds <= 0` als sofortiges Entfernen behandeln.
+- Key-Löschung in produktionsnahen Pfaden: `SCAN` statt `KEYS`.
+- Redis-Ausfälle: degraded Fallback + Recovery-Strategie (blockieren nicht Kernfunktionen).
+- In-Memory-TTL-Stores: bei `set` prunen; `expires_in_seconds <= 0` = sofortiges Entfernen.
 - Cache-Logging ohne Roh-User-Queries (nur sichere Fingerprints).
-- Search-/Filter-Contracts gleichzeitig in Backend, Frontend und Tests aktualisieren.
+- Search-/Filter-Contracts sync halten: Backend + Frontend + Tests gleichzeitig updaten.
 
 ## Observability & Monitoring
 
 - Generische HTTP-Metriken durch fachliche Flow-Metriken ergänzen (niedrige Label-Kardinalität).
-- FastAPI-Metriken robust über `APIRoute`-Wrapper inkl. Exception-Pfaden instrumentieren.
+- FastAPI-Metriken robust über `APIRoute`-Wrapper + Exception-Pfade instrumentieren.
 - Moderationsentscheidungen als eigene Event-Metrik zählen.
 - Monitoring-Artefakte (Dashboards, Alerts) als versionierte Dateien verwalten.
-- "No data" in Grafana als erwartbar behandeln, bis gezielter Traffic erzeugt wurde.
-- Alert-Regeln immer einheitenkonsistent formulieren (`rate()` = pro Sekunde, `increase()` = absolut pro Fenster) und bei Quoten-Metriken einen Mindest-Traffic-Guard ergänzen, damit Idle-Phasen keine False-Positive-Pages auslösen.
-- Healthchecks auf robuste, image-native Probes stützen; keine fragilen Tool-Abhängigkeiten.
+- Alert-Regeln: einheitenkonsistent (`rate()` = pro Sekunde, `increase()` = absolut); bei Quoten-Metriken Mindest-Traffic-Guard gegen False-Positives.
+- Healthchecks auf robuste, image-native Probes stützen (keine fragilen Tool-Abhängigkeiten).
 
 ## Docker, Runtime, Migrationen
 
-- Line-Endings in Entrypoints auf LF normalisieren.
-- Vite-Multistage-Builds mit explizitem `frontend/public`-Copy absichern.
-- Service-URLs im Container-Kontext explizit setzen (kein `localhost`-Default im Container).
-- Wenn lokale Integrations-Tasks (`Test: Verified`) Host-seitiges `pytest` gegen Docker-Dienste ausführen, müssen *alle* extern benötigten Services in den Readiness-Checks enthalten sein (z. B. Mailpit zusätzlich zu App/DB/Redis), sonst entstehen falsche 503-Fehler durch zu frühes Test-Starten.
+- Line-Endings in Entrypoints: LF.
+- Vite-Multistage-Builds: explizitem `frontend/public`-Copy absichern.
+- Service-URLs im Container: explizit setzen (kein `localhost`-Default).
+- Integrations-Tasks (`Test: Verified`): alle benötigten Services in Readiness-Checks (z. B. Mailpit + App/DB/Redis).
 - Runtime-Pfade (Root-Redirects, API-Bases) über Umgebungsvariablen steuern.
-- Dienste mit Host-Port-Mapping nicht ausschließlich an `internal: true`-Netzwerke hängen: für Host-Zugriff zusätzlich ein nicht-internes Bridge-Netzwerk anbinden.
-- Alembic-Recovery bei inkonsistentem Local-State klar durchführen (`stamp base` → `upgrade head`).
-- Enum-Migrationen in PostgreSQL in korrekter Reihenfolge durchführen (Type anlegen/nutzen/droppen).
-- SQLAlchemy `Enum(MyEnum)` persistiert standardmäßig Enum-Namen (z. B. `PENDING`), nicht `.value` (z. B. `pending`). PostgreSQL-Enum-Werte in Migrationen müssen dazu passen oder das Model muss explizit auf `.value` konfiguriert werden.
-- Neue Enum-Mitglieder in produktiven PostgreSQL-Types (z. B. `auditaction`) brauchen eine dedizierte Alembic-Migration mit `ALTER TYPE ... ADD VALUE`, sonst scheitern Inserts erst zur Laufzeit.
-- Jedes neue SQLAlchemy-Modell braucht eine Alembic-Migration. Tests mit `Base.metadata.create_all` maskieren fehlende Migrationen – deployed Umgebungen scheitern beim ersten API-Aufruf.
-- `nano_id`-Filter-Queryparameter und `meta.nano_filter_applied` in Tests explizit testen, nicht nur den Abwesenheits-Fall.
+- Services mit Host-Port-Mapping: zusätzlich nicht-internes Bridge-Netzwerk anbinden (nur `internal: true` – kein Host-Zugriff).
+- Alembic-Recovery: `stamp base` → `upgrade head`.
+- Enum-Migrationen PostgreSQL: korrekte Reihenfolge (Type anlegen/nutzen/droppen).
+- SQLAlchemy `Enum(MyEnum)` persistiert Namen (z. B. `PENDING`), nicht `.value` (z. B. `pending`); PostgreSQL-Enum-Werte müssen passen oder Model explizit auf `.value` konfigurieren.
+- Neue Enum-Mitglieder in produktiven PostgreSQL-Types: dedizierte Alembic-Migration mit `ALTER TYPE ... ADD VALUE`.
+- Jedes neue SQLAlchemy-Modell: Alembic-Migration nötig. Tests mit `Base.metadata.create_all` maskieren fehlende Migrationen.
+- `nano_id`-Filter-Queryparameter + `meta.nano_filter_applied` in Tests explizit testen, nicht nur Abwesenheits-Fall.
 
 ## MCP / Tooling
 
-- `mcp_github_pull_request_read` ist kein gültiger Tool-Name des offiziellen GitHub MCP Servers. Die korrekten Toolnamen des Servers `https://api.githubcopilot.com/mcp/` lauten z. B. `mcp_github_get_pull_request`, `mcp_github_get_pull_request_reviews`, `mcp_github_get_pull_request_review_comments`, `mcp_github_get_pull_request_comments`.
-- MCP-Tools müssen zur Laufzeit vom MCP-Server registriert werden. Ein Eintrag in `tools:` im Agent-Frontmatter erlaubt nur die Nutzung – er registriert das Tool nicht.
-- Wenn MCP-Tools nicht aufrufbar sind, `github-pull-request_activePullRequest` und `gh pr view/api` als Fallback verwenden, aber stets im Report ausweisen, welcher Pfad genutzt wurde.
+- `mcp_github_pull_request_read` ist NICHT gültig. Korrekte Tool-Namen: `mcp_github_get_pull_request`, `mcp_github_get_pull_request_reviews`, `mcp_github_get_pull_request_review_comments`, `mcp_github_get_pull_request_comments`.
+- MCP-Tools müssen zur Laufzeit vom Server registriert werden. Eintrag in `tools:` erlaubt nur Nutzung.
+- Wenn MCP-Tools ausfallen: `github-pull-request_activePullRequest` + `gh pr view/api` als Fallback verwenden; im Report ausweisen welcher Pfad genutzt wurde.
 
-## Tests, QA, Doku, Review
+## Tests & QA
 
-- Test-App-Setup muss produktives Router-/Dependency-Verhalten spiegeln.
-- Fixture-Ketten explizit aufbauen (User → Auth → Ressource); Auth-Token-Fixtures zentralisieren.
-- Für idempotente API-Flows sowohl Erstaufruf als auch Wiederholaufruf separat testen (inkl. unterschiedlicher Statuscodes).
-- Bei Polling-Endpunkten für `?since=`-Timestamps httpx `params={"since": cursor}` statt F-String-Interpolation in der URL verwenden – ein `+` im ISO-8601-Timezone-Offset (`+00:00`) wird sonst als Leerzeichen dekodiert und löst 422 aus.
-- `expire_all()` auf SQLAlchemy `AsyncSession` ist eine synchrone Methode – kein `await` verwenden.
-- In Integrationstests, die Test- und App-Code dieselbe `AsyncSession` teilen, sind ORM-Objekte nach einem Service-Commit direkt aktualisiert (Identity-Map); expliziter Refresh oder `expire_all()` ist unnötig.
-- Beim Schreiben von Nachrichten `session.last_message_at` in derselben DB-Transaktion aktualisieren, damit das Session-Listing nach Aktivität sortiert werden kann.
-- Performance-/Latenztests CI-stabil halten (tolerante Schwellen, stabile Metriken, keine Flakes).
-- QA-Gates mit reproduzierbaren Befehlen und evidenzbasierten Ergebnissen dokumentieren.
-- Ergebnisse immer aus frischen vollständigen Läufen ableiten, nicht aus gemischter Task-Historie.
-- Doku und Implementierung synchron halten (Codeblöcke, Contracts, Fehlerverhalten).
-- Keine nicht versionierten Workspace-Annahmen in Gate-/Ops-Dokumente aufnehmen.
-- Bei PR-Automation unvollständige Comment-Daten einkalkulieren und bei Unklarheit in der UI verifizieren.
-- Bei Doku-Änderungen Codefences explizit auf Balance prüfen.
+### Test Architecture
+- App-Setup muss produktives Router-/Dependency-Verhalten spiegeln.
+- Fixture-Ketten explizit aufbauen: User → Auth → Ressource; Auth-Token-Fixtures zentralisieren.
+- Idempotente API-Flows: Erstaufruf + Wiederholaufruf separat testen (unterschiedliche Statuscodes).
+
+### Integration & Polling
+- Bei `?since=`-Queries: `httpx params={"since": cursor}` statt F-String; `+` in ISO-8601-Timezone wird → Leerzeichen → 422.
+- `expire_all()` auf SQLAlchemy `AsyncSession`: synchrone Methode (kein `await`).
+- Wenn Test + App dieselbe `AsyncSession` teilen: ORM-Objekte nach Service-Commit direkt aktualisiert (Identity-Map); expliziter Refresh unnötig.
+- Chat-Session-Writes: `session.last_message_at` in derselben DB-Transaktion updaten für sortiertes Session-Listing.
+
+### Quality Standards
+- Performance-/Latenztests: CI-stabil halten (tolerante Schwellen, stabile Metriken, keine Flakes).
+- QA-Gates: reproduzierbare Befehle + evidenzbasierte Ergebnisse dokumentieren.
+- Ergebnisse aus frischen vollständigen Läufen ableiten, nicht gemischter Task-Historie.
+- Doku + Implementierung synchron (Codeblöcke, Contracts, Fehlerverhalten).
+- Keine nicht versionierten Workspace-Annahmen in Gate-/Ops-Dokumente.
+
+### PR Automation
+- Bei Doku-Änderungen Codefences auf Balance prüfen.
+- Unvollständige Comment-Daten einkalkulieren; bei Unklarheit in der UI verifizieren.
 
 ## Merge-Checkliste
 
-- Sind alle neuen UI-Texte lokalisiert?
-- Gibt es für alle Async-Fehlerpfade sichtbares Nutzerfeedback?
-- Sind URL↔State-Sync, Auth-Redirects und RBAC-Guards loop-sicher?
-- Sind Service-Regeln, Ownership, Status-Transitionen und Audit vollständig?
-- Spiegelt das Test-Setup die produktive App-Struktur?
-- Sind Cache-/Search-Invalidierung und degraded Fallbacks abgedeckt?
+- Alle neuen UI-Texte lokalisiert?
+- Async-Fehlerpfade mit sichtbarem Nutzerfeedback?
+- URL↔State-Sync, Auth-Redirects, RBAC-Guards loop-sicher?
+- Service-Regeln, Ownership, Status-Transitionen, Audit vollständig?
+- Test-Setup spiegelt produktive App-Struktur?
+- Cache-/Search-Invalidierung + degraded Fallbacks abgedeckt?
 
 ## Chat UI (Frontend)
 
-- Absender-Labels in Chat-Nachrichten rollenbasiert auflösen: `senderId === user?.id` → „Ich", `senderId === session.creatorId` → Verkäufer-Label, sonst → Käufer-Label. Niemals ein einzelnes Fallback-Label für alle Absender hardcoden.
-- Wenn ein Creator `POST /chats` aufruft, liefert das Backend 403, da Creator keine neue Session initiieren kann. Das Frontend muss in diesem Fall auf `GET /chats?nano_id=...` (listChatSessions) zurückfallen, um eine vorhandene Session zu finden. Ist keine vorhanden, „Warte auf ersten Teilnehmer"-State anzeigen statt Fehler.
-- Chat-Session-Abfragen im Backend müssen rollenbasiert sein: Creator → `WHERE creator_id = current_user.id`, Teilnehmer → `WHERE participant_user_id = current_user.id AND creator_id = nano.creator_id`.
-- Sind Docker-/Env-/CORS-/URL-Pfade korrekt?
+- Absender-Labels rollenbasiert auflösen: `senderId === user?.id` → "Ich", `senderId === session.creatorId` → Verkäufer-Label, sonst → Käufer-Label (nie Fallback-Label hardcoden).
+- Creator `POST /chats` → Backend 403 (Creator kann Session nicht initiieren). Frontend-Fallback: `GET /chats?nano_id=...` (listChatSessions), kein Fehler anzeigen.
+- Chat-Session-Abfragen rollenbasiert: Creator → `WHERE creator_id = current_user.id`, Teilnehmer → `WHERE participant_user_id = current_user.id AND creator_id = nano.creator_id`.
+- Docker-/Env-/CORS-/URL-Pfade korrekt?
 
 ## QA-Gates & E2E Tests
 
-- QA-Gate Tests müssen echte User-Journeys abbilden, nicht nur einzelne Features.
-- Test-Fixtures systematisch aufbauen: Creator + Published Nano als Basis für Chat-Tests.
-- Rate-Limiting konfigurierbar testen; Config.py definiert RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS=30 und _WINDOW_SECONDS=60.
-- Polling-Tests: ?since=timestamp Filter-Semantik prüfen mit created_at > since (strikt nach).
-- QA-Gate Befunde dokumentieren: Was funktioniert, was ist offen, welche Risiken bestehen.
-- Chat-Session Determinismus: Eindeutigkeit basiert auf (nano_id, creator_id, participant_user_id); creator_id muss nano.creator_id sein, participant_user_id ist der initiierende User.
-- Message-Ordering: order_by(created_at.asc(), id.asc()) mit id als Tie-Breaker für Clock-Skew-Resilienz.
+- User-Journeys abbilden, nicht einzelne Features.
+- Test-Fixtures: Creator + Published Nano als Basis für Chat-Tests.
+- Rate-Limiting: konfigurierbar testen; Config.py: `RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS=30`, `_WINDOW_SECONDS=60`.
+- Polling-Tests: `?since=timestamp`-Filter → `created_at > since` (strikt nach).
+- QA-Gate-Befunde dokumentieren: funktioniert, offen, Risiken.
+- Chat-Session Determinismus: (nano_id, creator_id, participant_user_id); creator_id = nano.creator_id.
+- Message-Ordering: `order_by(created_at.asc(), id.asc())` mit id als Tie-Breaker.
 
-## Admin Panel / Moderation Queue Patterns
+## Admin Panel / Moderation
 
-- KPI-Karten-Zählerstände immer über eine eigene, dedizierte API-Anfrage (z. B. `limit=1`) vom gefilterten Listen-State entkoppeln. Wird `moderationTotal` aus dem gefilterten Listen-Response für die Summary-Card verwendet, ändert sich der KPI-Wert bei Filterwechsel — was für den Nutzer keinen Sinn ergibt.
-- Audit-Logging im Moderations-Service fault-tolerant implementieren (Savepoint/try-catch): Ein fehlgeschlagener Audit-Insert darf die eigentliche Moderationsentscheidung nicht rückgängig machen. Postgres-Enum-Typ und SQLAlchemy-Enum müssen synchron gehalten und bei neuen Werten per dedizierter Alembic-Migration (`ALTER TYPE ... ADD VALUE`) erweitert werden.
-- Beim Umschreiben einer Legacy-Seite (flaches Moderator-API-Format) auf das Case-basierte Admin-API-Format (`ModerationCaseItem`) müssen alle Helper-Funktionen an die neue Datenstruktur angepasst werden (z. B. `content_type`, `target_id` statt separater `nano_id`/`rating_id`-Felder).
-- Jede Komponente, die `<GlobalNav>` einbettet (welches intern `useNavigate()` verwendet), benötigt in Vitest-Tests einen `<MemoryRouter>`-Wrapper, da React Router Hooks einen Router-Kontext erfordern.
+- KPI-Karten-Zähler von gefilterten Listen-Response entkoppeln (dedizierte API-Anfrage mit `limit=1`). Sonst ändert sich KPI bei Filterwechsel.
+- Audit-Logging fault-tolerant (Savepoint/try-catch): fehlgeschlagener Audit-Insert darf Moderationsentscheidung nicht rückgängig machen.
+- PostgreSQL-Enum-Typ + SQLAlchemy-Enum sync halten; neue Werte per dedizierter Alembic-Migration (`ALTER TYPE ... ADD VALUE`).
+- Legacy-Seiten (flaches Moderator-API-Format) → Case-basiertes Admin-API-Format (`ModerationCaseItem`): alle Helper-Funktionen anpassen (z. B. `content_type`, `target_id`).
+- Komponenten mit `<GlobalNav>` (nutzt `useNavigate()`) in Vitest-Tests: `<MemoryRouter>`-Wrapper erforderlich (braucht Router-Kontext).
