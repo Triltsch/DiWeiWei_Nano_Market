@@ -29,6 +29,7 @@ interface ChatPanelState {
   error: string | null;
   isSubmitting: boolean;
   submitError: string | null;
+  rateLimitRetryAfterSeconds: number | null;
 }
 
 /**
@@ -58,6 +59,7 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
     error: null,
     isSubmitting: false,
     submitError: null,
+    rateLimitRetryAfterSeconds: null,
   });
 
   const [messageDraft, setMessageDraft] = useState("");
@@ -254,6 +256,33 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
     }
   }, [state.messages]);
 
+  // Decrease active rate-limit backoff each second until input is enabled again.
+  useEffect(() => {
+    if (!state.rateLimitRetryAfterSeconds || state.rateLimitRetryAfterSeconds <= 0) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setState((prev) => {
+        if (!prev.rateLimitRetryAfterSeconds || prev.rateLimitRetryAfterSeconds <= 1) {
+          return {
+            ...prev,
+            rateLimitRetryAfterSeconds: null,
+          };
+        }
+
+        return {
+          ...prev,
+          rateLimitRetryAfterSeconds: prev.rateLimitRetryAfterSeconds - 1,
+        };
+      });
+    }, 1000);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [state.rateLimitRetryAfterSeconds]);
+
   const handleSendMessage = async (): Promise<void> => {
     if (!state.session) {
       setState((prev) => ({
@@ -302,6 +331,16 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
       if (error instanceof ChatApiError) {
         if (error.code === "unauthorized" && onUnauthorized) {
           onUnauthorized();
+          return;
+        }
+
+        if (error.code === "rate-limited") {
+          setState((prev) => ({
+            ...prev,
+            submitError: getErrorMessage(error, t),
+            isSubmitting: false,
+            rateLimitRetryAfterSeconds: error.retryAfterSeconds,
+          }));
           return;
         }
 
@@ -413,6 +452,13 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
             </p>
           )}
 
+          {state.rateLimitRetryAfterSeconds && (
+            <p className="text-sm text-neutral-600" aria-live="polite">
+              {t("chat_rate_limit_wait_prefix")} {state.rateLimitRetryAfterSeconds}
+              {t("chat_rate_limit_wait_suffix")}
+            </p>
+          )}
+
           <div className="flex gap-2">
             <textarea
               id={messageFieldId}
@@ -420,7 +466,7 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
               value={messageDraft}
               onChange={(e) => setMessageDraft(e.target.value)}
               placeholder={t("chat_message_placeholder")}
-              disabled={state.isSubmitting || !state.session}
+              disabled={state.isSubmitting || !state.session || state.rateLimitRetryAfterSeconds !== null}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -434,10 +480,19 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
               onClick={() => {
                 void handleSendMessage();
               }}
-              disabled={state.isSubmitting || !state.session || messageDraft.trim().length === 0}
+              disabled={
+                state.isSubmitting
+                || !state.session
+                || messageDraft.trim().length === 0
+                || state.rateLimitRetryAfterSeconds !== null
+              }
               aria-label={t("chat_send_button")}
             >
-              {state.isSubmitting ? t("chat_sending") : t("chat_send_button")}
+              {state.isSubmitting
+                ? t("chat_sending")
+                : state.rateLimitRetryAfterSeconds
+                  ? `${t("chat_send_button_wait_prefix")} ${state.rateLimitRetryAfterSeconds}s`
+                  : t("chat_send_button")}
             </button>
           </div>
         </div>

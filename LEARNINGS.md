@@ -171,6 +171,11 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 - Chat-Session Determinismus: (nano_id, creator_id, participant_user_id); creator_id = nano.creator_id.
 - Message-Ordering: `order_by(created_at.asc(), id.asc())` mit id als Tie-Breaker.
 
+## Spam Prevention / Rate Limiting
+
+- Chat-Rate-Limits mit Burst-Konzept immer als `base + burst` modellieren; QA- und E2E-Tests müssen den ersten `429` auf dem `(base + burst + 1)`-Request prüfen.
+- Chat-Rate-Limit-Schlüssel pro Nutzer **und** Session bilden (`user_id + session_id`), damit Last in einer Unterhaltung nicht andere Sessions desselben Nutzers ungewollt blockiert.
+
 ## Admin Panel / Moderation
 
 - KPI-Karten-Zähler von gefilterten Listen-Response entkoppeln (dedizierte API-Anfrage mit `limit=1`). Sonst ändert sich KPI bei Filterwechsel.

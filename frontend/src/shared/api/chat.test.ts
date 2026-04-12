@@ -130,6 +130,7 @@ describe("Chat API", () => {
       const error = new axios.AxiosError();
       error.response = {
         status: 429,
+        headers: { "retry-after": "7" },
         data: { detail: "Rate limited" },
       } as any;
 
@@ -259,6 +260,23 @@ describe("Chat API", () => {
       expect(error.message).toBe("Test error");
       expect(error.code).toBe("rate-limited");
       expect(error.name).toBe("ChatApiError");
+      expect(error.retryAfterSeconds).toBeNull();
+    });
+
+    it("should expose retryAfterSeconds metadata for 429 responses", async () => {
+      const error = new axios.AxiosError();
+      error.response = {
+        status: 429,
+        headers: { "retry-after": "9" },
+        data: { detail: "Rate limited" },
+      } as any;
+
+      mockHttpPost.mockRejectedValueOnce(error);
+
+      await expect(sendChatMessage("session-1", { content: "Hello" })).rejects.toMatchObject({
+        code: "rate-limited",
+        retryAfterSeconds: 9,
+      });
     });
   });
 });
