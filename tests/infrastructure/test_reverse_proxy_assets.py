@@ -31,7 +31,7 @@ def test_nginx_default_conf_contains_required_security_controls() -> None:
         "limit_req_zone $binary_remote_addr zone=login:10m rate=5r/m;",
         "limit_req_zone $binary_remote_addr zone=register:10m rate=3r/m;",
         "limit_req_zone $binary_remote_addr zone=search:10m rate=30r/m;",
-        "limit_req_zone $binary_remote_addr zone=chat_messages:10m rate=20r/m;",
+        "limit_req_zone $binary_remote_addr zone=chat_messages:10m rate=60r/m;",
         "limit_req_zone $binary_remote_addr zone=nano_ratings:10m rate=10r/m;",
         "limit_req_zone $binary_remote_addr zone=api_default:10m rate=100r/m;",
         "limit_req_status 429;",
