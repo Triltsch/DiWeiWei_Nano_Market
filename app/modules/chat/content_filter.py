@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from urllib.parse import urlparse
 
 _URL_PATTERN = re.compile(r"https?://[^\s]+", re.IGNORECASE)
-_EMAIL_PATTERN = re.compile(r"\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b")
 
 
 @dataclass(frozen=True)
@@ -68,10 +67,6 @@ class SpamContentFilter:
 
         if self._is_all_caps_spam(normalized):
             return ContentFilterResult(allowed=False, reason="all_caps_spam")
-
-        # Explicitly allow common legitimate formats with a single URL/email.
-        if len(urls) <= 1 and _EMAIL_PATTERN.search(normalized):
-            return ContentFilterResult(allowed=True)
 
         return ContentFilterResult(allowed=True)
 
