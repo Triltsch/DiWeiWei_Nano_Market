@@ -356,6 +356,12 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
     }
   };
 
+  const sendButtonLabel = state.isSubmitting
+    ? t("chat_sending")
+    : state.rateLimitRetryAfterSeconds
+      ? `${t("chat_send_button_wait_prefix")} ${state.rateLimitRetryAfterSeconds}s`
+      : t("chat_send_button");
+
   if (state.loading) {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -454,7 +460,7 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
 
           {state.rateLimitRetryAfterSeconds && (
             <p className="text-sm text-neutral-600" aria-live="polite">
-              {t("chat_rate_limit_wait_prefix")} {state.rateLimitRetryAfterSeconds}
+              {t("chat_rate_limit_wait_prefix")} {state.rateLimitRetryAfterSeconds}{" "}
               {t("chat_rate_limit_wait_suffix")}
             </p>
           )}
@@ -486,13 +492,9 @@ export function ChatPanel({ nanoId, onClose, onUnauthorized }: ChatPanelProps): 
                 || messageDraft.trim().length === 0
                 || state.rateLimitRetryAfterSeconds !== null
               }
-              aria-label={t("chat_send_button")}
+              aria-label={sendButtonLabel}
             >
-              {state.isSubmitting
-                ? t("chat_sending")
-                : state.rateLimitRetryAfterSeconds
-                  ? `${t("chat_send_button_wait_prefix")} ${state.rateLimitRetryAfterSeconds}s`
-                  : t("chat_send_button")}
+              {sendButtonLabel}
             </button>
           </div>
         </div>

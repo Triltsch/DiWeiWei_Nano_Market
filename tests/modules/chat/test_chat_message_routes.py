@@ -657,6 +657,67 @@ class TestChatMessageRoutes:
             CHAT_MESSAGE_RATE_LIMITER.reset()
 
     @pytest.mark.asyncio
+    async def test_send_message_rate_limit_retry_after_uses_linear_backoff(
+        self, async_client, db_session
+    ):
+        """Repeated 429 responses increase Retry-After linearly for the same key."""
+        from app.modules.chat.router import CHAT_MESSAGE_RATE_LIMITER
+
+        original_max_requests = CHAT_MESSAGE_RATE_LIMITER.max_requests
+        original_window_seconds = CHAT_MESSAGE_RATE_LIMITER.window_seconds
+        CHAT_MESSAGE_RATE_LIMITER.max_requests = 1
+        CHAT_MESSAGE_RATE_LIMITER.window_seconds = 1
+        CHAT_MESSAGE_RATE_LIMITER.reset()
+
+        try:
+            creator = await self._create_user(
+                db_session,
+                "msg-rate-linear-creator@example.com",
+                "msg_rate_linear_creator",
+                role="creator",
+            )
+            participant = await self._create_user(
+                db_session,
+                "msg-rate-linear-participant@example.com",
+                "msg_rate_linear_participant",
+                role="consumer",
+            )
+            nano = await self._create_published_nano(db_session, creator.id)
+            session = await self._create_session(db_session, nano.id, creator.id, participant.id)
+            await db_session.commit()
+
+            participant_token, _ = create_access_token(
+                participant.id, participant.email, role="consumer"
+            )
+            headers = {"Authorization": f"Bearer {participant_token}"}
+
+            first = await async_client.post(
+                f"/api/v1/chats/{session.id}/messages",
+                headers=headers,
+                json={"content": "Linear retry test #1"},
+            )
+            second = await async_client.post(
+                f"/api/v1/chats/{session.id}/messages",
+                headers=headers,
+                json={"content": "Linear retry test #2"},
+            )
+            third = await async_client.post(
+                f"/api/v1/chats/{session.id}/messages",
+                headers=headers,
+                json={"content": "Linear retry test #3"},
+            )
+
+            assert first.status_code == 201
+            assert second.status_code == 429
+            assert third.status_code == 429
+            assert int(second.headers["retry-after"]) == 1
+            assert int(third.headers["retry-after"]) >= 2
+        finally:
+            CHAT_MESSAGE_RATE_LIMITER.max_requests = original_max_requests
+            CHAT_MESSAGE_RATE_LIMITER.window_seconds = original_window_seconds
+            CHAT_MESSAGE_RATE_LIMITER.reset()
+
+    @pytest.mark.asyncio
     async def test_rate_limit_is_scoped_per_user_and_session(self, async_client, db_session):
         """Exhausting one session bucket does not block same user in a different session."""
         from app.modules.chat.router import CHAT_MESSAGE_RATE_LIMITER
@@ -757,3 +818,54 @@ class TestChatMessageRoutes:
 
         assert response.status_code == 400
         assert response.json()["detail"] == "Message blocked: phishing_domain_detected"
+
+    @pytest.mark.asyncio
+    async def test_blocked_message_attempt_counts_toward_rate_limit(self, async_client, db_session):
+        """Rejected spam content still consumes the sender's rate-limit budget."""
+        from app.modules.chat.router import CHAT_MESSAGE_RATE_LIMITER
+
+        original_max_requests = CHAT_MESSAGE_RATE_LIMITER.max_requests
+        original_window_seconds = CHAT_MESSAGE_RATE_LIMITER.window_seconds
+        CHAT_MESSAGE_RATE_LIMITER.max_requests = 1
+        CHAT_MESSAGE_RATE_LIMITER.window_seconds = 60
+        CHAT_MESSAGE_RATE_LIMITER.reset()
+
+        try:
+            creator = await self._create_user(
+                db_session,
+                "msg-filter-budget-creator@example.com",
+                "msg_filter_budget_creator",
+                role="creator",
+            )
+            participant = await self._create_user(
+                db_session,
+                "msg-filter-budget-participant@example.com",
+                "msg_filter_budget_participant",
+                role="consumer",
+            )
+            nano = await self._create_published_nano(db_session, creator.id)
+            session = await self._create_session(db_session, nano.id, creator.id, participant.id)
+            await db_session.commit()
+
+            participant_token, _ = create_access_token(
+                participant.id, participant.email, role="consumer"
+            )
+            headers = {"Authorization": f"Bearer {participant_token}"}
+
+            blocked = await async_client.post(
+                f"/api/v1/chats/{session.id}/messages",
+                headers=headers,
+                json={"content": "Visit https://spam.ru/win-now"},
+            )
+            follow_up = await async_client.post(
+                f"/api/v1/chats/{session.id}/messages",
+                headers=headers,
+                json={"content": "Legitimate message after blocked spam"},
+            )
+
+            assert blocked.status_code == 400
+            assert follow_up.status_code == 429
+        finally:
+            CHAT_MESSAGE_RATE_LIMITER.max_requests = original_max_requests
+            CHAT_MESSAGE_RATE_LIMITER.window_seconds = original_window_seconds
+            CHAT_MESSAGE_RATE_LIMITER.reset()

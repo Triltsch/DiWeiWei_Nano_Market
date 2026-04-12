@@ -277,7 +277,7 @@ describe("ChatPanel", () => {
       expect(screen.getByLabelText("chat_messages_label")).toBeInTheDocument();
     });
     expect(screen.getByText(/chat_rate_limit_wait_prefix/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "chat_send_button" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /chat_send_button_wait_prefix/ })).toBeDisabled();
   });
 
   it("should call onClose when close button is clicked", async () => {

@@ -70,9 +70,23 @@ class SpamContentFilter:
 
         return ContentFilterResult(allowed=True)
 
+    def _normalize_hostname(self, hostname: str | None) -> str:
+        """Normalize parsed hostnames for stable domain comparisons."""
+        if hostname is None:
+            return ""
+
+        normalized = hostname.strip().strip(".").lower()
+        if not normalized:
+            return ""
+
+        try:
+            return normalized.encode("idna").decode("ascii")
+        except UnicodeError:
+            return normalized
+
     def _extract_domain(self, url: str) -> str:
         parsed = urlparse(url)
-        return (parsed.netloc or "").lower().strip(".")
+        return self._normalize_hostname(parsed.hostname)
 
     def _find_phishing_domain(self, domains: list[str]) -> str | None:
         for domain in domains:

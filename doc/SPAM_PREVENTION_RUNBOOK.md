@@ -22,10 +22,10 @@ This runbook describes the active anti-spam controls for chat messaging and how 
 - Violation response: HTTP 400 with `Message blocked: <reason>`
 
 3. Reverse proxy limits (Nginx)
-- Chat messages: 100 req/sec (burst 10)
-- Nano ratings: 50 req/sec (burst 10)
-- Login: 10 req/sec (burst 3)
-- Default API: 200 req/sec (burst 20)
+- Chat messages: 60 req/min (burst 10)
+- Nano ratings: 10 req/min (burst 10)
+- Login: 5 req/min (burst 3)
+- Default API: 100 req/min (burst 20)
 - Violation response: HTTP 429 with `Retry-After: 60`
 
 4. Monitoring
@@ -34,10 +34,10 @@ This runbook describes the active anti-spam controls for chat messaging and how 
 ## Quick Validation Steps
 
 1. Backend checks
-- Run VS Code task `Checks`
+- Run backend validation commands used by CI/release checks (format/lint/tests) and confirm success before release.
 
 2. Integration verification
-- Run VS Code task `Test: Verified`
+- Run repository integration/verification checks in CI, or verify the latest successful CI run for the target environment.
 - Confirm no unhealthy/restarting containers during startup
 
 3. Manual API smoke checks

@@ -179,8 +179,8 @@ def get_chat_router(prefix: str = "/api/v1/chats", tags: list[str] | None = None
 
         Only the two participants (creator and non-creator) may send messages.
         """
-        _enforce_chat_content_filter(payload.content)
         await _enforce_chat_message_rate_limit(str(token_data.user_id), session_id)
+        _enforce_chat_content_filter(payload.content)
 
         return await send_message(
             db=db,

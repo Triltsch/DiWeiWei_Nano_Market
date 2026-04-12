@@ -22,6 +22,17 @@ class TestSpamContentFilter:
         assert result.allowed is False
         assert result.reason == "phishing_domain_detected"
 
+    def test_blocks_known_phishing_domain_with_port(self) -> None:
+        """Port-qualified phishing URLs are still blocked by hostname matching."""
+        content_filter = SpamContentFilter()
+
+        result = content_filter.evaluate(
+            "Please visit https://spam.ru:443/login to verify your account"
+        )
+
+        assert result.allowed is False
+        assert result.reason == "phishing_domain_detected"
+
     def test_blocks_repeated_same_url_pattern(self) -> None:
         """Repeated same-domain URLs above threshold are treated as spam."""
         content_filter = SpamContentFilter(repeated_same_url_threshold=3)

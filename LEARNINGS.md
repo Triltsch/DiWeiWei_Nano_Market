@@ -175,6 +175,9 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 
 - Chat-Rate-Limits mit Burst-Konzept immer als `base + burst` modellieren; QA- und E2E-Tests müssen den ersten `429` auf dem `(base + burst + 1)`-Request prüfen.
 - Chat-Rate-Limit-Schlüssel pro Nutzer **und** Session bilden (`user_id + session_id`), damit Last in einer Unterhaltung nicht andere Sessions desselben Nutzers ungewollt blockiert.
+- Bei Spam-Filtern die Reihenfolge im Request-Pfad beachten: Rate-Limit vor Content-Filter anwenden, damit geblockte Spam-Versuche ebenfalls das Budget verbrauchen.
+- Domain-basierte Filter immer auf normalisiertem Hostname (`urlparse(...).hostname` + IDNA) statt `netloc` bauen, damit Ports keine Blocklisten umgehen.
+- Nginx Endpoint-Regexe auf einzelne Pfadsegmente begrenzen (`[^/]+` statt `.+`), um unbeabsichtigte Matches in Rate-Limit-Locations zu vermeiden.
 
 ## Admin Panel / Moderation
 
