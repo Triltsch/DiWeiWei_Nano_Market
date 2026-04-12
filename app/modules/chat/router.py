@@ -1,5 +1,6 @@
 """Router for chat session and message endpoints."""
 
+import logging
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID
@@ -17,6 +18,7 @@ from app.modules.auth.middleware import (
     require_any_role,
 )
 from app.modules.auth.tokens import TokenData
+from app.modules.chat.content_filter import SpamContentFilter
 from app.modules.chat.schemas import (
     ChatMessageCreateRequest,
     ChatMessageCreateResponse,
@@ -31,28 +33,54 @@ from app.modules.chat.service import (
     list_messages,
     send_message,
 )
+from app.monitoring import SPAM_MESSAGE_RATE_LIMIT_429_TOTAL
 from app.security.rate_limit import SlidingWindowRateLimiter
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 CHAT_MESSAGE_RATE_LIMITER = SlidingWindowRateLimiter(
-    max_requests=settings.RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS,
+    max_requests=(
+        settings.RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS
+        + settings.RATE_LIMIT_CHAT_MESSAGE_BURST_REQUESTS
+    ),
     window_seconds=settings.RATE_LIMIT_CHAT_MESSAGE_WINDOW_SECONDS,
 )
+CHAT_CONTENT_FILTER = SpamContentFilter()
 
 
-async def _enforce_chat_message_rate_limit(user_id: str) -> None:
+async def _enforce_chat_message_rate_limit(user_id: str, session_id: UUID) -> None:
     """Apply per-user rate limiting for message submissions."""
-    key = f"chat_message:{user_id}"
+    key = f"chat_message:{user_id}:{session_id}"
     allowed, retry_after_seconds = await CHAT_MESSAGE_RATE_LIMITER.check(key)
     if allowed:
         return
 
+    SPAM_MESSAGE_RATE_LIMIT_429_TOTAL.labels(
+        endpoint="POST /api/v1/chats/{session_id}/messages"
+    ).inc()
+
     raise HTTPException(
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        detail="Too many chat messages sent in a short period. Please retry later.",
+        detail=(
+            "You're sending messages too fast. " f"Try again in {retry_after_seconds} seconds."
+        ),
         headers={"Retry-After": str(retry_after_seconds)},
+    )
+
+
+def _enforce_chat_content_filter(content: str) -> None:
+    """Apply spam-content validation before message persistence."""
+    result = CHAT_CONTENT_FILTER.evaluate(content)
+    if result.allowed:
+        return
+
+    reason = result.reason or "content_filter_blocked"
+    logger.info("Blocked chat message by content filter", extra={"reason": reason})
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=f"Message blocked: {reason}",
     )
 
 
@@ -151,7 +179,8 @@ def get_chat_router(prefix: str = "/api/v1/chats", tags: list[str] | None = None
 
         Only the two participants (creator and non-creator) may send messages.
         """
-        await _enforce_chat_message_rate_limit(str(token_data.user_id))
+        await _enforce_chat_message_rate_limit(str(token_data.user_id), session_id)
+        _enforce_chat_content_filter(payload.content)
 
         return await send_message(
             db=db,

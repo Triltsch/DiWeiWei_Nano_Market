@@ -217,7 +217,10 @@ const de = {
   chat_sender_participant: "Käufer",
   chat_message_placeholder: "Geben Sie Ihre Nachricht ein...",
   chat_send_button: "Senden",
+  chat_send_button_wait_prefix: "Warten",
   chat_sending: "Wird gesendet...",
+  chat_rate_limit_wait_prefix: "Zu schnell gesendet. Bitte warten Sie",
+  chat_rate_limit_wait_suffix: "Sekunden.",
   nano_details_comments_title: "Kommentare",
   nano_details_comments_description:
     "Freigegebene Kommentare sind öffentlich sichtbar. Neue Kommentare erscheinen erst nach der Moderation.",
@@ -782,7 +785,10 @@ const en: Record<TranslationKey, string> = {
   chat_sender_participant: "Buyer",
   chat_message_placeholder: "Type your message...",
   chat_send_button: "Send",
+  chat_send_button_wait_prefix: "Wait",
   chat_sending: "Sending...",
+  chat_rate_limit_wait_prefix: "Sending too fast. Please wait",
+  chat_rate_limit_wait_suffix: "seconds.",
   nano_details_comments_title: "Comments",
   nano_details_comments_description:
     "Approved comments are visible publicly. New comments appear only after moderation.",

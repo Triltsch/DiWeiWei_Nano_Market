@@ -32,6 +32,12 @@ FEEDBACK_MODERATION_DECISIONS_TOTAL: Final[Counter] = Counter(
     ("feedback_type", "decision"),
 )
 
+SPAM_MESSAGE_RATE_LIMIT_429_TOTAL: Final[Counter] = Counter(
+    "spam_message_rate_limit_429_total",
+    "Total chat message requests rejected with HTTP 429 by rate limiting.",
+    ("endpoint",),
+)
+
 
 def _classify_feedback_outcome(status_code: int) -> str:
     """Map HTTP status codes to low-cardinality Prometheus outcome labels."""

@@ -448,8 +448,9 @@ class TestChatE2EQAGate:
 
         Per runtime config:
         - Rate limit default is defined by RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS
+        - Burst allowance is defined by RATE_LIMIT_CHAT_MESSAGE_BURST_REQUESTS
         - Each message send increments user's counter
-        - The (max_requests + 1)-th message within the window returns 429
+        - The (max_requests + burst_requests + 1)-th message within the window returns 429
         """
         creator = await self._create_user(db_session, "qa-rl-creator@example.com", "qa_rl_creator")
         participant = await self._create_user(
@@ -462,10 +463,12 @@ class TestChatE2EQAGate:
         token, _ = create_access_token(participant.id, participant.email, role="consumer")
 
         max_requests = get_settings().RATE_LIMIT_CHAT_MESSAGE_MAX_REQUESTS
+        burst_requests = get_settings().RATE_LIMIT_CHAT_MESSAGE_BURST_REQUESTS
+        allowed_requests = max_requests + burst_requests
 
-        # The configured limit must allow exactly max_requests successful sends,
+        # The configured limit must allow base+burst successful sends,
         # then reject the next request with 429.
-        for i in range(max_requests):
+        for i in range(allowed_requests):
             response = await async_client.post(
                 f"/api/v1/chats/{session.id}/messages",
                 headers={"Authorization": f"Bearer {token}"},
@@ -476,7 +479,7 @@ class TestChatE2EQAGate:
         rate_limited_response = await async_client.post(
             f"/api/v1/chats/{session.id}/messages",
             headers={"Authorization": f"Bearer {token}"},
-            json={"content": f"Message {max_requests + 1}"},
+            json={"content": f"Message {allowed_requests + 1}"},
         )
 
         assert rate_limited_response.status_code == 429

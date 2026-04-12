@@ -250,7 +250,7 @@ describe("ChatPanel", () => {
 
   it("should display error when message send fails", async () => {
     mockChatApi.sendChatMessage.mockRejectedValueOnce(
-      new ChatApiError("Rate limited", "rate-limited"),
+      new ChatApiError("Rate limited", "rate-limited", 3),
     );
 
     render(
@@ -271,6 +271,13 @@ describe("ChatPanel", () => {
     await waitFor(() => {
       expect(screen.getByText("chat_error_rate_limited")).toBeInTheDocument();
     });
+
+    // Rate-limit countdown is visible and send button is disabled during cooldown.
+    await waitFor(() => {
+      expect(screen.getByLabelText("chat_messages_label")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/chat_rate_limit_wait_prefix/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /chat_send_button_wait_prefix/ })).toBeDisabled();
   });
 
   it("should call onClose when close button is clicked", async () => {

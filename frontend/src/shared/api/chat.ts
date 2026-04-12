@@ -64,6 +64,10 @@ interface ErrorResponseBody {
   detail?: string;
 }
 
+interface RetryAfterHeaderCarrier {
+  [key: string]: unknown;
+}
+
 interface RawChatSession {
   session_id?: unknown;
   nano_id?: unknown;
@@ -238,13 +242,39 @@ function getErrorMessage(error: unknown): string {
   return "Request failed";
 }
 
+function getRetryAfterSeconds(error: unknown): number | null {
+  if (!axios.isAxiosError<ErrorResponseBody>(error)) {
+    return null;
+  }
+
+  if (error.response?.status !== 429) {
+    return null;
+  }
+
+  const headers = (error.response.headers ?? {}) as RetryAfterHeaderCarrier;
+  const retryAfterRaw = headers["retry-after"];
+
+  if (typeof retryAfterRaw === "string") {
+    const parsed = Number.parseInt(retryAfterRaw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  if (typeof retryAfterRaw === "number" && Number.isFinite(retryAfterRaw) && retryAfterRaw > 0) {
+    return Math.floor(retryAfterRaw);
+  }
+
+  return null;
+}
+
 export class ChatApiError extends Error {
   code: ChatApiErrorCode;
+  retryAfterSeconds: number | null;
 
-  constructor(message: string, code: ChatApiErrorCode) {
+  constructor(message: string, code: ChatApiErrorCode, retryAfterSeconds: number | null = null) {
     super(message);
     this.name = "ChatApiError";
     this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -263,7 +293,7 @@ export async function createChatSession(
       meta: (response.data.meta as Record<string, unknown>) ?? {},
     };
   } catch (error) {
-    throw new ChatApiError(getErrorMessage(error), getErrorCode(error));
+    throw new ChatApiError(getErrorMessage(error), getErrorCode(error), getRetryAfterSeconds(error));
   }
 }
 
@@ -291,7 +321,7 @@ export async function listChatSessions(
       pagination: mapPagination(rawData.meta as RawPaginationMeta | undefined, sessions.length),
     };
   } catch (error) {
-    throw new ChatApiError(getErrorMessage(error), getErrorCode(error));
+    throw new ChatApiError(getErrorMessage(error), getErrorCode(error), getRetryAfterSeconds(error));
   }
 }
 
@@ -310,7 +340,7 @@ export async function sendChatMessage(
       message: mapChatMessage(rawData as RawChatMessage | undefined, 0),
     };
   } catch (error) {
-    throw new ChatApiError(getErrorMessage(error), getErrorCode(error));
+    throw new ChatApiError(getErrorMessage(error), getErrorCode(error), getRetryAfterSeconds(error));
   }
 }
 
@@ -342,6 +372,6 @@ export async function getChatMessages(
       pagination: mapPagination(rawData.meta as RawPaginationMeta | undefined, messages.length),
     };
   } catch (error) {
-    throw new ChatApiError(getErrorMessage(error), getErrorCode(error));
+    throw new ChatApiError(getErrorMessage(error), getErrorCode(error), getRetryAfterSeconds(error));
   }
 }

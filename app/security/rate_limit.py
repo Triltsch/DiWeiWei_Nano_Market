@@ -25,6 +25,7 @@ class SlidingWindowRateLimiter:
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self._hits: dict[str, deque[float]] = {}
+        self._violations: dict[str, deque[float]] = {}
         self._lock = asyncio.Lock()
 
     async def check(self, key: str) -> tuple[bool, int]:
@@ -38,24 +39,37 @@ class SlidingWindowRateLimiter:
 
         async with self._lock:
             bucket = self._hits.setdefault(key, deque())
+            violation_bucket = self._violations.setdefault(key, deque())
             cutoff = now - self.window_seconds
 
             while bucket and bucket[0] <= cutoff:
                 bucket.popleft()
+            while violation_bucket and violation_bucket[0] <= cutoff:
+                violation_bucket.popleft()
 
             # Evict the key when the bucket is empty to prevent the _hits dict
             # from growing without bound across many distinct client keys.
             if not bucket:
                 del self._hits[key]
+            if not violation_bucket:
+                self._violations.pop(key, None)
 
             if len(bucket) >= self.max_requests:
-                retry_after_seconds = max(1, int(self.window_seconds - (now - bucket[0])))
+                violation_bucket = self._violations.setdefault(key, deque())
+                violation_bucket.append(now)
+
+                base_retry_after_seconds = max(1, int(self.window_seconds - (now - bucket[0])))
+                # Apply a linear penalty on repeated violations for this key.
+                linear_penalty_seconds = len(violation_bucket)
+                retry_after_seconds = max(base_retry_after_seconds, linear_penalty_seconds)
                 return False, retry_after_seconds
 
             bucket = self._hits.setdefault(key, deque())
             bucket.append(now)
+            self._violations.pop(key, None)
             return True, 0
 
     def reset(self) -> None:
         """Clear all counters (primarily for tests)."""
         self._hits.clear()
+        self._violations.clear()
