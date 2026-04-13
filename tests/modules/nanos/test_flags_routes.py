@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.models import (
     CompetencyLevel,
@@ -19,6 +20,7 @@ from app.models import (
     UserStatus,
 )
 from app.modules.auth.tokens import create_access_token
+from app.modules.nanos import service as nanos_service
 
 
 async def _create_user(db_session, *, email: str, username: str, role: UserRole) -> User:
@@ -321,3 +323,102 @@ async def test_create_flag_non_published_nano_returns_400(async_client, db_sessi
     assert payload["nano_id"] == str(nano.id)
     assert payload["flagging_user_id"] == str(reporter.id)
     assert payload["reason"] == "other"
+
+
+@pytest.mark.asyncio
+async def test_create_flag_sanitizes_comment_content(async_client, db_session):
+    """Flag comments should be normalized and escaped before persistence."""
+    creator = await _create_user(
+        db_session,
+        email="flag-sanitize-creator@example.com",
+        username="flag_sanitize_creator",
+        role=UserRole.CREATOR,
+    )
+    reporter = await _create_user(
+        db_session,
+        email="flag-sanitize-reporter@example.com",
+        username="flag_sanitize_reporter",
+        role=UserRole.CONSUMER,
+    )
+
+    nano = Nano(
+        id=uuid.uuid4(),
+        creator_id=creator.id,
+        title="Sanitize Flag Nano",
+        duration_minutes=11,
+        competency_level=CompetencyLevel.BASIC,
+        language="en",
+        format=NanoFormat.TEXT,
+        status=NanoStatus.PUBLISHED,
+        version="1.0.0",
+        license=LicenseType.CC_BY,
+    )
+    db_session.add(nano)
+    await db_session.commit()
+
+    token, _ = create_access_token(reporter.id, reporter.email, role=reporter.role.value)
+    response = await async_client.post(
+        f"/api/v1/nanos/{nano.id}/flags",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"reason": "other", "comment": "  <script>alert('x')</script>\r\nline2  "},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["comment"] == "&lt;script&gt;alert('x')&lt;/script&gt;\nline2"
+
+
+@pytest.mark.asyncio
+async def test_create_flag_succeeds_when_audit_logging_fails(
+    async_client,
+    db_session,
+    monkeypatch,
+):
+    """Flag creation should succeed even when audit logging raises SQLAlchemyError."""
+    creator = await _create_user(
+        db_session,
+        email="flag-audit-fail-creator@example.com",
+        username="flag_audit_fail_creator",
+        role=UserRole.CREATOR,
+    )
+    reporter = await _create_user(
+        db_session,
+        email="flag-audit-fail-reporter@example.com",
+        username="flag_audit_fail_reporter",
+        role=UserRole.CONSUMER,
+    )
+
+    nano = Nano(
+        id=uuid.uuid4(),
+        creator_id=creator.id,
+        title="Audit Failure Flag Nano",
+        duration_minutes=16,
+        competency_level=CompetencyLevel.INTERMEDIATE,
+        language="en",
+        format=NanoFormat.VIDEO,
+        status=NanoStatus.PUBLISHED,
+        version="1.0.0",
+        license=LicenseType.CC_BY,
+    )
+    db_session.add(nano)
+    await db_session.commit()
+
+    async def _raise_audit_error(*args, **kwargs):
+        raise SQLAlchemyError("simulated audit enum mismatch")
+
+    monkeypatch.setattr(nanos_service.AuditLogger, "log_action", _raise_audit_error)
+
+    token, _ = create_access_token(reporter.id, reporter.email, role=reporter.role.value)
+    response = await async_client.post(
+        f"/api/v1/nanos/{nano.id}/flags",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"reason": "spam", "comment": "still should persist"},
+    )
+
+    assert response.status_code == 201
+
+    flag_id = uuid.UUID(response.json()["id"])
+    persisted = (
+        await db_session.execute(select(NanoFlag).where(NanoFlag.id == flag_id))
+    ).scalar_one_or_none()
+    assert persisted is not None

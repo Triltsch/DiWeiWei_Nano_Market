@@ -5,6 +5,7 @@ This module provides service functions for creating, reading, and updating
 Nano metadata with proper validation and authorization checks.
 """
 
+import logging
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from html import escape
@@ -12,7 +13,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import desc, func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -78,6 +79,8 @@ from app.modules.nanos.schemas import (
 )
 from app.modules.search.service import invalidate_search_cache
 from app.modules.upload.storage import StorageError, get_storage_adapter
+
+logger = logging.getLogger(__name__)
 
 MAX_COMMENT_LENGTH = 1000
 
@@ -879,11 +882,17 @@ async def create_nano_flag(
             detail="You cannot flag your own Nanos",
         )
 
+    sanitized_comment = (
+        _sanitize_comment_content(payload.comment) if payload.comment is not None else None
+    )
+    if sanitized_comment is not None:
+        _validate_sanitized_comment_content(sanitized_comment)
+
     flag = NanoFlag(
         nano_id=nano_id,
         flagging_user_id=current_user.user_id,
         reason=payload.reason,
-        comment=payload.comment,
+        comment=sanitized_comment,
         status=FlagStatus.PENDING,
     )
     db.add(flag)
@@ -896,17 +905,29 @@ async def create_nano_flag(
             content_id=flag.id,
             reporter_id=current_user.user_id,
         )
-        await AuditLogger.log_action(
-            session=db,
-            action=AuditAction.FLAG_CREATED,
-            user_id=current_user.user_id,
-            resource_type="nano_flag",
-            resource_id=str(flag.id),
-            metadata={
-                "nano_id": str(nano_id),
-                "reason": payload.reason.value,
-            },
-        )
+        try:
+            async with db.begin_nested():
+                await AuditLogger.log_action(
+                    session=db,
+                    action=AuditAction.FLAG_CREATED,
+                    user_id=current_user.user_id,
+                    resource_type="nano_flag",
+                    resource_id=str(flag.id),
+                    metadata={
+                        "nano_id": str(nano_id),
+                        "reason": payload.reason.value,
+                    },
+                )
+        except SQLAlchemyError:
+            logger.exception(
+                "Failed to persist flag-created audit event; continuing flag workflow",
+                extra={
+                    "nano_id": str(nano_id),
+                    "flag_id": str(flag.id),
+                    "user_id": str(current_user.user_id),
+                },
+            )
+
         await db.commit()
         await db.refresh(flag)
     except IntegrityError as exc:
