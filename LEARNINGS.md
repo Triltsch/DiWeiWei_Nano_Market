@@ -164,7 +164,7 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 
 ## Frontend hinter Reverse Proxy
 
-- Vite-Dev über HTTPS-Reverse-Proxy braucht CSP-Ausnahmen für Inline-Assets in Dev (`script-src 'unsafe-inline'` und `style-src 'unsafe-inline'`), sonst startet React nicht bzw. Styles fehlen trotz 200-Responses.
+- Vite-Dev über HTTPS-Reverse-Proxy braucht CSP-Ausnahmen für Inline-Assets in Dev (`script-src 'unsafe-inline'` und `style-src 'unsafe-inline'`), aber nur auf Vite/HMR-Asset-Routen (nicht global), um XSS-Schutz auf normalen Seiten strikt zu halten.
 
 ## QA-Gates & E2E Tests
 
