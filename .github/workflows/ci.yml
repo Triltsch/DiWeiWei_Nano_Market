@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  backend:
+    name: Backend pipeline
+    uses: ./.github/workflows/tests-backend.yml
+    needs: secret-scan
+
+  frontend:
+    name: Frontend pipeline
+    uses: ./.github/workflows/tests-frontend.yml
+    needs: secret-scan
+
+  summary:
+    name: CI summary and policy checks
+    runs-on: ubuntu-latest
+    needs:
+      - backend
+      - frontend
+    if: always()
+    steps:
+      - name: Validate backend and frontend results
+        run: |
+          if [ "${{ needs.backend.result }}" != "success" ]; then
+            echo "Backend pipeline failed with status: ${{ needs.backend.result }}"
+            exit 1
+          fi
+          if [ "${{ needs.frontend.result }}" != "success" ]; then
+            echo "Frontend pipeline failed with status: ${{ needs.frontend.result }}"
+            exit 1
+          fi
+
+      - name: Print CI summary
+        run: |
+          echo "Backend coverage: ${{ needs.backend.outputs.coverage }}%"
+          echo "Frontend coverage: ${{ needs.frontend.outputs.coverage }}%"
+
+      - name: Comment CI summary in PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- ci-summary-comment -->';
+            const backend = '${{ needs.backend.outputs.coverage }}';
+            const frontend = '${{ needs.frontend.outputs.coverage }}';
+            const body = [
+              marker,
+              '## CI Summary',
+              '',
+              `- Backend coverage: **${backend}%** (required: >= 70%)`,
+              `- Frontend coverage: **${frontend}%** (reported metric)`,
+              '- Required checks: backend pipeline, frontend pipeline, secret scan',
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find(comment => comment.body && comment.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }

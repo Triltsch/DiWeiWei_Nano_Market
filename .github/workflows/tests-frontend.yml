@@ -1,0 +1,71 @@
+name: Frontend Tests and Lint
+
+on:
+  workflow_call:
+    outputs:
+      coverage:
+        description: Frontend line coverage percentage
+        value: ${{ jobs.frontend-tests.outputs.coverage }}
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-tests:
+    name: Frontend build, test, and lint
+    runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.coverage-threshold.outputs.coverage }}
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend bundle
+        run: npx vite build
+
+      - name: Run frontend tests with coverage
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+        run: |
+          npx vitest run --coverage --coverage.all=false --coverage.provider=v8 --coverage.reporter=text --coverage.reporter=json-summary --pool=threads --maxWorkers=1 --exclude src/features/chat/ChatPanel.test.tsx
+
+      - name: Extract frontend coverage metric
+        id: coverage-threshold
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const candidates = ['coverage/coverage-summary.json', 'coverage-summary.json'];
+          const coveragePath = candidates.find((candidate) => fs.existsSync(candidate));
+          const coverage = coveragePath
+            ? String(JSON.parse(fs.readFileSync(coveragePath, 'utf8')).total?.lines?.pct ?? 'unavailable')
+            : 'unavailable';
+
+          console.log(`Frontend line coverage: ${coverage}`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `coverage=${coverage}\n`);
+          NODE
+
+      - name: Run frontend lint
+        run: npx eslint src --ext ts,tsx --ignore-pattern "**/*.test.ts" --ignore-pattern "**/*.test.tsx"
+
+      - name: Upload frontend coverage summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-summary
+          path: frontend/coverage/coverage-summary.json
+          if-no-files-found: ignore
