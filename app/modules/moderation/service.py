@@ -727,7 +727,9 @@ async def _apply_flag_decision(
         flag.status = FlagStatus.RESOLVED
     elif decision == "reject":
         flag.status = FlagStatus.CLOSED
-    # defer / escalate: leave flag.status as PENDING; no terminal decision reached.
+    else:
+        # Non-terminal decisions still mark the report as reviewed by moderation.
+        flag.status = FlagStatus.REVIEWED
 
     flag.reviewed_at = now
     flag.moderator_id = decided_by.user_id
