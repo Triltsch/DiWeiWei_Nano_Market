@@ -167,20 +167,25 @@ class Settings(BaseSettings):
     UPLOAD_MAX_RETRIES: int = 3
     UPLOAD_TIMEOUT_SECONDS: int = 600
 
+    @property
+    def effective_verification_base_url(self) -> str:
+        """Return the base URL to use for email verification links.
+
+        Resolution order: PUBLIC_BASE_URL → APP_BASE_URL → FRONTEND_URL.
+        Trailing slashes are stripped so callers can safely append paths.
+        """
+        for candidate in (self.PUBLIC_BASE_URL, self.APP_BASE_URL, self.FRONTEND_URL):
+            if candidate and candidate.strip():
+                return candidate.rstrip("/")
+        raise RuntimeError("No base URL configured for email verification links")
+
     @model_validator(mode="after")
-    def validate_smtp_transport_flags(self) -> "Settings":
-        """Apply environment defaults and validate SMTP transport settings."""
+    def validate_settings(self) -> "Settings":
+        """Apply environment defaults and validate settings after construction."""
         if self.AUTH_RESEND_RETURN_TOKEN is None:
             self.AUTH_RESEND_RETURN_TOKEN = self.ENV in {"development", "test"}
 
-        effective_public_base_url = (
-            self.PUBLIC_BASE_URL or self.APP_BASE_URL or self.FRONTEND_URL
-        ).strip()
-        if not effective_public_base_url:
-            raise ValueError(
-                "Invalid URL configuration: set PUBLIC_BASE_URL/APP_BASE_URL or FRONTEND_URL."
-            )
-
+        effective_public_base_url = self.effective_verification_base_url
         if self.ENV not in {"development", "test"}:
             parsed_url = urlparse(effective_public_base_url)
             hostname = (parsed_url.hostname or "").lower()

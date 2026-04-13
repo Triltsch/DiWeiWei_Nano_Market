@@ -126,12 +126,7 @@ def _get_user_agent(request: Request) -> str:
 
 def _get_public_verification_base_url() -> str:
     """Resolve the base URL used for verification links in auth emails."""
-    for candidate in (settings.PUBLIC_BASE_URL, settings.APP_BASE_URL, settings.FRONTEND_URL):
-        if candidate and candidate.strip():
-            return candidate.rstrip("/")
-
-    # Guard clause to keep link generation deterministic if config is corrupted.
-    raise RuntimeError("No base URL configured for email verification links")
+    return settings.effective_verification_base_url
 
 
 def _build_verification_url(token: str, email: str) -> str:
