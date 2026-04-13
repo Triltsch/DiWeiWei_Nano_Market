@@ -99,7 +99,18 @@ class CommentContentDetail(BaseModel):
     created_at: Optional[datetime] = None
 
 
-ContentDetail = NanoContentDetail | RatingContentDetail | CommentContentDetail
+class FlagContentDetail(BaseModel):
+    """Content detail for a user-submitted Nano flag under review."""
+
+    nano_id: UUID
+    reason: str
+    comment: Optional[str] = None
+    flag_status: str
+    flagged_by_username: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+ContentDetail = NanoContentDetail | RatingContentDetail | CommentContentDetail | FlagContentDetail
 
 
 # ---------------------------------------------------------------------------

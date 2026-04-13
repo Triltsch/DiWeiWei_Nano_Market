@@ -227,6 +227,8 @@ class AuditAction(str, enum.Enum):
     MODERATION_REJECTED = "moderation_rejected"
     MODERATION_DEFERRED = "moderation_deferred"
     MODERATION_ESCALATED = "moderation_escalated"
+    FLAG_CREATED = "flag_created"
+    FLAG_REVIEWED = "flag_reviewed"
 
 
 class FeedbackModerationStatus(str, enum.Enum):
@@ -878,6 +880,95 @@ class ModerationContentType(str, enum.Enum):
     NANO_RATING = "nano_rating"
     NANO_COMMENT = "nano_comment"
     FLAG = "flag"  # reserved: Story 6.3
+
+
+class FlagReason(str, enum.Enum):
+    """Reason selected by a user when reporting a Nano."""
+
+    SPAM = "spam"
+    COPYRIGHT = "copyright"
+    OFFENSIVE = "offensive"
+    MISINFORMATION = "misinformation"
+    OTHER = "other"
+
+
+class FlagStatus(str, enum.Enum):
+    """Lifecycle status of a user-submitted Nano flag."""
+
+    PENDING = "pending"
+    REVIEWED = "reviewed"
+    RESOLVED = "resolved"
+    CLOSED = "closed"
+
+
+class NanoFlag(Base):
+    """User-submitted flag for inappropriate or policy-violating Nano content."""
+
+    __tablename__ = "nano_flags"
+    __table_args__ = (
+        UniqueConstraint("nano_id", "flagging_user_id", name="uq_nano_flags_nano_user"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
+    )
+    nano_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("nanos.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="Flagged Nano",
+    )
+    flagging_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="User who submitted this flag",
+    )
+    reason: Mapped[FlagReason] = mapped_column(
+        SQLEnum(FlagReason),
+        nullable=False,
+        comment="Selected report reason",
+    )
+    comment: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Optional user comment (max 500 chars)",
+    )
+    status: Mapped[FlagStatus] = mapped_column(
+        SQLEnum(FlagStatus),
+        default=FlagStatus.PENDING,
+        nullable=False,
+        index=True,
+        comment="Current status of the flag workflow",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+        comment="When the flag was submitted",
+    )
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When a moderator/admin reviewed this flag",
+    )
+    moderator_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Moderator/admin who reviewed this flag",
+    )
+
+    def __repr__(self) -> str:
+        """String representation of NanoFlag."""
+        return (
+            f"<NanoFlag(id={self.id}, nano_id={self.nano_id}, "
+            f"flagging_user_id={self.flagging_user_id}, status={self.status})>"
+        )
 
 
 class ModerationCase(Base):

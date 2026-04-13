@@ -21,11 +21,13 @@ from app.models import (
     Category,
     CompetencyLevel,
     FeedbackModerationStatus,
+    FlagStatus,
     LicenseType,
     ModerationContentType,
     Nano,
     NanoCategoryAssignment,
     NanoComment,
+    NanoFlag,
     NanoFormat,
     NanoRating,
     NanoStatus,
@@ -59,6 +61,8 @@ from app.modules.nanos.schemas import (
     NanoDownloadInfo,
     NanoDownloadInfoData,
     NanoDownloadInfoResponse,
+    NanoFlagCreateRequest,
+    NanoFlagResponse,
     NanoMetadataResponse,
     NanoRatingAggregation,
     NanoRatingDistributionItem,
@@ -701,6 +705,21 @@ async def _build_comment_item(comment: NanoComment, db: AsyncSession) -> NanoCom
     )
 
 
+def _build_flag_response(flag: NanoFlag) -> NanoFlagResponse:
+    """Map a NanoFlag ORM object to API response schema."""
+    return NanoFlagResponse(
+        id=flag.id,
+        nano_id=flag.nano_id,
+        flagging_user_id=flag.flagging_user_id,
+        reason=flag.reason,
+        comment=flag.comment,
+        status=flag.status,
+        created_at=flag.created_at,
+        reviewed_at=flag.reviewed_at,
+        moderator_id=flag.moderator_id,
+    )
+
+
 async def _build_rating_item(rating: NanoRating, db: AsyncSession) -> NanoRatingModerationItem:
     """Build API rating item with author context."""
     user_stmt = select(User.username).where(User.id == rating.user_id)
@@ -837,6 +856,91 @@ async def create_nano_comment(
         ) from exc
 
     return NanoCommentMutationResponse(comment=await _build_comment_item(comment=comment, db=db))
+
+
+async def create_nano_flag(
+    nano_id: UUID,
+    payload: NanoFlagCreateRequest,
+    current_user: TokenData,
+    db: AsyncSession,
+) -> NanoFlagResponse:
+    """Create a user flag for a published Nano and open/update moderation case."""
+    nano = await _get_nano_or_404(nano_id=nano_id, db=db)
+
+    if nano.status != NanoStatus.PUBLISHED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Flags can only be submitted for published Nanos",
+        )
+
+    if nano.creator_id == current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You cannot flag your own Nanos",
+        )
+
+    flag = NanoFlag(
+        nano_id=nano_id,
+        flagging_user_id=current_user.user_id,
+        reason=payload.reason,
+        comment=payload.comment,
+        status=FlagStatus.PENDING,
+    )
+    db.add(flag)
+
+    try:
+        await db.flush()
+        await upsert_moderation_case(
+            db=db,
+            content_type=ModerationContentType.FLAG,
+            content_id=flag.id,
+            reporter_id=current_user.user_id,
+        )
+        await AuditLogger.log_action(
+            session=db,
+            action=AuditAction.FLAG_CREATED,
+            user_id=current_user.user_id,
+            resource_type="nano_flag",
+            resource_id=str(flag.id),
+            metadata={
+                "nano_id": str(nano_id),
+                "reason": payload.reason.value,
+            },
+        )
+        await db.commit()
+        await db.refresh(flag)
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You have already flagged this Nano",
+        ) from exc
+
+    return _build_flag_response(flag)
+
+
+async def get_my_nano_flag(
+    nano_id: UUID,
+    current_user: TokenData,
+    db: AsyncSession,
+) -> NanoFlagResponse:
+    """Return the authenticated user's existing flag for a Nano."""
+    await _get_nano_or_404(nano_id=nano_id, db=db)
+
+    stmt = select(NanoFlag).where(
+        NanoFlag.nano_id == nano_id,
+        NanoFlag.flagging_user_id == current_user.user_id,
+    )
+    result = await db.execute(stmt)
+    flag = result.scalar_one_or_none()
+
+    if flag is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Flag not found for this Nano and user",
+        )
+
+    return _build_flag_response(flag)
 
 
 async def update_nano_comment(

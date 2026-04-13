@@ -38,11 +38,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import (
     AuditAction,
     FeedbackModerationStatus,
+    FlagStatus,
     ModerationCase,
     ModerationCaseStatus,
     ModerationContentType,
     Nano,
     NanoComment,
+    NanoFlag,
     NanoRating,
     NanoStatus,
     User,
@@ -53,6 +55,7 @@ from app.modules.moderation.schemas import (
     VALID_DECISIONS,
     CommentContentDetail,
     ContentDetail,
+    FlagContentDetail,
     ModerationQueueItem,
     ModerationQueueResponse,
     ModerationReviewRequest,
@@ -90,6 +93,7 @@ async def upsert_moderation_case(
     db: AsyncSession,
     content_type: ModerationContentType,
     content_id: UUID,
+    reporter_id: UUID | None = None,
 ) -> ModerationCase:
     """Create or reset a moderation case to PENDING.
 
@@ -121,6 +125,7 @@ async def upsert_moderation_case(
         case = ModerationCase(
             content_type=content_type,
             content_id=content_id,
+            reporter_id=reporter_id,
             status=ModerationCaseStatus.PENDING,
         )
         db.add(case)
@@ -132,6 +137,8 @@ async def upsert_moderation_case(
         case.decided_at = None
         case.deferred_until = None
         case.escalation_note = None
+        if reporter_id is not None:
+            case.reporter_id = reporter_id
 
     await db.flush()
     return case
@@ -561,6 +568,11 @@ async def _apply_decision_to_content(
             db=db, case=case, decided_by=decided_by, request=request, now=now
         )
 
+    elif case.content_type == ModerationContentType.FLAG:
+        await _apply_flag_decision(
+            db=db, case=case, decided_by=decided_by, decision=decision, now=now
+        )
+
     # ModerationContentType.FLAG — reserved for Story 6.3; no action yet.
     return False
 
@@ -697,6 +709,33 @@ async def _apply_comment_decision(
     await db.flush()
 
 
+async def _apply_flag_decision(
+    *,
+    db: AsyncSession,
+    case: ModerationCase,
+    decided_by: TokenData,
+    decision: str,
+    now: datetime,
+) -> None:
+    """Apply moderation decision to a NanoFlag status lifecycle."""
+    stmt = select(NanoFlag).where(NanoFlag.id == case.content_id)
+    result = await db.execute(stmt)
+    flag = result.scalar_one_or_none()
+    if not flag:
+        return
+
+    if decision == "approve":
+        flag.status = FlagStatus.RESOLVED
+    elif decision == "reject":
+        flag.status = FlagStatus.CLOSED
+    else:
+        flag.status = FlagStatus.REVIEWED
+
+    flag.reviewed_at = now
+    flag.moderator_id = decided_by.user_id
+    await db.flush()
+
+
 async def _sync_nano_rating_cache(*, db: AsyncSession, nano_id: UUID) -> None:
     """Recompute and persist the denormalised average_rating / rating_count on Nano.
 
@@ -742,7 +781,7 @@ async def _get_content_detail(
     db: AsyncSession,
     content_type: ModerationContentType,
     content_id: UUID,
-) -> Optional[NanoContentDetail | RatingContentDetail | CommentContentDetail]:
+) -> Optional[NanoContentDetail | RatingContentDetail | CommentContentDetail | FlagContentDetail]:
     """Load a type-specific content detail object for a queue item.
 
     Returns ``None`` if the underlying content record no longer exists.
@@ -801,6 +840,25 @@ async def _get_content_detail(
             created_at=comment.created_at,
         )
 
+    if content_type == ModerationContentType.FLAG:
+        stmt = (
+            select(NanoFlag, User.username)
+            .outerjoin(User, NanoFlag.flagging_user_id == User.id)
+            .where(NanoFlag.id == content_id)
+        )
+        row = (await db.execute(stmt)).first()
+        if not row:
+            return None
+        flag, username = row
+        return FlagContentDetail(
+            nano_id=flag.nano_id,
+            reason=flag.reason.value,
+            comment=flag.comment,
+            flag_status=flag.status.value,
+            flagged_by_username=username,
+            created_at=flag.created_at,
+        )
+
     return None
 
 
@@ -822,6 +880,9 @@ async def _load_content_details_for_cases(
     ]
     comment_ids = [
         case.content_id for case in cases if case.content_type == ModerationContentType.NANO_COMMENT
+    ]
+    flag_ids = [
+        case.content_id for case in cases if case.content_type == ModerationContentType.FLAG
     ]
 
     if nano_ids:
@@ -873,6 +934,24 @@ async def _load_content_details_for_cases(
                 author_username=username,
                 moderation_status=comment.moderation_status.value,
                 created_at=comment.created_at,
+            )
+
+    if flag_ids:
+        rows = (
+            await db.execute(
+                select(NanoFlag, User.username)
+                .outerjoin(User, NanoFlag.flagging_user_id == User.id)
+                .where(NanoFlag.id.in_(flag_ids))
+            )
+        ).all()
+        for flag, username in rows:
+            detail_map[(ModerationContentType.FLAG, flag.id)] = FlagContentDetail(
+                nano_id=flag.nano_id,
+                reason=flag.reason.value,
+                comment=flag.comment,
+                flag_status=flag.status.value,
+                flagged_by_username=username,
+                created_at=flag.created_at,
             )
 
     for case in cases:
