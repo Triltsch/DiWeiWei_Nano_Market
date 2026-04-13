@@ -223,7 +223,18 @@ services:
       if [ ! -f /etc/nginx/ssl/server.crt ] || [ ! -f /etc/nginx/ssl/server.key ]; then
         openssl req -x509 -nodes -newkey rsa:4096 -keyout /etc/nginx/ssl/server.key -out /etc/nginx/ssl/server.crt -days 365 -subj '/C=DE/ST=BW/L=Stuttgart/O=DiWeiWei/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1';
       fi;
-      until nginx -t >/dev/null 2>&1; do echo 'Waiting for upstream DNS (app, frontend, grafana) to become available...'; sleep 2; done;
+      max_retries=30;
+      retry_count=0;
+      until nginx -t >/dev/null 2>&1; do
+        retry_count=$$((retry_count + 1));
+        if [ \"$$retry_count\" -ge \"$$max_retries\" ]; then
+          echo 'ERROR: nginx configuration validation did not succeed after 30 attempts. Failing container startup.' >&2;
+          nginx -t;
+          exit 1;
+        fi;
+        echo \"Waiting for upstream DNS (app, frontend, grafana) to become available... attempt $$retry_count/$$max_retries\";
+        sleep 2;
+      done;
       nginx -g 'daemon off;'
       "
     ports:
