@@ -169,15 +169,17 @@ class Settings(BaseSettings):
 
     @property
     def effective_verification_base_url(self) -> str:
-        """Return the base URL to use for email verification links.
+        """Return normalized base URL for verification links.
 
-        Resolution order: PUBLIC_BASE_URL → APP_BASE_URL → FRONTEND_URL.
-        Trailing slashes are stripped so callers can safely append paths.
+        URL precedence is PUBLIC_BASE_URL -> APP_BASE_URL -> FRONTEND_URL.
         """
         for candidate in (self.PUBLIC_BASE_URL, self.APP_BASE_URL, self.FRONTEND_URL):
             if candidate and candidate.strip():
-                return candidate.rstrip("/")
-        raise RuntimeError("No base URL configured for email verification links")
+                return candidate.strip().rstrip("/")
+
+        raise ValueError(
+            "Invalid URL configuration: set PUBLIC_BASE_URL/APP_BASE_URL or FRONTEND_URL."
+        )
 
     @model_validator(mode="after")
     def validate_settings(self) -> "Settings":
@@ -188,11 +190,17 @@ class Settings(BaseSettings):
         effective_public_base_url = self.effective_verification_base_url
         if self.ENV not in {"development", "test"}:
             parsed_url = urlparse(effective_public_base_url)
+            if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+                raise ValueError(
+                    "Invalid URL configuration: PUBLIC_BASE_URL/APP_BASE_URL/FRONTEND_URL "
+                    "must be an absolute http(s) URL in non-development environments."
+                )
+
             hostname = (parsed_url.hostname or "").lower()
             if not hostname:
                 raise ValueError(
                     "Invalid URL configuration: PUBLIC_BASE_URL/APP_BASE_URL/FRONTEND_URL "
-                    "must be an absolute URL in non-development environments."
+                    "must include a valid hostname in non-development environments."
                 )
 
             if hostname in {"localhost", "127.0.0.1", "::1"}:

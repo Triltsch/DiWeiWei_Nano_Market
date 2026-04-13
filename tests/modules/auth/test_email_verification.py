@@ -401,6 +401,42 @@ async def test_resend_verification_email_uses_public_base_url_when_configured(
 
 
 @pytest.mark.asyncio
+async def test_resend_verification_email_uses_app_base_url_as_middle_option(
+    async_client,
+    db_session: AsyncSession,
+    verified_user: User,
+    sent_auth_emails,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verification mails should use APP_BASE_URL when PUBLIC_BASE_URL is not configured."""
+    verified_user.email_verified = False
+    verified_user.verified_at = None
+    db_session.add(verified_user)
+    await db_session.commit()
+
+    monkeypatch.setattr("app.modules.auth.router.settings.AUTH_RESEND_RETURN_TOKEN", False)
+    monkeypatch.setattr("app.modules.auth.router.settings.ENV", "production")
+    monkeypatch.setattr("app.modules.auth.router.settings.PUBLIC_BASE_URL", None)
+    monkeypatch.setattr(
+        "app.modules.auth.router.settings.APP_BASE_URL", "https://app.nano.example.com"
+    )
+    monkeypatch.setattr("app.modules.auth.router.settings.FRONTEND_URL", "http://localhost:5173")
+
+    response = await async_client.post(
+        "/api/v1/auth/resend-verification-email", json={"email": verified_user.email}
+    )
+
+    expect(response.status_code).equal(200)
+    delivered_mail = sent_auth_emails[-1]
+    verification_link = _extract_verification_link_from_mail_body(delivered_mail["body_text"])
+
+    parsed_link = urlparse(verification_link)
+    expect(parsed_link.scheme).equal("https")
+    expect(parsed_link.netloc).equal("app.nano.example.com")
+    expect(parsed_link.path).equal("/verify-email")
+
+
+@pytest.mark.asyncio
 async def test_resend_verification_email_falls_back_to_frontend_url_in_development(
     async_client,
     db_session: AsyncSession,
