@@ -73,7 +73,7 @@ jobs:
               marker,
               '## CI Summary',
               '',
-              `- Backend coverage: **${backend}%** (required: >= 80%)`,
+              `- Backend coverage: **${backend}%** (required: >= 70%)`,
               `- Frontend coverage: **${frontend}%** (required: >= 70%)`,
               '- Required checks: backend pipeline, frontend pipeline, secret scan',
             ].join('\n');
