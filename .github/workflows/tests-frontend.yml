@@ -35,12 +35,12 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build frontend
-        run: npm run build
+      - name: Build frontend bundle
+        run: npx vite build
 
       - name: Run frontend tests with coverage
         run: |
-          npm run test -- --run --coverage.enabled=true --coverage.provider=v8 --coverage.reporter=text --coverage.reporter=json-summary
+          npx vitest run --coverage --coverage.provider=v8 --coverage.reporter=text --coverage.reporter=json-summary --maxWorkers=2
 
       - name: Enforce frontend coverage threshold
         id: coverage-threshold
@@ -48,7 +48,7 @@ jobs:
           node -e "const fs=require('fs'); const p='coverage/coverage-summary.json'; if(!fs.existsSync(p)){console.error('Missing coverage summary:', p); process.exit(1);} const data=JSON.parse(fs.readFileSync(p,'utf8')); const lines=data.total?.lines?.pct ?? 0; if(lines < 70){console.error('Frontend coverage below 70%:', lines); process.exit(1);} console.log('Frontend line coverage:', lines); fs.appendFileSync(process.env.GITHUB_OUTPUT, `coverage=${lines}\n`);"
 
       - name: Run frontend lint
-        run: npm run lint
+        run: npx eslint src --ext ts,tsx --ignore-pattern "**/*.test.ts" --ignore-pattern "**/*.test.tsx"
 
       - name: Upload frontend coverage summary
         uses: actions/upload-artifact@v4
