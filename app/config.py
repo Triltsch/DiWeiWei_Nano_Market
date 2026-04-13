@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from typing import ClassVar, Optional
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, EmailStr, SecretStr, model_validator
 from pydantic_settings import BaseSettings
@@ -73,6 +74,8 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENV: str = "development"
     FRONTEND_URL: str = "http://localhost:5173"
+    PUBLIC_BASE_URL: Optional[str] = None
+    APP_BASE_URL: Optional[str] = None
 
     # Database settings
     DATABASE_URL: Optional[str] = None
@@ -169,6 +172,29 @@ class Settings(BaseSettings):
         """Apply environment defaults and validate SMTP transport settings."""
         if self.AUTH_RESEND_RETURN_TOKEN is None:
             self.AUTH_RESEND_RETURN_TOKEN = self.ENV in {"development", "test"}
+
+        effective_public_base_url = (
+            self.PUBLIC_BASE_URL or self.APP_BASE_URL or self.FRONTEND_URL
+        ).strip()
+        if not effective_public_base_url:
+            raise ValueError(
+                "Invalid URL configuration: set PUBLIC_BASE_URL/APP_BASE_URL or FRONTEND_URL."
+            )
+
+        if self.ENV not in {"development", "test"}:
+            parsed_url = urlparse(effective_public_base_url)
+            hostname = (parsed_url.hostname or "").lower()
+            if not hostname:
+                raise ValueError(
+                    "Invalid URL configuration: PUBLIC_BASE_URL/APP_BASE_URL/FRONTEND_URL "
+                    "must be an absolute URL in non-development environments."
+                )
+
+            if hostname in {"localhost", "127.0.0.1", "::1"}:
+                raise ValueError(
+                    "Invalid URL configuration: localhost URLs are not allowed for "
+                    "verification links outside development/test."
+                )
 
         _ = self.smtp_settings
 

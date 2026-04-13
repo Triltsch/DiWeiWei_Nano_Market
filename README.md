@@ -55,6 +55,10 @@ cd frontend && npm install && npm run dev
 ```
 Frontend: http://localhost:5173
 
+Hinweis fuer Verifikationsmails:
+- In Staging/Produktion `PUBLIC_BASE_URL` auf die extern erreichbare URL setzen (z. B. `https://nano.example.com`).
+- `localhost`-Links sind nur fuer Development/Test gedacht.
+
 **Tests (lokal):**
 ```bash
 pytest tests/ -v

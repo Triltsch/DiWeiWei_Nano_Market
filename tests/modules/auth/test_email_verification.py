@@ -42,6 +42,14 @@ def _extract_token_from_mail_body(body_text: str) -> str:
     raise AssertionError("Verification token link not found in body_text")
 
 
+def _extract_verification_link_from_mail_body(body_text: str) -> str:
+    for line in body_text.splitlines():
+        if "/verify-email?" in line:
+            return line.strip()
+
+    raise AssertionError("Verification link not found in body_text")
+
+
 @pytest.mark.asyncio
 async def test_create_email_verification_token() -> None:
     """Test creating an email verification token.
@@ -351,6 +359,79 @@ async def test_resend_verification_email_endpoint_sends_mail_when_toggle_disable
     expect(delivered_mail["subject"]).equal("Your new verification link")
     token = _extract_token_from_mail_body(delivered_mail["body_text"])
     expect(token).is_not_none()
+
+
+@pytest.mark.asyncio
+async def test_resend_verification_email_uses_public_base_url_when_configured(
+    async_client,
+    db_session: AsyncSession,
+    verified_user: User,
+    sent_auth_emails,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verification mails should prefer PUBLIC_BASE_URL over FRONTEND_URL."""
+    verified_user.email_verified = False
+    verified_user.verified_at = None
+    db_session.add(verified_user)
+    await db_session.commit()
+
+    monkeypatch.setattr("app.modules.auth.router.settings.AUTH_RESEND_RETURN_TOKEN", False)
+    monkeypatch.setattr("app.modules.auth.router.settings.ENV", "production")
+    monkeypatch.setattr("app.modules.auth.router.settings.FRONTEND_URL", "http://localhost:5173")
+    monkeypatch.setattr(
+        "app.modules.auth.router.settings.PUBLIC_BASE_URL", "https://nano.example.com"
+    )
+    monkeypatch.setattr("app.modules.auth.router.settings.APP_BASE_URL", None)
+
+    response = await async_client.post(
+        "/api/v1/auth/resend-verification-email", json={"email": verified_user.email}
+    )
+
+    expect(response.status_code).equal(200)
+    delivered_mail = sent_auth_emails[-1]
+    verification_link = _extract_verification_link_from_mail_body(delivered_mail["body_text"])
+
+    parsed_link = urlparse(verification_link)
+    expect(parsed_link.scheme).equal("https")
+    expect(parsed_link.netloc).equal("nano.example.com")
+    expect(parsed_link.path).equal("/verify-email")
+    query = parse_qs(parsed_link.query)
+    expect(query.get("email", [""])[0]).equal(verified_user.email)
+    expect(query.get("token", [""])[0]).is_not_none()
+
+
+@pytest.mark.asyncio
+async def test_resend_verification_email_falls_back_to_frontend_url_in_development(
+    async_client,
+    db_session: AsyncSession,
+    verified_user: User,
+    sent_auth_emails,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Development flow should still allow localhost FRONTEND_URL fallback."""
+    verified_user.email_verified = False
+    verified_user.verified_at = None
+    db_session.add(verified_user)
+    await db_session.commit()
+
+    monkeypatch.setattr("app.modules.auth.router.settings.AUTH_RESEND_RETURN_TOKEN", False)
+    monkeypatch.setattr("app.modules.auth.router.settings.ENV", "development")
+    monkeypatch.setattr("app.modules.auth.router.settings.PUBLIC_BASE_URL", None)
+    monkeypatch.setattr("app.modules.auth.router.settings.APP_BASE_URL", None)
+    monkeypatch.setattr("app.modules.auth.router.settings.FRONTEND_URL", "http://localhost:5173")
+
+    response = await async_client.post(
+        "/api/v1/auth/resend-verification-email", json={"email": verified_user.email}
+    )
+
+    expect(response.status_code).equal(200)
+    delivered_mail = sent_auth_emails[-1]
+    verification_link = _extract_verification_link_from_mail_body(delivered_mail["body_text"])
+
+    parsed_link = urlparse(verification_link)
+    expect(parsed_link.scheme).equal("http")
+    expect(parsed_link.netloc).equal("localhost:5173")
+    expect(parsed_link.path).equal("/verify-email")
 
 
 @pytest.mark.asyncio

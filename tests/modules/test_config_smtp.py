@@ -69,6 +69,7 @@ def test_smtp_plaintext_rejected_in_production() -> None:
     with pytest.raises(ValidationError, match="not allowed in production"):
         Settings(
             ENV="production",
+            PUBLIC_BASE_URL="https://nano.example.com",
             SMTP_USE_TLS=False,
             SMTP_USE_STARTTLS=False,
         )
@@ -102,6 +103,7 @@ def test_smtp_production_rejects_development_defaults() -> None:
     with pytest.raises(ValidationError, match="production requires explicit SMTP_HOST"):
         Settings(
             ENV="production",
+            PUBLIC_BASE_URL="https://nano.example.com",
             SMTP_USE_TLS=False,
             SMTP_USE_STARTTLS=True,
         )
@@ -111,6 +113,7 @@ def test_smtp_production_accepts_explicit_values() -> None:
     """Production settings accept explicit SMTP credentials and sender values."""
     settings = Settings(
         ENV="production",
+        PUBLIC_BASE_URL="https://nano.example.com",
         SMTP_HOST="smtp.example.com",
         SMTP_PORT=587,
         SMTP_USERNAME="mailer",
