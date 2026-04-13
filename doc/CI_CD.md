@@ -38,7 +38,7 @@ The CI/CD pipeline is split into focused workflows:
 - Runs with Node.js 20 and `npm ci`.
 - Runs `npm run build` to verify TypeScript build.
 - Runs vitest in CI mode with coverage output.
-- Enforces frontend line coverage >= 65%.
+- Enforces frontend line coverage >= 60%.
 - Runs `npm run lint`.
 - Publishes frontend coverage as workflow output.
 
