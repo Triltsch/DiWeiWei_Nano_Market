@@ -1,6 +1,6 @@
 # Multi-stage build for FastAPI application
 # Stage 1: Builder
-FROM python:3.11-slim as builder
+FROM python:3.11-slim-bookworm AS builder
 
 WORKDIR /tmp
 
@@ -17,15 +17,16 @@ COPY app/ ./app/
 RUN pip install --user --no-cache-dir .
 
 # Stage 2: Runtime
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
-# Install runtime dependencies only
-RUN apt-get update && apt-get upgrade -y --no-install-recommends && apt-get install -y --no-install-recommends \
-    postgresql-client \
-    redis-tools \
+# Apply available security updates in the runtime image.
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
+
+# Upgrade packaging toolchain to include patched versions flagged by image scanning.
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Copy Python dependencies from builder
 COPY --from=builder /root/.local /root/.local

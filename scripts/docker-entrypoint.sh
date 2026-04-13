@@ -8,10 +8,38 @@ echo "🚀 Starting DiWeiWei Nano Market backend..."
 
 # Wait for PostgreSQL to be ready
 echo "⏳ Waiting for PostgreSQL..."
-until PGPASSWORD="${POSTGRES_PASSWORD:-diwei_password}" psql -h postgres -U "${POSTGRES_USER:-diwei_user}" -d "${POSTGRES_DB:-diwei_nano_market}" -c '\q' 2>/dev/null; do
-  echo "   PostgreSQL is unavailable - sleeping"
-  sleep 2
-done
+python <<'PY'
+import asyncio
+import os
+
+import asyncpg
+
+
+async def wait_for_postgres() -> None:
+  host = os.getenv("POSTGRES_HOST", "postgres")
+  user = os.getenv("POSTGRES_USER", "diwei_user")
+  password = os.getenv("POSTGRES_PASSWORD", "diwei_password")
+  database = os.getenv("POSTGRES_DB", "diwei_nano_market")
+
+  for _ in range(60):
+    try:
+      conn = await asyncpg.connect(
+        host=host,
+        user=user,
+        password=password,
+        database=database,
+      )
+      await conn.close()
+      return
+    except Exception:
+      print("   PostgreSQL is unavailable - sleeping", flush=True)
+      await asyncio.sleep(2)
+
+  raise SystemExit("PostgreSQL did not become available in time")
+
+
+asyncio.run(wait_for_postgres())
+PY
 
 echo "✅ PostgreSQL is up!"
 

@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from jose import jwt
+import jwt
 
 from app.config import get_settings
 from app.modules.auth.tokens import verify_token

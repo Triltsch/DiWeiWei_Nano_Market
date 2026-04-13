@@ -4,7 +4,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import InvalidTokenError
 from pydantic import BaseModel
 
 from app.config import get_settings
@@ -163,5 +164,5 @@ def verify_token(token: str, token_type: str = "access") -> Optional[TokenData]:
             iat=iat,
         )
 
-    except JWTError:
+    except InvalidTokenError:
         return None

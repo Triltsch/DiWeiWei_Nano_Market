@@ -11,8 +11,8 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
+import jwt
 import pytest
-from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings

@@ -15,8 +15,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import uuid4
 
+import jwt
 import pytest
-from jose import jwt
 
 import app.redis_client as redis_module
 from app.config import get_settings
@@ -539,9 +539,7 @@ class TestTokenClaims:
         token, _ = create_access_token(user_id, "test@example.com")
 
         # Decode header to check algorithm
-        from jose import jwt as jose_jwt
-
-        header = jose_jwt.get_unverified_header(token)
+        header = jwt.get_unverified_header(token)
 
         # Assert
         expect(header["alg"]).equal("HS256")
