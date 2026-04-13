@@ -54,7 +54,7 @@ jobs:
           tags: local/diweiwei-nano-market:scan
 
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@v0.30.0
         with:
           image-ref: local/diweiwei-nano-market:scan
           format: sarif
