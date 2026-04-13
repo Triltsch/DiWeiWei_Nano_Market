@@ -1,0 +1,58 @@
+name: Frontend Tests and Lint
+
+on:
+  workflow_call:
+    outputs:
+      coverage:
+        description: Frontend line coverage percentage
+        value: ${{ jobs.frontend-tests.outputs.coverage }}
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-tests:
+    name: Frontend build, test, and lint
+    runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.coverage-threshold.outputs.coverage }}
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Run frontend tests with coverage
+        run: |
+          npm run test -- --run --coverage.enabled=true --coverage.provider=v8 --coverage.reporter=text --coverage.reporter=json-summary
+
+      - name: Enforce frontend coverage threshold
+        id: coverage-threshold
+        run: |
+          node -e "const fs=require('fs'); const p='coverage/coverage-summary.json'; if(!fs.existsSync(p)){console.error('Missing coverage summary:', p); process.exit(1);} const data=JSON.parse(fs.readFileSync(p,'utf8')); const lines=data.total?.lines?.pct ?? 0; if(lines < 70){console.error('Frontend coverage below 70%:', lines); process.exit(1);} console.log('Frontend line coverage:', lines); fs.appendFileSync(process.env.GITHUB_OUTPUT, `coverage=${lines}\n`);"
+
+      - name: Run frontend lint
+        run: npm run lint
+
+      - name: Upload frontend coverage summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-summary
+          path: frontend/coverage/coverage-summary.json
+          if-no-files-found: error

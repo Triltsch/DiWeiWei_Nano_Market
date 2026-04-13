@@ -223,6 +223,7 @@ services:
       if [ ! -f /etc/nginx/ssl/server.crt ] || [ ! -f /etc/nginx/ssl/server.key ]; then
         openssl req -x509 -nodes -newkey rsa:4096 -keyout /etc/nginx/ssl/server.key -out /etc/nginx/ssl/server.crt -days 365 -subj '/C=DE/ST=BW/L=Stuttgart/O=DiWeiWei/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1';
       fi;
+      until nginx -t >/dev/null 2>&1; do echo 'Waiting for upstream DNS (app, frontend, grafana) to become available...'; sleep 2; done;
       nginx -g 'daemon off;'
       "
     ports:
