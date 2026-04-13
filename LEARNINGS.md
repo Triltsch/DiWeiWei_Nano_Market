@@ -107,6 +107,7 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 - Bei `docker-compose.yml`-`command: >` mit `/bin/sh -c` OpenSSL-Aufrufe als einzelne Kommandozeile (oder mit expliziten `\`-Fortsetzungen) schreiben; sonst können Flags wie `-keyout` als eigene Shell-Kommandos ausgeführt werden.
 - Nginx-Upstreams auf optionale Services (z. B. Grafana) nicht als statischen `upstream` beim Startup erzwingen: request-time DNS mit `resolver 127.0.0.11` + `proxy_pass http://$variable` verhindert `host not found`-Bootloops.
 - Service-URLs im Container: explizit setzen (kein `localhost`-Default).
+- Nach Docker-Image-Rebuilds mit geänderten Python-Abhängigkeiten den App-Container per `docker compose up -d --force-recreate app` neu erzeugen; ein bloßes `up -d` kann einen laufenden Container mit veraltetem Site-Packages-Stand stehen lassen.
 - Integrations-Tasks (`Test: Verified`): alle benötigten Services in Readiness-Checks (z. B. Mailpit + App/DB/Redis).
 - Runtime-Pfade (Root-Redirects, API-Bases) über Umgebungsvariablen steuern.
 - Services mit Host-Port-Mapping: zusätzlich nicht-internes Bridge-Netzwerk anbinden (nur `internal: true` – kein Host-Zugriff).

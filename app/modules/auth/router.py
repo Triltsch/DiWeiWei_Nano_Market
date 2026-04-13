@@ -124,10 +124,15 @@ def _get_user_agent(request: Request) -> str:
     return request.headers.get("user-agent", "")
 
 
+def _get_public_verification_base_url() -> str:
+    """Resolve the base URL used for verification links in auth emails."""
+    return settings.effective_verification_base_url
+
+
 def _build_verification_url(token: str, email: str) -> str:
     """Build the frontend verification URL embedded in auth emails."""
     query = urlencode({"token": token, "email": email})
-    return f"{settings.FRONTEND_URL.rstrip('/')}/verify-email?{query}"
+    return f"{_get_public_verification_base_url()}/verify-email?{query}"
 
 
 async def _send_verification_mail(

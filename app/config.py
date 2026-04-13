@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from typing import ClassVar, Optional
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, EmailStr, SecretStr, model_validator
 from pydantic_settings import BaseSettings
@@ -73,6 +74,8 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENV: str = "development"
     FRONTEND_URL: str = "http://localhost:5173"
+    PUBLIC_BASE_URL: Optional[str] = None
+    APP_BASE_URL: Optional[str] = None
 
     # Database settings
     DATABASE_URL: Optional[str] = None
@@ -164,11 +167,47 @@ class Settings(BaseSettings):
     UPLOAD_MAX_RETRIES: int = 3
     UPLOAD_TIMEOUT_SECONDS: int = 600
 
+    @property
+    def effective_verification_base_url(self) -> str:
+        """Return normalized base URL for verification links.
+
+        URL precedence is PUBLIC_BASE_URL -> APP_BASE_URL -> FRONTEND_URL.
+        """
+        for candidate in (self.PUBLIC_BASE_URL, self.APP_BASE_URL, self.FRONTEND_URL):
+            if candidate and candidate.strip():
+                return candidate.strip().rstrip("/")
+
+        raise ValueError(
+            "Invalid URL configuration: set PUBLIC_BASE_URL/APP_BASE_URL or FRONTEND_URL."
+        )
+
     @model_validator(mode="after")
-    def validate_smtp_transport_flags(self) -> "Settings":
-        """Apply environment defaults and validate SMTP transport settings."""
+    def validate_settings(self) -> "Settings":
+        """Apply environment defaults and validate settings after construction."""
         if self.AUTH_RESEND_RETURN_TOKEN is None:
             self.AUTH_RESEND_RETURN_TOKEN = self.ENV in {"development", "test"}
+
+        effective_public_base_url = self.effective_verification_base_url
+        if self.ENV not in {"development", "test"}:
+            parsed_url = urlparse(effective_public_base_url)
+            if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+                raise ValueError(
+                    "Invalid URL configuration: PUBLIC_BASE_URL/APP_BASE_URL/FRONTEND_URL "
+                    "must be an absolute http(s) URL in non-development environments."
+                )
+
+            hostname = (parsed_url.hostname or "").lower()
+            if not hostname:
+                raise ValueError(
+                    "Invalid URL configuration: PUBLIC_BASE_URL/APP_BASE_URL/FRONTEND_URL "
+                    "must include a valid hostname in non-development environments."
+                )
+
+            if hostname in {"localhost", "127.0.0.1", "::1"}:
+                raise ValueError(
+                    "Invalid URL configuration: localhost URLs are not allowed for "
+                    "verification links outside development/test."
+                )
 
         _ = self.smtp_settings
 
