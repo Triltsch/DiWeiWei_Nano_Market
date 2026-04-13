@@ -189,7 +189,84 @@ async def test_create_flag_forbidden_for_own_nano(async_client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_get_my_flag_returns_404_then_resource(async_client, db_session):
+async def test_create_flag_unauthenticated_returns_401(async_client, db_session):
+    """POST to flag endpoint without an auth token must return 401."""
+    # Use a random UUID — should be rejected before any DB lookup.
+    response = await async_client.post(
+        f"/api/v1/nanos/{uuid.uuid4()}/flags",
+        json={"reason": "spam"},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_my_flag_unauthenticated_returns_401(async_client, db_session):
+    """GET my-flag endpoint without an auth token must return 401."""
+    response = await async_client.get(
+        f"/api/v1/nanos/{uuid.uuid4()}/flags/my-flag",
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_create_flag_nonexistent_nano_returns_404(async_client, db_session):
+    """Flagging a nano that does not exist must return 404."""
+    reporter = await _create_user(
+        db_session,
+        email="flag-404-reporter@example.com",
+        username="flag_404_reporter",
+        role=UserRole.CONSUMER,
+    )
+    await db_session.commit()
+
+    token, _ = create_access_token(reporter.id, reporter.email, role=reporter.role.value)
+    response = await async_client.post(
+        f"/api/v1/nanos/{uuid.uuid4()}/flags",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"reason": "spam"},
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_flag_non_published_nano_returns_400(async_client, db_session):
+    """Flagging a Nano that is not published must return 400."""
+    creator = await _create_user(
+        db_session,
+        email="flag-draft-creator@example.com",
+        username="flag_draft_creator",
+        role=UserRole.CREATOR,
+    )
+    reporter = await _create_user(
+        db_session,
+        email="flag-draft-reporter@example.com",
+        username="flag_draft_reporter",
+        role=UserRole.CONSUMER,
+    )
+
+    # Create a nano in DRAFT status — flagging should be rejected.
+    nano = Nano(
+        id=uuid.uuid4(),
+        creator_id=creator.id,
+        title="Draft Nano",
+        duration_minutes=10,
+        competency_level=CompetencyLevel.BASIC,
+        language="en",
+        format=NanoFormat.TEXT,
+        status=NanoStatus.DRAFT,
+        version="1.0.0",
+        license=LicenseType.CC_BY,
+    )
+    db_session.add(nano)
+    await db_session.commit()
+
+    token, _ = create_access_token(reporter.id, reporter.email, role=reporter.role.value)
+    response = await async_client.post(
+        f"/api/v1/nanos/{nano.id}/flags",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"reason": "spam"},
+    )
+    assert response.status_code == 400
     """My-flag endpoint returns 404 before creation and returns the flag afterwards."""
     creator = await _create_user(
         db_session,

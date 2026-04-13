@@ -909,9 +909,7 @@ class NanoFlag(Base):
         UniqueConstraint("nano_id", "flagging_user_id", name="uq_nano_flags_nano_user"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nano_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("nanos.id", ondelete="CASCADE"),

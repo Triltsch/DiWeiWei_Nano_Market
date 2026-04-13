@@ -573,7 +573,6 @@ async def _apply_decision_to_content(
             db=db, case=case, decided_by=decided_by, decision=decision, now=now
         )
 
-    # ModerationContentType.FLAG — reserved for Story 6.3; no action yet.
     return False
 
 
@@ -728,8 +727,7 @@ async def _apply_flag_decision(
         flag.status = FlagStatus.RESOLVED
     elif decision == "reject":
         flag.status = FlagStatus.CLOSED
-    else:
-        flag.status = FlagStatus.REVIEWED
+    # defer / escalate: leave flag.status as PENDING; no terminal decision reached.
 
     flag.reviewed_at = now
     flag.moderator_id = decided_by.user_id

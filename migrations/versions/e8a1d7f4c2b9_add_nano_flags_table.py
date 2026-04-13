@@ -27,18 +27,18 @@ def upgrade() -> None:
     op.execute("ALTER TYPE auditaction ADD VALUE IF NOT EXISTS 'FLAG_REVIEWED'")
 
     flag_reason = sa.Enum(
-        "SPAM",
-        "COPYRIGHT",
-        "OFFENSIVE",
-        "MISINFORMATION",
-        "OTHER",
+        "spam",
+        "copyright",
+        "offensive",
+        "misinformation",
+        "other",
         name=_ENUM_FLAG_REASON,
     )
     flag_status = sa.Enum(
-        "PENDING",
-        "REVIEWED",
-        "RESOLVED",
-        "CLOSED",
+        "pending",
+        "reviewed",
+        "resolved",
+        "closed",
         name=_ENUM_FLAG_STATUS,
     )
     flag_reason.create(op.get_bind(), checkfirst=True)
@@ -48,34 +48,41 @@ def upgrade() -> None:
         "nano_flags",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("nano_id", sa.UUID(), nullable=False, comment="Flagged Nano"),
-        sa.Column("flagging_user_id", sa.UUID(), nullable=False, comment="User who submitted this flag"),
+        sa.Column(
+            "flagging_user_id", sa.UUID(), nullable=False, comment="User who submitted this flag"
+        ),
         sa.Column(
             "reason",
             sa.Enum(
-                "SPAM",
-                "COPYRIGHT",
-                "OFFENSIVE",
-                "MISINFORMATION",
-                "OTHER",
+                "spam",
+                "copyright",
+                "offensive",
+                "misinformation",
+                "other",
                 name=_ENUM_FLAG_REASON,
                 create_type=False,
             ),
             nullable=False,
             comment="Selected report reason",
         ),
-        sa.Column("comment", sa.String(length=500), nullable=True, comment="Optional user comment (max 500 chars)"),
+        sa.Column(
+            "comment",
+            sa.String(length=500),
+            nullable=True,
+            comment="Optional user comment (max 500 chars)",
+        ),
         sa.Column(
             "status",
             sa.Enum(
-                "PENDING",
-                "REVIEWED",
-                "RESOLVED",
-                "CLOSED",
+                "pending",
+                "reviewed",
+                "resolved",
+                "closed",
                 name=_ENUM_FLAG_STATUS,
                 create_type=False,
             ),
             nullable=False,
-            server_default=sa.text("'PENDING'"),
+            server_default=sa.text("'pending'"),
             comment="Current status of the flag workflow",
         ),
         sa.Column(
@@ -104,14 +111,15 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["moderator_id"], ["users.id"], ondelete="SET NULL"),
     )
 
-    op.create_index(op.f("ix_nano_flags_id"), "nano_flags", ["id"], unique=False)
     op.create_index(op.f("ix_nano_flags_nano_id"), "nano_flags", ["nano_id"], unique=False)
     op.create_index(
         op.f("ix_nano_flags_flagging_user_id"), "nano_flags", ["flagging_user_id"], unique=False
     )
     op.create_index(op.f("ix_nano_flags_status"), "nano_flags", ["status"], unique=False)
     op.create_index(op.f("ix_nano_flags_created_at"), "nano_flags", ["created_at"], unique=False)
-    op.create_index(op.f("ix_nano_flags_moderator_id"), "nano_flags", ["moderator_id"], unique=False)
+    op.create_index(
+        op.f("ix_nano_flags_moderator_id"), "nano_flags", ["moderator_id"], unique=False
+    )
 
 
 def downgrade() -> None:
@@ -125,7 +133,6 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_nano_flags_status"), table_name="nano_flags")
     op.drop_index(op.f("ix_nano_flags_flagging_user_id"), table_name="nano_flags")
     op.drop_index(op.f("ix_nano_flags_nano_id"), table_name="nano_flags")
-    op.drop_index(op.f("ix_nano_flags_id"), table_name="nano_flags")
     op.drop_table("nano_flags")
 
     sa.Enum(name=_ENUM_FLAG_STATUS).drop(op.get_bind(), checkfirst=True)
