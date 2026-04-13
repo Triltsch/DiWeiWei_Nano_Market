@@ -11,6 +11,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.models import FlagReason, FlagStatus
+
 
 class MetadataUpdateRequest(BaseModel):
     """
@@ -291,6 +293,42 @@ class NanoCommentUpsertRequest(BaseModel):
         if not value.strip():
             raise ValueError("content must not be empty")
         return value
+
+
+class NanoFlagCreateRequest(BaseModel):
+    """Request payload for creating a user report (flag) on a Nano."""
+
+    reason: FlagReason = Field(..., description="Reason code for the report")
+    comment: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Optional additional context (max 500 chars)",
+    )
+
+    @field_validator("comment")
+    @classmethod
+    def validate_comment(cls, value: Optional[str]) -> Optional[str]:
+        """Normalize empty comments to None and trim surrounding whitespace."""
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        return normalized
+
+
+class NanoFlagResponse(BaseModel):
+    """Response payload for Nano flag resources."""
+
+    id: UUID = Field(..., description="Unique identifier of the flag")
+    nano_id: UUID = Field(..., description="Flagged Nano identifier")
+    flagging_user_id: UUID = Field(..., description="User who submitted the flag")
+    reason: FlagReason = Field(..., description="Selected report reason")
+    comment: Optional[str] = Field(None, description="Optional user comment")
+    status: FlagStatus = Field(..., description="Flag workflow status")
+    created_at: datetime = Field(..., description="Submission timestamp")
+    reviewed_at: Optional[datetime] = Field(None, description="Review timestamp, if reviewed")
+    moderator_id: Optional[UUID] = Field(None, description="Reviewer user ID")
 
 
 class NanoCommentItem(BaseModel):

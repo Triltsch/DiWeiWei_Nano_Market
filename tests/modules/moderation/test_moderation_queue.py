@@ -22,12 +22,15 @@ from app.models import (
     AuditLog,
     CompetencyLevel,
     FeedbackModerationStatus,
+    FlagReason,
+    FlagStatus,
     LicenseType,
     ModerationCase,
     ModerationCaseStatus,
     ModerationContentType,
     Nano,
     NanoComment,
+    NanoFlag,
     NanoFormat,
     NanoRating,
     NanoStatus,
@@ -588,6 +591,74 @@ async def test_review_escalate_sets_case_note_without_changing_comment(
     assert comment.moderation_status == FeedbackModerationStatus.PENDING
     assert case.status == ModerationCaseStatus.ESCALATED
     assert case.escalation_note == "Needs legal review."
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("decision", "expected_flag_status", "expected_case_status"),
+    [
+        ("approve", FlagStatus.RESOLVED, ModerationCaseStatus.APPROVED),
+        ("reject", FlagStatus.CLOSED, ModerationCaseStatus.REJECTED),
+        ("defer", FlagStatus.REVIEWED, ModerationCaseStatus.DEFERRED),
+        ("escalate", FlagStatus.REVIEWED, ModerationCaseStatus.ESCALATED),
+    ],
+)
+async def test_review_flag_updates_flag_lifecycle_fields(
+    async_client,
+    db_session,
+    creator_user,
+    moderator_user,
+    moderator_token,
+    decision,
+    expected_flag_status,
+    expected_case_status,
+):
+    """FLAG decisions should update NanoFlag status and reviewer metadata."""
+    nano = _make_nano(
+        creator_id=creator_user.id,
+        status=NanoStatus.PUBLISHED,
+        title=f"Flag Moderation Nano {decision}",
+    )
+    db_session.add(nano)
+    await db_session.flush()
+
+    flag = NanoFlag(
+        id=uuid.uuid4(),
+        nano_id=nano.id,
+        flagging_user_id=creator_user.id,
+        reason=FlagReason.SPAM,
+        comment="Needs review",
+        status=FlagStatus.PENDING,
+    )
+    db_session.add(flag)
+    await db_session.flush()
+
+    case = ModerationCase(
+        content_type=ModerationContentType.FLAG,
+        content_id=flag.id,
+        status=ModerationCaseStatus.PENDING,
+    )
+    db_session.add(case)
+    await db_session.commit()
+
+    payload = {"decision": decision, "reason": f"Decision {decision}"}
+    if decision == "defer":
+        payload["deferred_until"] = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+
+    review = await async_client.post(
+        f"/api/v1/moderation/cases/{case.id}/review",
+        json=payload,
+        headers={"Authorization": f"Bearer {moderator_token}"},
+    )
+    assert review.status_code == 200
+
+    await db_session.refresh(flag)
+    await db_session.refresh(case)
+
+    assert flag.status == expected_flag_status
+    assert flag.reviewed_at is not None
+    assert flag.moderator_id == moderator_user.id
+    assert case.status == expected_case_status
 
 
 @pytest.mark.asyncio

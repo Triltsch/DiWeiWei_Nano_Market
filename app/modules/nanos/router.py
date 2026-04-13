@@ -39,6 +39,8 @@ from app.modules.nanos.schemas import (
     NanoDeleteResponse,
     NanoDetailResponse,
     NanoDownloadInfoResponse,
+    NanoFlagCreateRequest,
+    NanoFlagResponse,
     NanoMetadataResponse,
     NanoRatingModerationResponse,
     NanoRatingMutationResponse,
@@ -50,9 +52,11 @@ from app.modules.nanos.schemas import (
 from app.modules.nanos.service import (
     admin_takedown_nano,
     create_nano_comment,
+    create_nano_flag,
     create_nano_rating,
     delete_nano,
     get_creator_nanos,
+    get_my_nano_flag,
     get_nano_comments,
     get_nano_detail,
     get_nano_download_info,
@@ -498,6 +502,66 @@ def get_nanos_router(prefix: str = "/api/v1/nanos", tags: list[str] | None = Non
     ) -> NanoCommentListResponse:
         """List comments for a published Nano with deterministic pagination."""
         return await get_nano_comments(nano_id=nano_id, db=db, page=page, limit=limit)
+
+    @router.post(
+        "/{nano_id}/flags",
+        response_model=NanoFlagResponse,
+        status_code=status.HTTP_201_CREATED,
+        summary="Create a Nano flag/report",
+        description="""
+        Submit a user report (flag) for a published Nano.
+
+        **Rules:**
+        - Authentication required
+        - Creator cannot flag their own Nano
+        - One flag per user per Nano
+
+        **Error Cases:**
+        - 400: Nano is not published
+        - 401: Not authenticated
+        - 403: Creator attempted to flag own Nano
+        - 404: Nano not found
+        - 409: User already flagged this Nano
+        """,
+    )
+    async def create_nano_flag_endpoint(
+        nano_id: UUID,
+        payload: NanoFlagCreateRequest,
+        current_user: Annotated[TokenData, Depends(get_current_user)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> NanoFlagResponse:
+        """Create a new user flag for one Nano."""
+        return await create_nano_flag(
+            nano_id=nano_id,
+            payload=payload,
+            current_user=current_user,
+            db=db,
+        )
+
+    @router.get(
+        "/{nano_id}/flags/my-flag",
+        response_model=NanoFlagResponse,
+        status_code=status.HTTP_200_OK,
+        summary="Get my flag for a Nano",
+        description="""
+        Retrieve the authenticated user's existing flag for one Nano.
+
+        **Error Cases:**
+        - 401: Not authenticated
+        - 404: Nano not found or user has not flagged this Nano
+        """,
+    )
+    async def get_my_nano_flag_endpoint(
+        nano_id: UUID,
+        current_user: Annotated[TokenData, Depends(get_current_user)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> NanoFlagResponse:
+        """Return the caller's flag resource for this Nano."""
+        return await get_my_nano_flag(
+            nano_id=nano_id,
+            current_user=current_user,
+            db=db,
+        )
 
     @router.post(
         "/{nano_id}/comments",

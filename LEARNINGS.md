@@ -45,6 +45,7 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 - Öffentliche APIs nur freigegebene Inhalte zeigen; Moderations-/Pending-Reads separieren.
 - Nach Content-Updates Moderationsstatus auf `pending` zurücksetzen, Metadaten bereinigen.
 - Admin-Takedown: Dedizierte Endpoint-Semantik, idempotente Wiederholung, strukturierte Audit-Metadaten, explizite Cache-Invalidierung.
+- User-Flagging robust über drei Ebenen absichern: Service-Guard (Self-Flag 403), DB-Unique-Constraint (`nano_id`,`flagging_user_id`) + `IntegrityError`→409, und sofortige `ModerationCase`-Verknüpfung mit `reporter_id`.
 
 ### Validierung & Sicherheit
 - Query-/Enum-Parameter serverseitig validieren; ungültige Werte → sauber 4xx.
