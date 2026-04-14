@@ -54,6 +54,7 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 - CORS: Credentials nur mit expliziten Origins (nie `*`).
 - Infrastrukturfehler am API-Rand gezielt auf stabile HTTP-Fehler mappen.
 - In FastAPI `HTTP_422_UNPROCESSABLE_CONTENT` statt `HTTP_422_UNPROCESSABLE_ENTITY` (vermeidet DeprecationWarnings).
+- Für Base-URL-Normalisierung ist `urlparse()` allein bei schema-losen `host:port`-Werten unzuverlässig (`host` wird als `scheme` interpretiert); robustes Schema-Detection über `://` (plus Empty-Check nach `rstrip('/')`) verhindert fehlerhafte Verifikationslinks.
 
 ### Data Integrity & Error Handling
 - DB-Constraints + Service-Guards kombinieren (z. B. `UNIQUE` + 409-Precheck + `IntegrityError`-Handling).
