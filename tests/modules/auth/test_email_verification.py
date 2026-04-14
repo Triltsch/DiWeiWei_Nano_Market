@@ -397,7 +397,10 @@ async def test_resend_verification_email_uses_public_base_url_when_configured(
     expect(parsed_link.path).equal("/verify-email")
     query = parse_qs(parsed_link.query)
     expect(query.get("email")).is_none()
-    expect(query.get("token", [""])[0]).is_not_none()
+    token_values = query.get("token")
+    expect(token_values).is_not_none()
+    assert token_values is not None
+    expect(token_values[0]).is_not_equal("")
 
 
 @pytest.mark.asyncio
@@ -576,7 +579,10 @@ async def test_resend_verification_email_uses_app_base_url_when_public_base_url_
     expect(parsed_link.path).equal("/verify-email")
     query = parse_qs(parsed_link.query)
     expect(query.get("email")).is_none()
-    expect(query.get("token", [""])[0]).is_not_none()
+    token_values = query.get("token")
+    expect(token_values).is_not_none()
+    assert token_values is not None
+    expect(token_values[0]).is_not_equal("")
 
 
 @pytest.mark.asyncio
