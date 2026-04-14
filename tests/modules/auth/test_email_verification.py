@@ -471,6 +471,40 @@ async def test_resend_verification_email_falls_back_to_frontend_url_in_developme
 
 
 @pytest.mark.asyncio
+async def test_resend_verification_email_normalizes_host_only_public_base_url_in_development(
+    async_client,
+    db_session: AsyncSession,
+    verified_user: User,
+    sent_auth_emails,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Development flow should normalize PUBLIC_BASE_URL without schema to http://..."""
+    verified_user.email_verified = False
+    verified_user.verified_at = None
+    db_session.add(verified_user)
+    await db_session.commit()
+
+    monkeypatch.setattr("app.modules.auth.router.settings.AUTH_RESEND_RETURN_TOKEN", False)
+    monkeypatch.setattr("app.modules.auth.router.settings.ENV", "development")
+    monkeypatch.setattr("app.modules.auth.router.settings.PUBLIC_BASE_URL", "141.41.42.209")
+    monkeypatch.setattr("app.modules.auth.router.settings.APP_BASE_URL", None)
+    monkeypatch.setattr("app.modules.auth.router.settings.FRONTEND_URL", "http://localhost:5173")
+
+    response = await async_client.post(
+        "/api/v1/auth/resend-verification-email", json={"email": verified_user.email}
+    )
+
+    expect(response.status_code).equal(200)
+    delivered_mail = sent_auth_emails[-1]
+    verification_link = _extract_verification_link_from_mail_body(delivered_mail["body_text"])
+
+    parsed_link = urlparse(verification_link)
+    expect(parsed_link.scheme).equal("http")
+    expect(parsed_link.netloc).equal("141.41.42.209")
+    expect(parsed_link.path).equal("/verify-email")
+
+
+@pytest.mark.asyncio
 async def test_resend_verification_email_uses_app_base_url_when_public_base_url_unset(
     async_client,
     db_session: AsyncSession,

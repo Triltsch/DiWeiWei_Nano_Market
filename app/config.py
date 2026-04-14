@@ -175,7 +175,15 @@ class Settings(BaseSettings):
         """
         for candidate in (self.PUBLIC_BASE_URL, self.APP_BASE_URL, self.FRONTEND_URL):
             if candidate and candidate.strip():
-                return candidate.strip().rstrip("/")
+                normalized = candidate.strip().rstrip("/")
+                parsed = urlparse(normalized)
+
+                # In development/test we accept host-only URLs (e.g. 141.41.42.209)
+                # and normalize them to absolute URLs for stable mail links.
+                if not parsed.scheme and self.ENV in {"development", "test"}:
+                    normalized = f"http://{normalized.lstrip('/')}"
+
+                return normalized
 
         raise ValueError(
             "Invalid URL configuration: set PUBLIC_BASE_URL/APP_BASE_URL or FRONTEND_URL."
