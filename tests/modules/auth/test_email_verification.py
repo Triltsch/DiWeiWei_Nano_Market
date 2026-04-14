@@ -396,7 +396,7 @@ async def test_resend_verification_email_uses_public_base_url_when_configured(
     expect(parsed_link.netloc).equal("nano.example.com")
     expect(parsed_link.path).equal("/verify-email")
     query = parse_qs(parsed_link.query)
-    expect(query.get("email", [""])[0]).equal(verified_user.email)
+    expect(query.get("email")).is_none()
     expect(query.get("token", [""])[0]).is_not_none()
 
 
@@ -575,7 +575,7 @@ async def test_resend_verification_email_uses_app_base_url_when_public_base_url_
     expect(parsed_link.netloc).equal("staging.nano.example.com")
     expect(parsed_link.path).equal("/verify-email")
     query = parse_qs(parsed_link.query)
-    expect(query.get("email", [""])[0]).equal(verified_user.email)
+    expect(query.get("email")).is_none()
     expect(query.get("token", [""])[0]).is_not_none()
 
 

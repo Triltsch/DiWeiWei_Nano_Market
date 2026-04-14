@@ -129,9 +129,9 @@ def _get_public_verification_base_url() -> str:
     return settings.effective_verification_base_url
 
 
-def _build_verification_url(token: str, email: str) -> str:
+def _build_verification_url(token: str) -> str:
     """Build the frontend verification URL embedded in auth emails."""
-    query = urlencode({"token": token, "email": email})
+    query = urlencode({"token": token})
     return f"{_get_public_verification_base_url()}/verify-email?{query}"
 
 
@@ -145,7 +145,7 @@ async def _send_verification_mail(
 ) -> None:
     """Render and send a verification mail with stable SMTP error mapping."""
     correlation_id = str(uuid4())
-    payload = template_builder(username, _build_verification_url(token, email))
+    payload = template_builder(username, _build_verification_url(token))
 
     set_mail_context(payload.message_type, correlation_id)
 
