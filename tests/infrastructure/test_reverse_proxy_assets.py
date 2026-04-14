@@ -57,6 +57,19 @@ def test_nginx_default_conf_contains_required_security_controls() -> None:
         assert fragment in content
 
 
+def test_nginx_default_conf_scopes_relaxed_csp_to_frontend_dev_routes() -> None:
+    """Vite dev HTML and HMR asset routes keep scoped inline CSP allowances."""
+    content = (_repo_root() / "docker" / "nginx" / "default.conf").read_text(encoding="utf-8")
+
+    relaxed_csp = (
+        "add_header Content-Security-Policy \"default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'\" always;"
+    )
+
+    assert "location ~ ^/(@vite|@react-refresh|__vite_ping|src/|node_modules/) {" in content
+    assert content.count(relaxed_csp) >= 2
+
+
 def test_ssl_script_and_compose_proxy_service_are_present() -> None:
     """Compose includes reverse proxy service and script path is stable."""
     root = _repo_root()

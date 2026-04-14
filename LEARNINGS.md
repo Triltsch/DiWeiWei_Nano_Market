@@ -168,6 +168,8 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 ## Frontend hinter Reverse Proxy
 
 - Vite-Dev über HTTPS-Reverse-Proxy braucht CSP-Ausnahmen für Inline-Assets in Dev (`script-src 'unsafe-inline'` und `style-src 'unsafe-inline'`), aber nur auf Vite/HMR-Asset-Routen (nicht global), um XSS-Schutz auf normalen Seiten strikt zu halten.
+- Vite injectet inline React Refresh Preamble in SPA HTML (nicht nur in Asset-Responses). CSP-Ausnahmen müssen daher auf **beide** scoped werden: (1) Vite HMR Asset-Routes (`/@vite`, `/@react-refresh`, ...) und (2) Frontend-Document-Route (`/`, SPA-Entry). Runtime-Verifikation (HTTP-Header einer echten Page-Request) ist kritisch, da statische Config-Inspektion Vite-Injection nicht zeigt.
+- CSP-Regression-Tests müssen Scoping validieren (z. B. "relaxed CSP appears exactly 2x"), nicht nur Präsenz. Verhindert versehentliche Globalisierung von `unsafe-inline`.
 
 ## QA-Gates & E2E Tests
 
