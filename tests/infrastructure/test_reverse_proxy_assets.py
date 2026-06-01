@@ -5,6 +5,7 @@ Scope:
 - Ensure SSL generation script and compose integration stay present.
 """
 
+import re
 from pathlib import Path
 
 
@@ -55,6 +56,31 @@ def test_nginx_default_conf_contains_required_security_controls() -> None:
 
     for fragment in required_fragments:
         assert fragment in content
+
+
+def test_nginx_default_conf_scopes_relaxed_csp_to_frontend_dev_routes() -> None:
+    """Vite dev HTML and HMR asset routes keep scoped inline CSP allowances."""
+    content = (_repo_root() / "docker" / "nginx" / "default.conf").read_text(encoding="utf-8")
+
+    relaxed_csp = (
+        "add_header Content-Security-Policy \"default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'\" always;"
+    )
+
+    assert "location ~ ^/(@vite|@react-refresh|__vite_ping|src/|node_modules/) {" in content
+    # The relaxed CSP is intentionally scoped to exactly two frontend
+    # development locations: Vite/HMR assets and SPA document routes.
+    assert content.count(relaxed_csp) == 2
+
+    # Guard against regressions: API location blocks must not allow inline
+    # scripts/styles.
+    api_location_blocks = re.findall(
+        r"location\s+(?:~\s+\^/api[^\n{]*|/api[^\n{]*)\s*\{[^}]*\}",
+        content,
+        flags=re.MULTILINE,
+    )
+    assert api_location_blocks
+    assert all("'unsafe-inline'" not in block for block in api_location_blocks)
 
 
 def test_ssl_script_and_compose_proxy_service_are_present() -> None:
