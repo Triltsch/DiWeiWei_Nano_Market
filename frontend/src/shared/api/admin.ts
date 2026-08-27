@@ -4,7 +4,7 @@ import { httpClient } from "./httpClient";
 import type { AuthRole } from "./types";
 
 export type AdminUserStatus = "active" | "inactive" | "suspended" | "deleted";
-export type ModerationContentType = "nano" | "nano_rating" | "nano_comment";
+export type ModerationContentType = "nano" | "nano_rating" | "nano_comment" | "flag";
 export type ModerationCaseStatus = "pending" | "approved" | "rejected" | "deferred" | "escalated";
 export type ModerationDecision = "approve" | "reject" | "defer" | "escalate";
 
@@ -81,10 +81,21 @@ interface RawCommentContentDetail {
   created_at: string | null;
 }
 
+interface RawFlagContentDetail {
+  nano_id: string;
+  nano_title?: string | null;
+  reason: string;
+  comment: string | null;
+  flag_status: string;
+  flagged_by_username: string | null;
+  created_at: string | null;
+}
+
 type RawModerationContentDetail =
   | RawNanoContentDetail
   | RawRatingContentDetail
-  | RawCommentContentDetail;
+  | RawCommentContentDetail
+  | RawFlagContentDetail;
 
 interface RawModerationCaseItem {
   case_id: string;
@@ -205,7 +216,21 @@ export interface CommentContentDetail {
   createdAt: string | null;
 }
 
-export type ModerationContentDetail = NanoContentDetail | RatingContentDetail | CommentContentDetail;
+export interface FlagContentDetail {
+  nanoId: string;
+  nanoTitle: string | null;
+  reason: string;
+  comment: string | null;
+  flagStatus: string;
+  flaggedByUsername: string | null;
+  createdAt: string | null;
+}
+
+export type ModerationContentDetail =
+  | NanoContentDetail
+  | RatingContentDetail
+  | CommentContentDetail
+  | FlagContentDetail;
 
 export interface ModerationCaseItem {
   caseId: string;
@@ -337,6 +362,19 @@ function mapModerationContentDetail(
       authorUsername: ratingDetail.author_username,
       moderationStatus: ratingDetail.moderation_status,
       createdAt: ratingDetail.created_at,
+    };
+  }
+
+  if (contentType === "flag") {
+    const flagDetail = detail as RawFlagContentDetail;
+    return {
+      nanoId: flagDetail.nano_id,
+      nanoTitle: flagDetail.nano_title ?? null,
+      reason: flagDetail.reason,
+      comment: flagDetail.comment,
+      flagStatus: flagDetail.flag_status,
+      flaggedByUsername: flagDetail.flagged_by_username,
+      createdAt: flagDetail.created_at,
     };
   }
 

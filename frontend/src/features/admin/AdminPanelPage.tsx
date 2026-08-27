@@ -18,6 +18,14 @@ import {
 } from "../../shared/api";
 import type { AuthRole } from "../../shared/api/types";
 import { useTranslation } from "../../shared/i18n";
+import {
+  getContentTypeLabel,
+  getFlagCaseFields,
+  getModerationActorPrefix,
+  getModerationMeta,
+  getModerationNanoId,
+  getModerationSummary,
+} from "../../shared/moderationCaseView";
 
 const USER_PAGE_SIZE = 10;
 const AUDIT_PAGE_SIZE = 10;
@@ -86,19 +94,6 @@ function getUserStatusLabel(status: AdminUserStatus, t: ReturnType<typeof useTra
   return t("admin_user_status_active");
 }
 
-function getContentTypeLabel(
-  value: ModerationContentType,
-  t: ReturnType<typeof useTranslation>["t"],
-): string {
-  if (value === "nano_rating") {
-    return t("admin_moderation_content_type_rating");
-  }
-  if (value === "nano_comment") {
-    return t("admin_moderation_content_type_comment");
-  }
-  return t("admin_moderation_content_type_nano");
-}
-
 function getCaseStatusLabel(
   value: ModerationCaseStatus,
   t: ReturnType<typeof useTranslation>["t"],
@@ -116,44 +111,6 @@ function getCaseStatusLabel(
     return t("admin_moderation_status_escalated");
   }
   return t("admin_moderation_status_pending");
-}
-
-function getModerationNanoId(item: ModerationCaseItem): string | null {
-  if (item.contentType === "nano") {
-    return item.contentId;
-  }
-  if (item.contentDetail && "nanoId" in item.contentDetail) {
-    return item.contentDetail.nanoId;
-  }
-  return null;
-}
-
-function getModerationSummary(item: ModerationCaseItem, t: ReturnType<typeof useTranslation>["t"]): string {
-  if (!item.contentDetail) {
-    return t("admin_moderation_missing_content");
-  }
-
-  if (item.contentType === "nano") {
-    return item.contentDetail.title;
-  }
-
-  if (item.contentType === "nano_rating") {
-    return `${item.contentDetail.score}/5`;
-  }
-
-  return item.contentDetail.content;
-}
-
-function getModerationMeta(item: ModerationCaseItem, t: ReturnType<typeof useTranslation>["t"]): string {
-  if (!item.contentDetail) {
-    return t("admin_moderation_missing_content");
-  }
-
-  if (item.contentType === "nano") {
-    return item.contentDetail.creatorUsername ?? t("search_creator_fallback");
-  }
-
-  return item.contentDetail.authorUsername ?? t("search_creator_fallback");
 }
 
 function getInitialDrafts(items: ModerationCaseItem[]): Record<string, ModerationDraft> {
@@ -808,6 +765,7 @@ export function AdminPanelPage(): JSX.Element {
                 <option value="nano">{t("admin_moderation_content_type_nano")}</option>
                 <option value="nano_rating">{t("admin_moderation_content_type_rating")}</option>
                 <option value="nano_comment">{t("admin_moderation_content_type_comment")}</option>
+                <option value="flag">{t("admin_moderation_content_type_flag")}</option>
               </select>
             </label>
             <label className="space-y-1 text-sm text-neutral-700">
@@ -857,6 +815,7 @@ export function AdminPanelPage(): JSX.Element {
               const draft = moderationDrafts[item.caseId] ?? { reason: "", deferredUntil: "" };
               const isReviewPending = moderationPending[item.caseId] === true;
               const isTakedownPending = takedownPending[item.caseId] === true;
+              const flagFields = getFlagCaseFields(item, t);
 
               return (
                 <article key={item.caseId} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
@@ -874,8 +833,26 @@ export function AdminPanelPage(): JSX.Element {
                         {getModerationSummary(item, t)}
                       </h3>
                       <p className="text-sm text-neutral-600">
-                        {t("admin_moderation_author_prefix")} {getModerationMeta(item, t)}
+                        {getModerationActorPrefix(item, t)} {getModerationMeta(item, t)}
                       </p>
+                      {flagFields && (
+                        <>
+                          <p className="text-sm text-neutral-600">
+                            {t("admin_moderation_flag_reason_prefix")} {flagFields.reasonLabel}
+                          </p>
+                          {flagFields.comment && (
+                            <p className="text-sm text-neutral-600">
+                              {t("admin_moderation_flag_comment_prefix")} {flagFields.comment}
+                            </p>
+                          )}
+                          <a
+                            href={`/nano/${flagFields.nanoId}`}
+                            className="inline-flex text-sm font-medium text-primary-700 hover:text-primary-800"
+                          >
+                            {t("admin_moderation_open_nano")}
+                          </a>
+                        </>
+                      )}
                       <p className="text-sm text-neutral-500">
                         {t("admin_moderation_created_prefix")} {formatDateTime(item.createdAt, locale)}
                       </p>

@@ -171,4 +171,52 @@ describe("ModeratorQueuePage", () => {
 
     expect(screen.queryByRole("button", { name: "Takedown auslösen" })).toBeNull();
   });
+
+  it("shows reported nano, reporter and reason for flag cases", async () => {
+    mockedGetAdminModerationQueue.mockResolvedValue({
+      ...baseModerationResponse,
+      items: [
+        {
+          caseId: "flag-case-1",
+          contentType: "flag",
+          contentId: "flag-1",
+          reporterId: "reporter-1",
+          status: "pending",
+          reason: null,
+          decidedByUserId: null,
+          decidedAt: null,
+          deferredUntil: null,
+          escalationNote: null,
+          createdAt: "2026-08-27T14:02:00Z",
+          updatedAt: "2026-08-27T14:02:00Z",
+          contentDetail: {
+            nanoId: "nano-42",
+            nanoTitle: "React Basics",
+            reason: "spam",
+            comment: "Looks like ads.",
+            flagStatus: "pending",
+            flaggedByUsername: "flag_reporter",
+            createdAt: "2026-08-27T14:02:00Z",
+          },
+        },
+      ],
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("React Basics")).toBeTruthy();
+    });
+
+    expect(screen.getAllByText("Meldung").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Gemeldet von:/)).toBeTruthy();
+    expect(screen.getByText(/flag_reporter/)).toBeTruthy();
+    expect(screen.getByText(/Meldegrund:/)).toBeTruthy();
+    expect(screen.getByText(/SPAM/)).toBeTruthy();
+    expect(screen.getByText(/Looks like ads/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Gemeldete Nano öffnen" })).toHaveAttribute(
+      "href",
+      "/nano/nano-42",
+    );
+  });
 });

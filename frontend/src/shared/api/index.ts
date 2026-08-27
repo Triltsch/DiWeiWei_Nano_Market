@@ -42,6 +42,13 @@ export { approveNano, getModerationQueue, rejectNano } from "./moderator";
 export { publishNano, updateNanoMetadata, uploadNanoZip } from "./upload";
 export { getNanoDetail, getNanoDownloadInfo, NanoDetailApiError } from "./nanoDetail";
 export {
+  createNanoFlag,
+  getMyNanoFlag,
+  NanoFlagApiError,
+  NANO_FLAG_COMMENT_MAX_LENGTH,
+  NANO_FLAG_REASONS,
+} from "./nanoFlags";
+export {
   createNanoComment,
   createNanoRating,
   getNanoComments,
@@ -75,6 +82,7 @@ export type {
   GetAdminModerationQueueParams,
   GetAdminUsersParams,
   GetAuditLogsParams,
+  FlagContentDetail,
   ModerationCaseItem,
   ModerationCaseStatus,
   ModerationContentType,
@@ -104,6 +112,7 @@ export type {
 } from "./moderator";
 export type { UpdateNanoMetadataRequest, UploadNanoResponse } from "./upload";
 export type { NanoDetail, NanoDownloadInfo } from "./nanoDetail";
+export type { CreateNanoFlagRequest, NanoFlag, NanoFlagReason } from "./nanoFlags";
 export type {
   NanoComment,
   NanoCommentMutationResponse,

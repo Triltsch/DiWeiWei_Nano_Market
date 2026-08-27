@@ -64,7 +64,7 @@ def get_moderation_router(
         **Access control:** ``moderator`` or ``admin`` role required.
 
         **Query Parameters:**
-        - ``content_type``: Filter by content type (``nano``, ``nano_rating``, ``nano_comment``).
+        - ``content_type``: Filter by content type (``nano``, ``nano_rating``, ``nano_comment``, ``flag``).
           Returns all types when omitted.
         - ``status``: Filter by case status (default: ``pending``).  Pass ``all`` to include
           every status.
@@ -80,7 +80,7 @@ def get_moderation_router(
         db: Annotated[AsyncSession, Depends(get_db)],
         content_type: Annotated[
             ModerationContentType | None,
-            Query(description="Filter by content type (nano, nano_rating, nano_comment)"),
+            Query(description="Filter by content type (nano, nano_rating, nano_comment, flag)"),
         ] = None,
         case_status: Annotated[
             str,

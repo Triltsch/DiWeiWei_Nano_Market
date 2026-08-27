@@ -777,6 +777,25 @@ async def _sync_nano_rating_cache(*, db: AsyncSession, nano_id: UUID) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _build_flag_content_detail(
+    flag: NanoFlag,
+    flagged_by_username: str | None,
+    nano_title: str | None,
+) -> FlagContentDetail:
+    """Map a NanoFlag row plus reporter/title into queue content detail."""
+    reason = flag.reason.value if hasattr(flag.reason, "value") else str(flag.reason)
+    flag_status = flag.status.value if hasattr(flag.status, "value") else str(flag.status)
+    return FlagContentDetail(
+        nano_id=flag.nano_id,
+        nano_title=nano_title,
+        reason=reason,
+        comment=flag.comment,
+        flag_status=flag_status,
+        flagged_by_username=flagged_by_username,
+        created_at=flag.created_at,
+    )
+
+
 async def _get_content_detail(
     db: AsyncSession,
     content_type: ModerationContentType,
@@ -842,22 +861,16 @@ async def _get_content_detail(
 
     if content_type == ModerationContentType.FLAG:
         stmt = (
-            select(NanoFlag, User.username)
+            select(NanoFlag, User.username, Nano.title)
             .outerjoin(User, NanoFlag.flagging_user_id == User.id)
+            .outerjoin(Nano, Nano.id == NanoFlag.nano_id)
             .where(NanoFlag.id == content_id)
         )
         row = (await db.execute(stmt)).first()
         if not row:
             return None
-        flag, username = row
-        return FlagContentDetail(
-            nano_id=flag.nano_id,
-            reason=flag.reason.value,
-            comment=flag.comment,
-            flag_status=flag.status.value,
-            flagged_by_username=username,
-            created_at=flag.created_at,
-        )
+        flag, username, nano_title = row
+        return _build_flag_content_detail(flag, username, nano_title)
 
     return None
 
@@ -939,19 +952,15 @@ async def _load_content_details_for_cases(
     if flag_ids:
         rows = (
             await db.execute(
-                select(NanoFlag, User.username)
+                select(NanoFlag, User.username, Nano.title)
                 .outerjoin(User, NanoFlag.flagging_user_id == User.id)
+                .outerjoin(Nano, Nano.id == NanoFlag.nano_id)
                 .where(NanoFlag.id.in_(flag_ids))
             )
         ).all()
-        for flag, username in rows:
-            detail_map[(ModerationContentType.FLAG, flag.id)] = FlagContentDetail(
-                nano_id=flag.nano_id,
-                reason=flag.reason.value,
-                comment=flag.comment,
-                flag_status=flag.status.value,
-                flagged_by_username=username,
-                created_at=flag.created_at,
+        for flag, username, nano_title in rows:
+            detail_map[(ModerationContentType.FLAG, flag.id)] = _build_flag_content_detail(
+                flag, username, nano_title
             )
 
     for case in cases:
