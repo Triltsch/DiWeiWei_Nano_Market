@@ -9,6 +9,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as sharedApi from "../../shared/api";
+import * as nanoFlagsApi from "../../shared/api/nanoFlags";
 import { LanguageProvider } from "../../shared/i18n";
 import { AuthContext, type AuthContextValue } from "../auth/AuthContext";
 import { HomePage, NanoDetailsPage, NotFoundPage, SearchPage } from "./pages";
@@ -29,6 +30,17 @@ vi.mock("../../shared/api", async () => {
   };
 });
 
+vi.mock("../../shared/api/nanoFlags", async () => {
+  const actual = await vi.importActual<typeof import("../../shared/api/nanoFlags")>(
+    "../../shared/api/nanoFlags"
+  );
+  return {
+    ...actual,
+    createNanoFlag: vi.fn(),
+    getMyNanoFlag: vi.fn(),
+  };
+});
+
 const mockedCreateNanoComment = vi.mocked(sharedApi.createNanoComment);
 const mockedCreateNanoRating = vi.mocked(sharedApi.createNanoRating);
 const mockedGetNanoComments = vi.mocked(sharedApi.getNanoComments);
@@ -37,6 +49,8 @@ const mockedGetNanoDetail = vi.mocked(sharedApi.getNanoDetail);
 const mockedGetNanoDownloadInfo = vi.mocked(sharedApi.getNanoDownloadInfo);
 const mockedGetNanoRatings = vi.mocked(sharedApi.getNanoRatings);
 const mockedUpdateMyNanoRating = vi.mocked(sharedApi.updateMyNanoRating);
+const mockedCreateNanoFlag = vi.mocked(nanoFlagsApi.createNanoFlag);
+const mockedGetMyNanoFlag = vi.mocked(nanoFlagsApi.getMyNanoFlag);
 
 function LocationProbe(): JSX.Element {
   const location = useLocation();
@@ -65,6 +79,9 @@ describe("HomePage", () => {
     mockedGetNanoDownloadInfo.mockReset();
     mockedGetNanoRatings.mockReset();
     mockedUpdateMyNanoRating.mockReset();
+    mockedCreateNanoFlag.mockReset();
+    mockedGetMyNanoFlag.mockReset();
+    mockedGetMyNanoFlag.mockResolvedValue(null);
     window.localStorage.removeItem("diwei_ui_language");
   });
 
@@ -766,6 +783,9 @@ describe("NanoDetailsPage", () => {
     mockedGetNanoDownloadInfo.mockReset();
     mockedGetNanoRatings.mockReset();
     mockedUpdateMyNanoRating.mockReset();
+    mockedCreateNanoFlag.mockReset();
+    mockedGetMyNanoFlag.mockReset();
+    mockedGetMyNanoFlag.mockResolvedValue(null);
     window.localStorage.removeItem("diwei_ui_language");
   });
 
@@ -856,6 +876,7 @@ describe("NanoDetailsPage", () => {
     await screen.findByRole("heading", { name: "React Basics" });
 
     expect(screen.getByText("Download")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Diese Nano melden" })).toBeTruthy();
     expect(screen.getByText("Bewertungen und Nutzung")).toBeTruthy();
     expect(screen.getByText("Feedback und Austausch")).toBeTruthy();
     expect(screen.getByText("Kommentare")).toBeTruthy();

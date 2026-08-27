@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type PropsWithChildren } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type PropsWithChildren } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import {
@@ -17,6 +17,7 @@ import {
 } from "../creator";
 import { AdminPanelPage } from "../admin";
 import { ChatPanel } from "../chat/ChatPanel";
+import { ReportNanoControl } from "../nano/components/ReportNanoControl";
 import {
   createNanoComment,
   createNanoRating,
@@ -718,6 +719,9 @@ export function NanoDetailsPage(): JSX.Element {
 
   const locale = language === "de" ? "de-DE" : "en-US";
   const loginRedirectPath = `/login?redirect=${encodeURIComponent(`/nano/${nanoId}`)}`;
+  const requireLoginForReport = useCallback((): void => {
+    navigate(loginRedirectPath);
+  }, [loginRedirectPath, navigate]);
 
   useEffect(() => {
     let isActive = true;
@@ -1217,6 +1221,15 @@ export function NanoDetailsPage(): JSX.Element {
             </button>
             {downloadError && <p className="text-sm text-error-600">{downloadError}</p>}
           </article>
+
+          <ReportNanoControl
+            nanoId={nanoId}
+            creatorId={detail.creator.id}
+            isPublished={isPublished}
+            isAuthenticated={isAuthenticated}
+            currentUserId={user?.id}
+            onRequireLogin={requireLoginForReport}
+          />
 
           <article className="card-elevated space-y-3">
             <h2 className="text-lg font-semibold text-neutral-900">{t("nano_details_ratings_title")}</h2>

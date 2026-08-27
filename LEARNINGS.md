@@ -9,6 +9,8 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 - Präferenzfelder (Sprache): UI-State sofort updaten, NICHT auf Backend-Response warten; sonst wird Nutzer-Änderung von Response überschrieben.
 - URL↔State-Sync mit Write-Guard (`useRef`) um Feedback-Loops zu verhindern.
 - Magic-Numbers (Debounce, Page Size, Timeouts) als Modulkonstanten definieren.
+- Tailwind-Höhen nur aus der vorhandenen Scale oder als Arbitrary Value (`min-h-[7rem]`); `min-h-28` ist ohne Spacing-Scale wirkungslos.
+- Error-Toasts `role="alert"` (`aria-live` assertive), Erfolgs-Toasts `role="status"`.
 
 ### Lokalisierung & Typisierung
 - Alle sichtbaren Strings über `t()` lokalisieren (mit Fallbacks und Fehlermeldungen).
@@ -28,7 +30,9 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 ### Frontend Tests
 - Verhaltensbasierte Tests: Lifecycle, Error-Paths, Refetch, Redirects (nicht nur Existenzprüfungen).
 - Keine `any`-Types; konkrete Library-Typen verwenden.
+- Vitest-Mocks am tatsächlichen Import-Pfad der Komponente setzen, nicht zusätzlich im API-Barrel.
 - i18n-Tests: Nach Sprachwechsel auf neue Sprache in Labels/Buttons asserten; alte sind dann weg aus DOM.
+- AC-englische Copy nicht in `translations.de` übernehmen; DE- und EN-Keys getrennt pflegen.
 - Debounced/async Assertions: Call-Count + Last-Call kombinieren.
 - CI: `vitest run` statt Watch-Mode; Testanzahlen nicht hardcoden (CI ist Quelle der Wahrheit).
 
@@ -46,6 +50,7 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 - Nach Content-Updates Moderationsstatus auf `pending` zurücksetzen, Metadaten bereinigen.
 - Admin-Takedown: Dedizierte Endpoint-Semantik, idempotente Wiederholung, strukturierte Audit-Metadaten, explizite Cache-Invalidierung.
 - User-Flagging robust über drei Ebenen absichern: Service-Guard (Self-Flag 403), DB-Unique-Constraint (`nano_id`,`flagging_user_id`) + `IntegrityError`→409, und sofortige `ModerationCase`-Verknüpfung mit `reporter_id`.
+- Moderations-Queue: `content_type=flag` nicht wie Kommentar/Nano rendern. Meldegrund, Reporter (`flagged_by_username`) und Nano-Titel/`nano_id` aus `content_detail` anzeigen.
 
 ### Validierung & Sicherheit
 - Query-/Enum-Parameter serverseitig validieren; ungültige Werte → sauber 4xx.
@@ -119,11 +124,11 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 - Jedes neue SQLAlchemy-Modell: Alembic-Migration nötig. Tests mit `Base.metadata.create_all` maskieren fehlende Migrationen.
 - `nano_id`-Filter-Queryparameter + `meta.nano_filter_applied` in Tests explizit testen, nicht nur Abwesenheits-Fall.
 
-## MCP / Tooling
+## GitHub-Tooling
 
-- `mcp_github_pull_request_read` ist NICHT gültig. Korrekte Tool-Namen: `mcp_github_get_pull_request`, `mcp_github_get_pull_request_reviews`, `mcp_github_get_pull_request_review_comments`, `mcp_github_get_pull_request_comments`.
-- MCP-Tools müssen zur Laufzeit vom Server registriert werden. Eintrag in `tools:` erlaubt nur Nutzung.
-- Wenn MCP-Tools ausfallen: `github-pull-request_activePullRequest` + `gh pr view/api` als Fallback verwenden; im Report ausweisen welcher Pfad genutzt wurde.
+- Cursor: GitHub ausschließlich über `gh` (`gh issue view`, `gh pr view`, `gh api`, `gh pr create --body-file`). PowerShell: keine inline `--body`, immer UTF-8-`--body-file`.
+- Copilot (falls genutzt): gültige MCP-Namen sind `mcp_github_get_pull_request`, `mcp_github_get_pull_request_reviews`, `mcp_github_get_pull_request_review_comments`, `mcp_github_get_pull_request_comments`. `mcp_github_pull_request_read` ist ungültig.
+- MCP-Tools müssen zur Laufzeit registriert sein. Fallback immer `gh`; im Report ausweisen welcher Pfad genutzt wurde.
 
 ## Tests & QA
 

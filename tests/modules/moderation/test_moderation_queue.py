@@ -689,3 +689,59 @@ async def test_review_invalid_decision_returns_422(
     )
     assert response.status_code == 422
     assert "Invalid decision" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_queue_flag_item_includes_reporter_reason_and_nano(
+    async_client,
+    db_session,
+    creator_user,
+    moderator_token,
+):
+    """Flag cases must expose reported nano, reporter identity, reason and comment."""
+    reporter = await _create_user_with_role(
+        async_client=async_client,
+        db_session=db_session,
+        role=UserRole.CONSUMER,
+        password="ReporterPass123!",
+    )
+    nano = _make_nano(
+        creator_id=creator_user.id,
+        status=NanoStatus.PUBLISHED,
+        title="Reported Queue Nano",
+    )
+    flag = NanoFlag(
+        id=uuid.uuid4(),
+        nano_id=nano.id,
+        flagging_user_id=reporter.id,
+        reason=FlagReason.SPAM,
+        comment="Looks like advertisement spam.",
+        status=FlagStatus.PENDING,
+    )
+    db_session.add_all([nano, flag])
+    await db_session.flush()
+    db_session.add(
+        ModerationCase(
+            content_type=ModerationContentType.FLAG,
+            content_id=flag.id,
+            reporter_id=reporter.id,
+        )
+    )
+    await db_session.commit()
+
+    response = await async_client.get(
+        "/api/v1/moderation/queue?content_type=flag",
+        headers={"Authorization": f"Bearer {moderator_token}"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["pagination"]["total_results"] == 1
+    item = payload["items"][0]
+    assert item["content_type"] == "flag"
+    assert item["reporter_id"] == str(reporter.id)
+    detail = item["content_detail"]
+    assert detail["nano_id"] == str(nano.id)
+    assert detail["nano_title"] == "Reported Queue Nano"
+    assert detail["reason"] == "spam"
+    assert detail["comment"] == "Looks like advertisement spam."
+    assert detail["flagged_by_username"] == reporter.username

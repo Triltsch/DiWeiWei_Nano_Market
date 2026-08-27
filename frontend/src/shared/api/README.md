@@ -183,6 +183,11 @@ All endpoints are at `/api/v1/{endpoint}`:
 
 - `POST /api/v1/upload/nano` - Upload Nano ZIP file
 
+### Nano flags (reports)
+
+- `POST /api/v1/nanos/{nano_id}/flags` - Submit a content report
+- `GET /api/v1/nanos/{nano_id}/flags/my-flag` - Current user's existing report
+
 ### Admin (Audit)
 
 - `GET /api/v1/admin/audit-logs` - Query audit logs

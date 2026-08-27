@@ -103,6 +103,7 @@ class FlagContentDetail(BaseModel):
     """Content detail for a user-submitted Nano flag under review."""
 
     nano_id: UUID
+    nano_title: Optional[str] = None
     reason: str
     comment: Optional[str] = None
     flag_status: str
@@ -126,6 +127,7 @@ class ModerationQueueItem(BaseModel):
     - ``nano``         → :class:`NanoContentDetail`
     - ``nano_rating``  → :class:`RatingContentDetail`
     - ``nano_comment`` → :class:`CommentContentDetail`
+    - ``flag``         → :class:`FlagContentDetail`
 
     The field is ``None`` if the underlying content record can no longer be
     found (orphaned case after a deletion race condition).
@@ -134,7 +136,7 @@ class ModerationQueueItem(BaseModel):
     case_id: UUID
     content_type: ModerationContentType
     content_id: UUID
-    reporter_id: Optional[UUID] = None  # reserved for Story 6.3 flags
+    reporter_id: Optional[UUID] = None
     status: ModerationCaseStatus
     reason: Optional[str] = None
     decided_by_user_id: Optional[UUID] = None
