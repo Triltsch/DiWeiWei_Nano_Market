@@ -93,7 +93,7 @@ describe("ReportNanoControl", () => {
     fireEvent.click(screen.getByRole("button", { name: "Meldung absenden" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("status").textContent).toBe(
+      expect(screen.getByRole("alert").textContent).toBe(
         "Meldung konnte nicht gesendet werden. Bitte erneut versuchen.",
       );
       expect(screen.getByRole("dialog")).toBeTruthy();

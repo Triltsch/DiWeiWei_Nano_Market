@@ -140,7 +140,7 @@ export function ReportNanoControl({
 
       {toast && (
         <div
-          role="status"
+          role={toast.tone === "error" ? "alert" : "status"}
           className={`fixed bottom-4 right-4 z-[60] max-w-sm rounded-lg px-4 py-3 text-sm shadow-lg ${
             toast.tone === "success"
               ? "bg-success-700 text-white"

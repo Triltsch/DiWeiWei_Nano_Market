@@ -9,6 +9,8 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 - Präferenzfelder (Sprache): UI-State sofort updaten, NICHT auf Backend-Response warten; sonst wird Nutzer-Änderung von Response überschrieben.
 - URL↔State-Sync mit Write-Guard (`useRef`) um Feedback-Loops zu verhindern.
 - Magic-Numbers (Debounce, Page Size, Timeouts) als Modulkonstanten definieren.
+- Tailwind-Höhen nur aus der vorhandenen Scale oder als Arbitrary Value (`min-h-[7rem]`); `min-h-28` ist ohne Spacing-Scale wirkungslos.
+- Error-Toasts `role="alert"` (`aria-live` assertive), Erfolgs-Toasts `role="status"`.
 
 ### Lokalisierung & Typisierung
 - Alle sichtbaren Strings über `t()` lokalisieren (mit Fallbacks und Fehlermeldungen).
@@ -28,6 +30,7 @@ Kompaktes Regelwerk für Implementierung, Review und Qualitätssicherung.
 ### Frontend Tests
 - Verhaltensbasierte Tests: Lifecycle, Error-Paths, Refetch, Redirects (nicht nur Existenzprüfungen).
 - Keine `any`-Types; konkrete Library-Typen verwenden.
+- Vitest-Mocks am tatsächlichen Import-Pfad der Komponente setzen, nicht zusätzlich im API-Barrel.
 - i18n-Tests: Nach Sprachwechsel auf neue Sprache in Labels/Buttons asserten; alte sind dann weg aus DOM.
 - AC-englische Copy nicht in `translations.de` übernehmen; DE- und EN-Keys getrennt pflegen.
 - Debounced/async Assertions: Call-Count + Last-Call kombinieren.

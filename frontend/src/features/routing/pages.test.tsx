@@ -27,8 +27,6 @@ vi.mock("../../shared/api", async () => {
     getNanoDownloadInfo: vi.fn(),
     getNanoRatings: vi.fn(),
     updateMyNanoRating: vi.fn(),
-    createNanoFlag: vi.fn(),
-    getMyNanoFlag: vi.fn(),
   };
 });
 
